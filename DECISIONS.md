@@ -6210,3 +6210,40 @@ No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou 
 - Os gates da T1b, dos ajustes, do cron, do Pipefy e das notificações passam com a revisão, antes e depois de aplicar.
 - Com 6.000 pedidos: o dono sem pedido paga 38 ms na lista (antes, 359), o gestor da DOC 194 ms e a tesouraria 333 ms.
 - **Para os outros agentes:** a edge pode passar `p_reserva`, usar `ops.fat_conector_emissora_bloquear` e tratar os status `bloqueado` e `cancelado`. A tela, a ação `reenviar_pipefy`, o campo `pipefy_erro` e `fat_tomador` com empresa obrigatória para quem não é tesouraria nem controladoria. Ver `e1/API.md`, "Mudanças".
+
+## [2026-10-20] Portal de Faturamento, conector: correções da revisão (modo efetivo, ficha, prazo, bloqueio, pix, Pipefy simulado)
+
+**Contexto:** `e1/revisao-app-conector.md` (A1, M1, M3, M4, B1, B4), `e1/revisao-banco-seguranca.md` (achados 1, 5 e 10) e a entrada da revisão em API.md "Mudanças" (migration `20261020220000`, que entrou aqui pelo merge de `feat/portal-faturamento-e1-20261020`). Só a edge, os testes e o script mudaram.
+
+**Decisões:**
+- **Modo efetivo (A1).** A edge usa o `modo` que a reserva devolve, que é o efetivo: o modo atual da emissora, e `simular` para pedido simulado. Grava só com esse `modo` e o `emissora.modo_omie` atual os dois em "gravar". Nunca usa o modo da foto.
+  - Um envio `gravar` com a emissora fora de gravar, ou sem o campo, vira erro, sem nenhuma chamada.
+  - Alterar ou faturar uma OS real em simulação vira erro legível antes de qualquer chamada: "A DOC está em simulação: o faturamento da OS N não foi feito no Omie. Reenvie quando a gravação voltar." É a mesma regra do banco.
+- **Ficha e prazo (achado 10, M1):**
+  - Todo resultado leva `p_reserva`, no Omie e no Pipefy.
+  - A execução tem um prazo duro de 110 s, bem antes dos 150 s da edge e dos 120 s do cron. Cada chamada (Omie, Pipefy, SendGrid, PDF da nota) só começa se couber até lá, com o tempo limite igual ao que sobra.
+  - A leitura não se repete sem tempo. Cada fila para de reservar antes do fim.
+  - O que sobra volta para a fila na hora, sem contar como falha.
+  - O ritmo de cada emissora é compartilhado na execução, inclusive com o `pdfDaNota`.
+- **403 e 425 (M3, B1):** param a emissora pela passagem `ops.fat_conector_emissora_bloquear`, uma vez por rodada. O 403 bloqueia por 1 hora e o 425 pelo prazo do Omie mais 30 s.
+  - Todo HTTP 425 é bloqueio e não se repete, mesmo sem o texto do MISUSE.
+  - O banco pula a emissora nas próximas rodadas.
+- **Credencial (B4):** `42501` ao ler a chave é falha do servidor e volta para a fila. Antes era tratado como "chave fora do cofre".
+- **Pix (M4):** a recusa de parcela vencida vale só para `meio = boleto`.
+- **Pipefy:**
+  - Grava só com o `pipefy_sync` efetivo da reserva e a emissora em gravar.
+  - Antes de qualquer mutation, a edge confere no contexto que o pedido não é simulado. Sem conseguir ler o contexto, volta para a fila.
+  - O reenvio pela tesouraria (`reenviar_pipefy`) retoma pelo card: o criar_card acha o card já criado e não cria outro, e o mover_fase lê a fase atual e termina o caminho.
+
+**Onde:**
+- Código: `supabase/functions/faturamento-omie/` (`logica.ts`, `pipefy.ts`, `notificacoes.ts`, `index.ts`).
+- Testes: `tests/faturamento-conector-revisao.test.mjs` (12 novos). As suítes antigas foram ajustadas à nova assinatura do resultado.
+- Integração: `scripts/faturamento/conector-simular-integracao.py`.
+
+**Status:**
+- Edge publicada.
+- `node --test tests/faturamento-*.test.mjs`: 138 de 138.
+- Integração em simulação passou com o FAT-2026-000006, da DOC:
+  - Omie `simulado` (a OS não existe no Omie) e Pipefy `simulado`, com a validação ok;
+  - no descarte, o movimento da devolução e a notificação viraram `cancelado`, e o arquivamento do card saiu `simulado`;
+  - `integracoes.fat_tem_trabalho()` ficou falso, sem nada que acorde o cron.

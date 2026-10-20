@@ -97,7 +97,18 @@ export type Resultado = {
   erro_legivel: string | null;
   codigos: Record<string, any>;
 };
-export type Transporte = (url: string, corpo: string) => Promise<{ status: number; texto: string }>;
+/** POST ao Omie. `limiteMs` = o tempo que a chamada pode levar (preso ao que sobra da rodada). */
+export type Transporte = (
+  url: string,
+  corpo: string,
+  limiteMs?: number,
+) => Promise<{ status: number; texto: string }>;
+/** Tempo mínimo para começar uma chamada ao Omie antes do fim da rodada. */
+export const MIN_CHAMADA_MS = 8_000;
+/** Teto de uma chamada ao Omie. */
+export const MAX_CHAMADA_MS = 60_000;
+/** Bloqueio da emissora quando a chave volta 403 (aplicativo suspenso, chave inválida). O reenvio libera antes. */
+export const BLOQUEIO_403_MS = 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------------------------------- utilidades
 
@@ -271,7 +282,9 @@ export function classificarErroOmie(http: number | null, corpo: string) {
   ) {
     return { classe: "indisponivel", ...base };
   }
-  if (/MISUSE_API_PROCESS|consumo indevido/i.test(tudo)) return { classe: "bloqueio", ...base };
+  // Todo 425 é bloqueio, com ou sem o texto (nota omie-425-misuse-nao-repetir: repetir estende o castigo).
+  if (http === 425 || /MISUSE_API_PROCESS|consumo indevido/i.test(tudo))
+    return { classe: "bloqueio", ...base };
   if (/REDUNDANT|consumo redundante/i.test(tudo)) return { classe: "redundante", ...base };
   if (/Client-5113|n[ãa]o existem registros/i.test(tudo)) return { classe: "vazio", ...base };
   if (/j[áa] (foi |est[áa] )?faturad/i.test(tudo)) return { classe: "ja_faturada", ...base };
@@ -324,6 +337,15 @@ export function decidir(e: ErroOmie, envio: any, agora: Date): Resultado {
         `A chave do Omie da ${emissora} está suspensa ou inválida: peça uma nova ao administrador da empresa no Omie. ` +
         "Depois de trocada, é só reenviar.",
       codigos: { emissora_indisponivel: true },
+    };
+  }
+  if (e.classe === "tempo") {
+    // Fim do tempo da rodada antes da chamada: volta para a fila na hora, sem contar como falha do Omie.
+    return {
+      status: "pendente",
+      resposta,
+      erro_legivel: null,
+      codigos: { tentar_em: agora.toISOString() },
     };
   }
   if (e.classe === "redundante") {
@@ -386,6 +408,8 @@ export function criarOmie(o: {
   relogio?: () => number;
   ritmo?: Ritmo;
   pausaMs?: number;
+  /** Momento (ms) em que a rodada precisa ter terminado: nenhuma chamada passa dele. */
+  prazo?: number;
 }) {
   const relogio = o.relogio ?? (() => Date.now());
   const ritmo = o.ritmo ?? { ultima: 0 };
@@ -408,6 +432,19 @@ export function criarOmie(o: {
     for (;;) {
       const espera = pausa - (relogio() - ritmo.ultima);
       if (espera > 0) await o.dormir(espera);
+      // Prazo da rodada: a chamada só começa se couber inteira antes do fim (a edge morre aos 150 s).
+      const resta = o.prazo != null ? o.prazo - relogio() : MAX_CHAMADA_MS;
+      if (resta < MIN_CHAMADA_MS) {
+        chamadas.push({ metodo, http: null, ms: 0, classe: "tempo" });
+        throw new ErroOmie({
+          classe: "tempo",
+          http: null,
+          segundos: null,
+          faultcode: null,
+          faultstring: "fim do tempo da rodada",
+          metodo,
+        });
+      }
       const t0 = relogio();
       let http: number | null = null;
       let corpo = "";
@@ -415,6 +452,7 @@ export function criarOmie(o: {
         const r = await o.transporte(
           `${OMIE_BASE}/${endpoint}/`,
           JSON.stringify({ call: metodo, app_key, app_secret, param: [param] }),
+          Math.min(MAX_CHAMADA_MS, resta - 1_000),
         );
         http = r.status;
         corpo = limpar(r.texto);
@@ -1021,7 +1059,28 @@ async function incluirOS(envio: any, ctx: Contexto): Promise<Resultado> {
   );
 }
 
+/**
+ * Alterar ou faturar uma OS que já existe no Omie com a emissora em simulação (voltou para simular depois que a OS foi
+ * criada): nada é feito no Omie e o envio volta erro legível; o reenvio, com o modo atual, refaz quando a gravação
+ * voltar. É a mesma regra do banco (fat_envio_resultado), aqui antes de qualquer chamada.
+ */
+function freioDaSimulacao(envio: any, ctx: Contexto): Resultado | null {
+  const os = num(envio?.payload?.omie_os_codigo);
+  if (ctx.modo === "gravar" || !os) return null;
+  const oQue = envio?.operacao === "faturar_os" ? "o faturamento" : "a alteração";
+  return erro(
+    {
+      metodo: envio?.operacao === "faturar_os" ? "FaturarOS" : "AlterarOS",
+      freio: "emissora em simulação",
+    },
+    `A ${nomeEmissora(envio)} está em simulação: ${oQue} da OS ${os} não foi feito no Omie. ` +
+      "Reenvie quando a gravação voltar.",
+  );
+}
+
 async function alterarOS(envio: any, ctx: Contexto): Promise<Resultado> {
+  const freio = freioDaSimulacao(envio, ctx);
+  if (freio) return freio;
   const payload = envio?.payload ?? {};
   const nCodOS = num(payload?.omie_os_codigo);
   const chave = nCodOS ? { nCodOS } : { cCodIntOS: codigoOS(envio) };
@@ -1105,6 +1164,8 @@ function codigosDaNota(leitura: any) {
 }
 
 async function faturarOS(envio: any, ctx: Contexto): Promise<Resultado> {
+  const freio = freioDaSimulacao(envio, ctx);
+  if (freio) return freio;
   const payload = envio?.payload ?? {};
   const nCodOS = num(payload?.omie_os_codigo);
   const chave = nCodOS ? { nCodOS } : { cCodIntOS: codigoOS(envio) };
@@ -1140,10 +1201,11 @@ async function faturarOS(envio: any, ctx: Contexto): Promise<Resultado> {
     );
   }
   // Boleto não nasce vencido: o FaturarOS volta sem faturar e a OS fica presa na etapa 50 (royalties, São Luís, 15/09).
+  // Só para boleto: pix com parcela vencida fatura (revisão M4; a foto do faturar_os traz pedido.meio).
   const { lista } = parcelasDoPedido(payload);
   const hoje = hojeSP(ctx.agora());
   const vencida = lista.find((p: any) => p.vencimento && p.vencimento < hoje);
-  if (vencida && payload?.pedido?.meio !== "pix") {
+  if (vencida && payload?.pedido?.meio === "boleto") {
     return erro(
       { metodo: "FaturarOS", param: chave, leituras },
       `A parcela ${vencida.n} vence em ${dataBr(vencida.vencimento)}, antes de hoje: o Omie não fatura boleto vencido. ` +
@@ -1267,10 +1329,15 @@ const OPERACAO: Record<string, (envio: any, ctx: Contexto) => Promise<Resultado>
 };
 
 /** Modo que vale para o envio: só "gravar" literal grava. Gravar com a emissora já de volta em simulação = conflito. */
+/**
+ * Modo que vale para o envio: o que a reserva devolve (`modo` = o efetivo, calculado pelo banco na reserva com o modo
+ * ATUAL da emissora e "simular" para pedido simulado) e o `emissora.modo_omie` atual. Nunca o da foto (payload).
+ * Grava só com os dois em "gravar" literal. Envio em gravar com a emissora sem "gravar" (ou sem o campo) = conflito:
+ * nada é escrito.
+ */
 export function modoDoEnvio(envio: any): Modo | "conflito" {
   const modo: Modo = envio?.modo === "gravar" ? "gravar" : "simular";
-  const atual = envio?.emissora?.modo_omie;
-  if (modo === "gravar" && atual != null && atual !== "gravar") return "conflito";
+  if (modo === "gravar" && envio?.emissora?.modo_omie !== "gravar") return "conflito";
   return modo;
 }
 
@@ -1317,7 +1384,14 @@ export async function processarEnvio(envio: any, ctx: Contexto): Promise<Resulta
 
 export type Dependencias = {
   reservar: (limite: number) => Promise<any[]>;
-  responder: (envio: string, r: Resultado) => Promise<any>;
+  /** fat_envio_resultado com a ficha da reserva (envio.reserva). */
+  responder: (envio: any, r: Resultado) => Promise<any>;
+  /** ops.fat_conector_emissora_bloquear: para a emissora entre rodadas (403 por 1 h; 425 pelo prazo do Omie). */
+  bloquear?: (emissora: string, ate: string, motivo: string) => Promise<any>;
+  /** Ritmo (última chamada) por emissora, compartilhado com quem mais fala com o Omie na mesma execução. */
+  ritmos?: Map<string, Ritmo>;
+  /** Momento (ms) em que a rodada precisa ter terminado: nenhuma chamada ao Omie passa dele. */
+  prazo?: number;
   credencial: (emissora: string) => Promise<{ app_key: string; app_secret: string }>;
   statusAplicar: (pedido: string, status: any) => Promise<any>;
   servicosAplicar: (emissora: string, catalogo: any[]) => Promise<any>;
@@ -1333,7 +1407,8 @@ export type Dependencias = {
 };
 
 /** Erro do banco que diz que a credencial da emissora não serve (cadastro), não que o banco caiu. */
-const CREDENCIAL_CADASTRO = new Set(["P0002", "55000", "22023", "22P02", "42501"]);
+// 42501 (papel) não entra: é falha do servidor, não chave fora do cofre (revisão B4).
+const CREDENCIAL_CADASTRO = new Set(["P0002", "55000", "22023", "22P02"]);
 
 /**
  * Uma rodada: reserva em lotes pequenos (o que sobra no fim do tempo volta para a fila na hora), processa um envio
@@ -1368,13 +1443,25 @@ export async function rodarFila(d: Dependencias) {
   const estado = (id: string) => {
     let e = emissoras.get(id);
     if (!e) {
-      e = { ritmo: { ultima: 0 } };
+      let ritmo = d.ritmos?.get(id);
+      if (!ritmo) {
+        ritmo = { ultima: 0 };
+        d.ritmos?.set(id, ritmo);
+      }
+      e = { ritmo };
       emissoras.set(id, e);
     }
     return e;
   };
+  let semTempo = false;
+  const temTempo = () =>
+    !semTempo &&
+    relogio() - inicio < orcamento &&
+    (d.prazo == null || d.prazo - relogio() > 2 * MIN_CHAMADA_MS);
+  const bloqueadas = new Set<string>();
 
-  while (resumo.reservados < max && relogio() - inicio < orcamento) {
+  // Para de reservar quando o tempo da rodada acaba (a reserva tem prazo de 10 min, mas a edge morre aos 150 s).
+  while (resumo.reservados < max && temTempo()) {
     const lista = await d.reservar(Math.min(lote, max - resumo.reservados));
     if (!Array.isArray(lista) || !lista.length) break;
     resumo.reservados += lista.length;
@@ -1383,7 +1470,7 @@ export async function rodarFila(d: Dependencias) {
       const id = emissoraId(envio);
       const est = estado(id);
       let r: Resultado;
-      if (relogio() - inicio >= orcamento) {
+      if (!temTempo()) {
         r = {
           status: "pendente",
           resposta: { liberado: "fim do tempo da rodada" },
@@ -1414,6 +1501,7 @@ export async function rodarFila(d: Dependencias) {
       } else {
         const modo = modoDoEnvio(envio);
         if (modo === "conflito") {
+          const voltou = envio?.emissora?.modo_omie === "simular";
           r = {
             status: "erro",
             resposta: {
@@ -1421,10 +1509,12 @@ export async function rodarFila(d: Dependencias) {
               operacao: envio?.operacao ?? null,
               modo: "gravar",
               conflito: true,
+              modo_omie: envio?.emissora?.modo_omie ?? null,
             },
-            erro_legivel:
-              `A ${nomeEmissora(envio)} voltou para simulação depois que o pedido entrou na fila: nada foi gravado no Omie. ` +
-              "Reenvie para simular de novo.",
+            erro_legivel: voltou
+              ? `A ${nomeEmissora(envio)} voltou para simulação depois que o pedido entrou na fila: nada foi gravado no Omie. ` +
+                "Reenvie para simular de novo."
+              : `A reserva não confirmou que a ${nomeEmissora(envio)} está gravando no Omie: nada foi gravado. Reenvie.`,
             codigos: {},
           };
         } else {
@@ -1468,6 +1558,7 @@ export async function rodarFila(d: Dependencias) {
               relogio,
               ritmo: est.ritmo,
               pausaMs: d.pausaMs,
+              prazo: d.prazo,
             });
             r = await processarEnvio(envio, {
               omie,
@@ -1482,6 +1573,7 @@ export async function rodarFila(d: Dependencias) {
           }
         }
       }
+      if (r.resposta?.erro?.classe === "tempo") semTempo = true;
       if (r.codigos?.bloquear_emissora_ate && !est.bloqueada_ate) {
         est.bloqueada_ate = r.codigos.bloquear_emissora_ate;
         resumo.emissoras_paradas.push({
@@ -1494,8 +1586,26 @@ export async function rodarFila(d: Dependencias) {
         est.indisponivel = r.erro_legivel ?? "Chave do Omie indisponível.";
         resumo.emissoras_paradas.push({ emissora: nomeEmissora(envio), motivo: "indisponivel" });
       }
+      // 425 (bloqueio) e 403 (chave suspensa): a emissora para também nas próximas rodadas, até o prazo (o banco pula).
+      const classe = r.resposta?.erro?.classe;
+      if (
+        d.bloquear &&
+        (classe === "bloqueio" || classe === "indisponivel") &&
+        !bloqueadas.has(id)
+      ) {
+        bloqueadas.add(id);
+        const ate =
+          classe === "bloqueio" && r.codigos?.bloquear_emissora_ate
+            ? String(r.codigos.bloquear_emissora_ate)
+            : new Date(agora().getTime() + BLOQUEIO_403_MS).toISOString();
+        try {
+          await d.bloquear(id, ate, r.erro_legivel ?? "Omie indisponível.");
+        } catch (e) {
+          resumo.erros_banco.push({ emissora: id, erro: cortar((e as Error)?.message ?? e, 300) });
+        }
+      }
       try {
-        await d.responder(String(envio?.id), r);
+        await d.responder(envio, r);
       } catch (e) {
         // O envio fica em processamento e o banco o devolve à fila em 15 minutos (API §2.2).
         resumo.erros_banco.push({

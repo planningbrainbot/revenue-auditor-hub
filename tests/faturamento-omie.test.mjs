@@ -1175,8 +1175,8 @@ function filaFalsa(lotes) {
   return {
     respostas,
     reservar: async () => lotes[i++] ?? [],
-    responder: async (id, r) => {
-      respostas.push({ id, ...r });
+    responder: async (envio, r) => {
+      respostas.push({ id: envio.id, reserva: envio.reserva, ...r });
     },
   };
 }
@@ -1349,8 +1349,8 @@ test("fila: resposta recusada pelo banco não derruba a rodada", async () => {
       return async () =>
         i++ ? [] : [envio("garantir_cliente", { id: "x" }), envio("garantir_cliente", { id: "y" })];
     })(),
-    responder: async (id) => {
-      if (id === "x") throw new Error("55000 envio não está processando");
+    responder: async (envio) => {
+      if (envio.id === "x") throw new Error("55000 envio não está processando");
     },
   };
   const resumo = await rodarFila({

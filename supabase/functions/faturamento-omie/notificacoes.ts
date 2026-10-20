@@ -271,8 +271,14 @@ export function montarEmail(n: any): Email {
 
 // ---------------------------------------------------------------------------------------------------- envio
 
-/** Envia um e-mail (SendGrid). Devolve o HTTP; lança em erro de rede. */
-export type EnviarEmail = (e: Email) => Promise<{ status: number; texto: string }>;
+/** Envia um e-mail (SendGrid). Devolve o HTTP; lança em erro de rede. `limiteMs` = o que sobra da rodada. */
+export type EnviarEmail = (
+  e: Email,
+  limiteMs?: number,
+) => Promise<{ status: number; texto: string }>;
+/** Tempo mínimo para começar um envio antes do fim da rodada, e o teto de um envio. */
+export const MIN_ENVIO_MS = 5_000;
+export const MAX_ENVIO_MS = 20_000;
 
 /** O corpo da chamada ao SendGrid (v3/mail/send), sem chave. */
 export function corpoSendgrid(e: Email) {
@@ -291,6 +297,8 @@ export type ContextoNotificacao = {
   /** FATURAMENTO_EMAIL === "sim" na env da edge. */
   ligado: boolean;
   enviar: EnviarEmail | null;
+  /** Tempo que o envio pode levar. */
+  limiteMs?: number;
 };
 
 const emailValido = (v: string) => /^[^@\s;,]+@[^@\s;,]+\.[^@\s;,]+$/.test(v);
@@ -342,7 +350,7 @@ export async function processarNotificacao(
     };
   }
   try {
-    const r = await ctx.enviar(e);
+    const r = await ctx.enviar(e, ctx.limiteMs ?? MAX_ENVIO_MS);
     if (r.status >= 200 && r.status < 300)
       return {
         status: "enviado",
@@ -391,6 +399,8 @@ export type DependenciasNotificacoes = {
   relogio?: () => number;
   orcamentoMs: number;
   maxEnvios?: number;
+  /** Momento (ms) em que a rodada precisa ter terminado. */
+  prazo?: number;
 };
 
 /** Uma rodada da fila de notificações. Cada id é processado uma vez por rodada, mesmo que a reserva o repita. */
@@ -406,7 +416,9 @@ export async function rodarFilaNotificacoes(d: DependenciasNotificacoes) {
     por_status: {} as Record<string, number>,
     erros_banco: [] as Array<Record<string, any>>,
   };
-  while (resumo.reservados < max && relogio() - inicio < d.orcamentoMs) {
+  const resta = () => (d.prazo == null ? MAX_ENVIO_MS : d.prazo - relogio());
+  const temTempo = () => relogio() - inicio < d.orcamentoMs && resta() > 2 * MIN_ENVIO_MS;
+  while (resumo.reservados < max && temTempo()) {
     const lista = await d.reservar(Math.min(10, max - resumo.reservados));
     if (!Array.isArray(lista) || !lista.length) break;
     resumo.reservados += lista.length;
@@ -414,17 +426,20 @@ export async function rodarFilaNotificacoes(d: DependenciasNotificacoes) {
       const id = String(n?.id ?? "");
       if (!id || vistos.has(id)) continue;
       vistos.add(id);
-      const r =
-        relogio() - inicio >= d.orcamentoMs
-          ? {
-              status: "pendente" as const,
-              email: null,
-              assunto: null,
-              corpo: null,
-              erro_legivel: null,
-              resposta: { liberado: "fim do tempo da rodada" },
-            }
-          : await processarNotificacao(n, { ligado: d.ligado, enviar: d.enviar });
+      const r = !temTempo()
+        ? {
+            status: "pendente" as const,
+            email: null,
+            assunto: null,
+            corpo: null,
+            erro_legivel: null,
+            resposta: { liberado: "fim do tempo da rodada" },
+          }
+        : await processarNotificacao(n, {
+            ligado: d.ligado,
+            enviar: d.enviar,
+            limiteMs: Math.min(MAX_ENVIO_MS, resta() - 1_000),
+          });
       try {
         await d.responder(id, r);
       } catch (e) {

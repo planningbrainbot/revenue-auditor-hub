@@ -48,7 +48,7 @@ PASSAGEM = ["fat_conector_credencial", "fat_conector_envio_proximos", "fat_conec
             "fat_conector_status_aplicar", "fat_conector_status_enfileirar", "fat_conector_servicos_aplicar",
             "fat_conector_receita_cnpj", "fat_conector_pipefy_proximos", "fat_conector_pipefy_resultado",
             "fat_conector_pipefy_contexto", "fat_conector_notificacoes_proximos",
-            "fat_conector_notificacoes_resultado"]
+            "fat_conector_notificacoes_resultado", "fat_conector_emissora_bloquear"]
 
 
 def token() -> str:
@@ -459,10 +459,30 @@ def main():
             tenta("remover papel de teste", f"ops.fat_dono_remover({lit(criado_dono)}::uuid)")
         print(json.dumps({"descarte": final, "papel_de_teste_removido": bool(criado_dono), "tropecos": tropecos},
                          ensure_ascii=False))
-        # Os movimentos do card na devolução e no cancelamento também passam pela edge (simulado).
-        esperar_pipefy(pid, 4)
+        # Os movimentos do card na devolução e no cancelamento também passam pela edge (simulado). O que estava
+        # pendente quando o pedido foi cancelado vira `cancelado` e não acorda mais o cron.
+        esperar_pipefy(pid, 3)
         pos = [e for e in envios_pipefy(pid) if e["para"] in ("devolvido", "cancelado")]
-        print(json.dumps({"pipefy_descarte": pos}, ensure_ascii=False, indent=1))
+        print(json.dumps({"pipefy_descarte": [{k: e[k] for k in ("operacao", "para", "status", "erro", "caminho", "mutacoes")}
+                                              for e in pos]}, ensure_ascii=False, indent=1))
+        filas = sql(f"""
+          select 'omie' fila, status, count(*)::int n from integracoes.omie_envios
+           where origem = 'fat_pedido' and origem_id = {lit(pid)}::uuid group by status
+          union all
+          select 'pipefy', status, count(*)::int from integracoes.pipefy_envios
+           where origem = 'fat_pedido' and origem_id = {lit(pid)}::uuid group by status
+          union all
+          select 'notificacoes', status, count(*)::int from integracoes.notificacoes
+           where pedido_id = {lit(pid)}::uuid group by status order by 1, 2""")
+        resto = sql(f"""
+          select (select count(*) from integracoes.fat_omie_reservaveis r join integracoes.omie_envios e on e.id = r.id
+                   where e.origem_id = {lit(pid)}::uuid)::int omie,
+                 (select count(*) from integracoes.fat_pipefy_reservaveis r join integracoes.pipefy_envios e on e.id = r.id
+                   where e.origem_id = {lit(pid)}::uuid)::int pipefy,
+                 (select count(*) from integracoes.notificacoes where pedido_id = {lit(pid)}::uuid
+                   and status in ('pendente', 'processando'))::int notificacoes,
+                 integracoes.fat_tem_trabalho() tem_trabalho_no_banco""")[0]
+        print(json.dumps({"filas_do_pedido": filas, "trabalho_que_acorda_o_cron": resto}, ensure_ascii=False, indent=1))
 
 if __name__ == "__main__":
     main()

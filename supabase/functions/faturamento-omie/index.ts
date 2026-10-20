@@ -28,7 +28,15 @@
 //
 // A chave do Omie é lida por ops.fat_conector_credencial → integracoes.omie_credencial (só service_role) e fica só em memória: nunca vai para
 // resposta, log, ops.sync_log ou erro.
-import { autorizado, criarOmie, cortar, MAX_POR_RODADA, rodarFila, VERSAO } from "./logica.ts";
+import {
+  autorizado,
+  criarOmie,
+  cortar,
+  MAX_POR_RODADA,
+  rodarFila,
+  type Ritmo,
+  VERSAO,
+} from "./logica.ts";
 import { PIPEFY_URL, rodarFilaPipefy } from "./pipefy.ts";
 import { corpoSendgrid, type Email, rodarFilaNotificacoes } from "./notificacoes.ts";
 
@@ -40,6 +48,13 @@ const PIPEFY_TOKEN = Deno.env.get("PIPEFY_TOKEN") ?? null;
 const ORCAMENTO_OMIE_MS = 55_000;
 const ORCAMENTO_PIPEFY_MS = 20_000;
 const ORCAMENTO_NOTIFICACOES_MS = 10_000;
+/**
+ * Prazo duro da execução: nenhuma chamada (Omie, Pipefy, SendGrid) passa de 110 s depois do início, bem antes dos
+ * 150 s da edge e dos 120 s do cron. Cada fila para de reservar antes disso.
+ */
+const PRAZO_EXECUCAO_MS = 110_000;
+const PARA_DE_RESERVAR_PIPEFY_MS = 90_000;
+const PARA_DE_RESERVAR_NOTIFICACOES_MS = 100_000;
 const SENDGRID = Deno.env.get("SENDGRID_API_KEY") ?? null;
 /** Trava do e-mail: só "sim" literal liga o envio. */
 const EMAIL_LIGADO = Deno.env.get("FATURAMENTO_EMAIL") === "sim";
@@ -131,7 +146,7 @@ async function registrar(
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-const transporte = async (url: string, corpo: string) => {
+const transporte = async (url: string, corpo: string, limiteMs?: number) => {
   const r = await fetch(url, {
     method: "POST",
     headers: {
@@ -139,19 +154,19 @@ const transporte = async (url: string, corpo: string) => {
       "User-Agent": "planning-brain-faturamento-omie/1.0",
     },
     body: corpo,
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(Math.max(1_000, limiteMs ?? 60_000)),
   });
   return { status: r.status, texto: await r.text() };
 };
 
 /** O token do Pipefy fica aqui; a lógica só recebe o transporte. */
 const transportePipefy = PIPEFY_TOKEN
-  ? async (corpo: string) => {
+  ? async (corpo: string, limiteMs?: number) => {
       const r = await fetch(PIPEFY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${PIPEFY_TOKEN}`, "Content-Type": "application/json" },
         body: corpo,
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(Math.max(1_000, limiteMs ?? 30_000)),
       });
       return { status: r.status, texto: await r.text() };
     }
@@ -159,39 +174,50 @@ const transportePipefy = PIPEFY_TOKEN
 
 /**
  * PDF da NFS-e (ou do recibo) para anexar no card em FATURAMENTO REALIZADO. Só em gravação do Pipefy: lê o StatusOS no
- * Omie da emissora (leitura) e baixa o PDF do destinatário. Nulo se ainda não houver.
+ * Omie da emissora (leitura) e baixa o PDF do destinatário. Nulo se ainda não houver. Usa o ritmo da emissora da mesma
+ * execução (a pausa entre chamadas vale também aqui) e o prazo dela.
  */
-async function pdfDaNota(envio: any, contexto: any) {
-  const nCodOS = Number(contexto?.pedido?.omie_os_codigo ?? envio?.payload?.pedido?.omie_os_codigo);
-  const emissora = String(envio?.emissora?.id ?? "");
-  if (!nCodOS || !emissora) return null;
-  const credencial = await rpc("credencial", { p_emissora: emissora });
-  const omie = criarOmie({ transporte, credencial, modo: "simular", dormir });
-  const st = await omie.consultar("servicos/os", "StatusOS", {
-    nCodOS,
-    lPdfDest: true,
-    lPdfRecibo: true,
-  });
-  const rps = (st?.ListaRpsNfse ?? []).find((r: any) => r?.cUrlPdfDest);
-  const url = rps?.cUrlPdfDest || st?.cUrlPdfRecibo;
-  if (!url) return null;
-  const r = await fetch(url, { signal: AbortSignal.timeout(30000) });
-  const bytes = new Uint8Array(await r.arrayBuffer());
-  // Só anexa se for PDF de verdade (%PDF).
-  if (!r.ok || bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF")
-    return null;
-  const numero = rps?.nNfse || st?.cNumRecibo || contexto?.pedido?.numero || "pedido";
-  return { nome: `NFSe-${numero}.pdf`, bytes };
-}
+const pdfDaNota =
+  (ritmos: Map<string, Ritmo>, prazo: number) => async (envio: any, contexto: any) => {
+    const nCodOS = Number(
+      contexto?.pedido?.omie_os_codigo ?? envio?.payload?.pedido?.omie_os_codigo,
+    );
+    const emissora = String(envio?.emissora?.id ?? "");
+    if (!nCodOS || !emissora) return null;
+    const credencial = await rpc("credencial", { p_emissora: emissora });
+    let ritmo = ritmos.get(emissora);
+    if (!ritmo) {
+      ritmo = { ultima: 0 };
+      ritmos.set(emissora, ritmo);
+    }
+    const omie = criarOmie({ transporte, credencial, modo: "simular", dormir, ritmo, prazo });
+    const st = await omie.consultar("servicos/os", "StatusOS", {
+      nCodOS,
+      lPdfDest: true,
+      lPdfRecibo: true,
+    });
+    const rps = (st?.ListaRpsNfse ?? []).find((r: any) => r?.cUrlPdfDest);
+    const url = rps?.cUrlPdfDest || st?.cUrlPdfRecibo;
+    if (!url) return null;
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(Math.max(1_000, Math.min(30_000, prazo - Date.now()))),
+    });
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    // Só anexa se for PDF de verdade (%PDF).
+    if (!r.ok || bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF")
+      return null;
+    const numero = rps?.nNfse || st?.cNumRecibo || contexto?.pedido?.numero || "pedido";
+    return { nome: `NFSe-${numero}.pdf`, bytes };
+  };
 
 /** SendGrid v3, como a gente-vigencia-alertas. A chave fica aqui; a lógica só recebe a função. */
 const enviarEmail = SENDGRID
-  ? async (e: Email) => {
+  ? async (e: Email, limiteMs?: number) => {
       const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
         method: "POST",
         headers: { Authorization: `Bearer ${SENDGRID}`, "Content-Type": "application/json" },
         body: JSON.stringify(corpoSendgrid(e)),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(Math.max(1_000, limiteMs ?? 20_000)),
       });
       return { status: r.status, texto: await r.text() };
     }
@@ -202,7 +228,7 @@ async function subir(url: string, bytes: Uint8Array) {
     method: "PUT",
     headers: { "Content-Type": "application/pdf" },
     body: bytes.slice().buffer,
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!r.ok) throw new Error(`Upload do PDF recusado (${r.status})`);
 }
@@ -232,6 +258,11 @@ Deno.serve(async (req: Request) => {
   let notificacoes: Awaited<ReturnType<typeof rodarFilaNotificacoes>> | null = null;
   const falhas: string[] = [];
 
+  const prazo = inicio + PRAZO_EXECUCAO_MS;
+  const ritmos = new Map<string, Ritmo>();
+  const sobra = (ate: number, teto: number) =>
+    Math.max(0, Math.min(teto, inicio + ate - Date.now()));
+
   // 1. Omie.
   try {
     if (acao === "enfileirar_status") enfileirados = await rpc("status_enfileirar", {});
@@ -239,12 +270,17 @@ Deno.serve(async (req: Request) => {
       reservar: async (n) => (await rpc("envio_proximos", { p_limite: n })) ?? [],
       responder: (envio, r) =>
         rpc("envio_resultado", {
-          p_envio: envio,
+          p_envio: envio?.id,
           p_status: r.status,
           p_resposta: r.resposta,
           p_erro_legivel: r.erro_legivel,
           p_codigos: r.codigos ?? {},
+          p_reserva: envio?.reserva ?? null,
         }),
+      bloquear: (emissora, ate, motivo) =>
+        rpc("emissora_bloquear", { p_emissora: emissora, p_ate: ate, p_motivo: motivo }),
+      ritmos,
+      prazo,
       credencial: (emissora) => rpc("credencial", { p_emissora: emissora }),
       statusAplicar: (pedido, status) =>
         rpc("status_aplicar", { p_pedido: pedido, p_status: status }),
@@ -266,17 +302,19 @@ Deno.serve(async (req: Request) => {
       reservar: async (n) => (await rpc("pipefy_proximos", { p_limite: n })) ?? [],
       responder: (envio, r) =>
         rpc("pipefy_resultado", {
-          p_envio: envio,
+          p_envio: envio?.id,
           p_status: r.status,
           p_resposta: r.resposta,
           p_erro_legivel: r.erro_legivel,
           p_card_id: r.card_id,
+          p_reserva: envio?.reserva ?? null,
         }),
       contexto: (pedido) => rpc("pipefy_contexto", { p_pedido: pedido }),
       transporte: transportePipefy,
-      pdfDaNota,
+      pdfDaNota: pdfDaNota(ritmos, prazo),
       subir,
-      orcamentoMs: ORCAMENTO_PIPEFY_MS,
+      prazo,
+      orcamentoMs: sobra(PARA_DE_RESERVAR_PIPEFY_MS, ORCAMENTO_PIPEFY_MS),
     });
   } catch (e) {
     falhas.push(`pipefy: ${cortar((e as Error)?.message ?? e, 300)}`);
@@ -298,7 +336,8 @@ Deno.serve(async (req: Request) => {
         }),
       ligado: EMAIL_LIGADO,
       enviar: enviarEmail,
-      orcamentoMs: ORCAMENTO_NOTIFICACOES_MS,
+      prazo,
+      orcamentoMs: sobra(PARA_DE_RESERVAR_NOTIFICACOES_MS, ORCAMENTO_NOTIFICACOES_MS),
     });
   } catch (e) {
     falhas.push(`notificacoes: ${cortar((e as Error)?.message ?? e, 300)}`);
