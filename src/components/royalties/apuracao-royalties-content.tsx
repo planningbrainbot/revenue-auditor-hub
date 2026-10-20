@@ -246,9 +246,9 @@ export function motivoSemEmissao(
 }
 
 export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
-  const { isAdmin, can, loading } = usePermissions();
-  // Ler é da chave de royalties; iniciar e editar, da chave de edição; emitir
-  // no Omie segue com o admin.
+  const { can, loading } = usePermissions();
+  // Ler é da chave de royalties; iniciar, editar e emitir no Omie, da chave de
+  // edição.
   const podeVer = can("view.auditoria.royalties");
   const podeEditar = can(EDITAR_ROYALTIES);
   const { data, isLoading, error, refetch } = useRoyaltiesUnidades(mes);
@@ -357,7 +357,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
             ? "Mês em andamento: fechar antes do fim do mês é possível; recebimentos posteriores ficam fora. A fatura só sai depois do fim do mês."
             : "Feche a apuração de cada unidade e emita as faturas do mês no Omie."}
         </p>
-        {isAdmin && <EmitirFaturasDialog competencia={mes} motivoIndisponivel={motivoEmitir} />}
+        {podeEditar && <EmitirFaturasDialog competencia={mes} motivoIndisponivel={motivoEmitir} />}
       </div>
 
       {error ? (

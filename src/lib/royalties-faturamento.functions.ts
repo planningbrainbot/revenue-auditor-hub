@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertAdmin, assertCan } from "@/lib/server-utils";
+import { assertCan } from "@/lib/server-utils";
+import { EDITAR_ROYALTIES } from "@/lib/royalties.functions";
 
 /**
  * Faturamento da apuração de royalties na conta Omie da Planning Partners.
@@ -98,7 +99,7 @@ export const simularFaturamentoRoyalties = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
-    await assertAdmin(sb, context.userId);
+    await assertCan(sb, EDITAR_ROYALTIES, "emitir faturas pede a chave de edição da apuração de royalties.");
     return invocar(sb, { modo: "simular", competencia: data.competencia });
   });
 
@@ -123,7 +124,7 @@ export const emitirFaturasRoyalties = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
-    await assertAdmin(sb, context.userId);
+    await assertCan(sb, EDITAR_ROYALTIES, "emitir faturas pede a chave de edição da apuração de royalties.");
     const { data: perfil } = await sb.auth.getUser();
     return invocar(sb, {
       modo: "faturar",
