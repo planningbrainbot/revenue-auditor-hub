@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -29,12 +30,14 @@ import {
   KpiGrade,
   Secao,
   StatusBadge,
+  type TomStatus,
 } from "@/components/planning";
 import { ErroDaConsulta, rotuloMesCurto } from "@/components/receita/moldura";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import {
   carregarFunilRecebido,
   type ClienteCac,
+  type ClienteFunil,
   type FunilRecebido,
   type LinhaMes,
   type UnidadeFunil,
@@ -219,7 +222,13 @@ export function FunilRecebidoContent() {
       </BarraFiltros>
 
       {visao === "unidades" && (
-        <VisaoUnidades base={base} linhas={linhas} unidade={unidade} abrirUnidade={setUnidade} />
+        <VisaoUnidades
+          base={base}
+          linhas={linhas}
+          unidade={unidade}
+          abrirUnidade={setUnidade}
+          noPeriodo={noPeriodo}
+        />
       )}
       {visao === "cac" && (
         <VisaoCac
@@ -239,11 +248,13 @@ function VisaoUnidades({
   linhas,
   unidade,
   abrirUnidade,
+  noPeriodo,
 }: {
   base: FunilRecebido;
   linhas: LinhaMes[];
   unidade: string;
   abrirUnidade: (u: string) => void;
+  noPeriodo: (mes: string) => boolean;
 }) {
   const t = totalizar(linhas);
   const porUnidade = base.unidades
@@ -349,6 +360,12 @@ function VisaoUnidades({
       )}
 
       {sel && <MesAMes unidade={sel} linhas={linhas} />}
+
+      <ListaClientes
+        clientes={base.clientes.filter((c) => unidade === "todas" || c.unidade === unidade)}
+        noPeriodo={noPeriodo}
+        mostrarUnidade={unidade === "todas"}
+      />
     </>
   );
 }
@@ -398,6 +415,155 @@ function MesAMes({ unidade, linhas }: { unidade: UnidadeFunil; linhas: LinhaMes[
           </TableBody>
         </Table>
       </div>
+    </Secao>
+  );
+}
+
+// ---------------------------------------------------------------- clientes
+
+type Situacao = "sem_contrato" | "sem_recebido" | "recebendo" | "so_recebido";
+const SITUACOES: Record<Situacao, { rotulo: string; tom: TomStatus }> = {
+  sem_contrato: { rotulo: "vendido, sem contrato", tom: "atencao" },
+  sem_recebido: { rotulo: "contrato, ainda sem recebido", tom: "perigo" },
+  recebendo: { rotulo: "recebendo", tom: "sucesso" },
+  so_recebido: { rotulo: "recebido, sem venda no período", tom: "neutro" },
+};
+
+/** Os clientes que formam os três números do recorte. */
+function ListaClientes({
+  clientes,
+  noPeriodo,
+  mostrarUnidade,
+}: {
+  clientes: ClienteFunil[];
+  noPeriodo: (mes: string) => boolean;
+  mostrarUnidade: boolean;
+}) {
+  const [busca, setBusca] = useState("");
+  const [situacao, setSituacao] = useState<"todas" | Situacao>("todas");
+
+  const linhas = useMemo(
+    () =>
+      clientes
+        .map((c) => {
+          const vendas = c.vendas.filter((v) => noPeriodo(v.mes));
+          const contratos = c.contratos.filter((v) => noPeriodo(v.mes));
+          const mesesRec = Object.keys(c.recebido).filter(noPeriodo).sort();
+          const recebido = mesesRec.reduce((a, m) => a + c.recebido[m], 0);
+          if (!vendas.length && !contratos.length && !mesesRec.length) return null;
+          const temContrato = contratos.length > 0 || c.contratos.length > 0;
+          const sit: Situacao =
+            recebido > 0
+              ? vendas.length || contratos.length
+                ? "recebendo"
+                : "so_recebido"
+              : temContrato
+                ? "sem_recebido"
+                : "sem_contrato";
+          return {
+            c,
+            venda: vendas[0]?.mes ?? null,
+            mrrVendido: vendas.reduce((a, v) => a + v.mrr, 0),
+            contrato: contratos[0]?.mes ?? null,
+            mrrContratado: contratos.reduce((a, v) => a + v.mrr, 0),
+            recebido,
+            mesesRec: mesesRec.length,
+            sit,
+          };
+        })
+        .filter((l): l is NonNullable<typeof l> => l !== null),
+    [clientes, noPeriodo],
+  );
+
+  const termo = busca.trim().toLowerCase();
+  const visiveis = linhas.filter(
+    (l) =>
+      (situacao === "todas" || l.sit === situacao) &&
+      (!termo ||
+        l.c.cliente.toLowerCase().includes(termo) ||
+        (l.c.cnpj ?? "").includes(termo.replace(/\D/g, "") || "\u0000")),
+  );
+  const contagem = (s: Situacao) => linhas.filter((l) => l.sit === s).length;
+
+  return (
+    <Secao
+      titulo="Quais clientes compõem esses números?"
+      descricao="Cada cliente com a venda, o contrato e o recebido dentro do período. Venda e recebido do mesmo cliente se juntam pelo CNPJ e, sem CNPJ, pelo nome dentro da unidade; cliente com nome diferente na venda e no Omie pode aparecer em duas linhas."
+    >
+      <BarraFiltros>
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar cliente ou CNPJ"
+          aria-label="Buscar cliente"
+          className="w-[240px]"
+        />
+        <Select value={situacao} onValueChange={(v) => setSituacao(v as typeof situacao)}>
+          <SelectTrigger className="w-[260px]" aria-label="Situação do cliente">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as situações ({linhas.length})</SelectItem>
+            {(Object.keys(SITUACOES) as Situacao[]).map((s) => (
+              <SelectItem key={s} value={s}>
+                {SITUACOES[s].rotulo} ({contagem(s)})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </BarraFiltros>
+      {visiveis.length === 0 ? (
+        <EstadoVazio
+          titulo="Nenhum cliente neste recorte"
+          descricao="Troque a busca ou a situação."
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {mostrarUnidade && <TableHead>Unidade</TableHead>}
+                <TableHead>Cliente</TableHead>
+                <TableHead>Venda</TableHead>
+                <TableHead className="text-right">MRR vendido</TableHead>
+                <TableHead>Contrato</TableHead>
+                <TableHead className="text-right">MRR contratado</TableHead>
+                <TableHead className="text-right">Recebido</TableHead>
+                <TableHead className="text-right">Meses pagos</TableHead>
+                <TableHead>Situação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visiveis.map((l, i) => (
+                <TableRow key={`${l.c.unidade}|${l.c.cnpj}|${l.c.cliente}|${i}`}>
+                  {mostrarUnidade && <TableCell>{l.c.unidade}</TableCell>}
+                  <TableCell>
+                    {l.c.cliente}
+                    {l.c.cnpj && (
+                      <span className="block text-xs text-muted-foreground">{l.c.cnpj}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{l.venda ? rotuloMesCurto(l.venda) : "—"}</TableCell>
+                  <TableCell className="num text-right">
+                    {l.venda ? brl(l.mrrVendido) : "—"}
+                  </TableCell>
+                  <TableCell>{l.contrato ? rotuloMesCurto(l.contrato) : "—"}</TableCell>
+                  <TableCell className="num text-right">
+                    {l.contrato ? brl(l.mrrContratado) : "—"}
+                  </TableCell>
+                  <TableCell className="num text-right font-medium">
+                    {l.mesesRec ? brl(l.recebido) : "—"}
+                  </TableCell>
+                  <TableCell className="num text-right">{l.mesesRec || "—"}</TableCell>
+                  <TableCell>
+                    <StatusBadge tom={SITUACOES[l.sit].tom}>{SITUACOES[l.sit].rotulo}</StatusBadge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </Secao>
   );
 }
