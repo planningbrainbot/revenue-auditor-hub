@@ -126,6 +126,7 @@
   --color-area-clientes: var(--area-clientes);
   --color-area-receita: var(--area-receita);
   --color-area-bi_financeiro: var(--area-bi_financeiro);
+  --color-area-faturamento: var(--area-faturamento);
   --color-area-monetizacao: var(--area-monetizacao);
   --color-area-people: var(--area-people);
   --color-area-estrategia: var(--area-estrategia);
@@ -202,6 +203,9 @@
   --area-receita: #7d9b00; /* lima, 3,2:1 */
   /* BI Financeiro (19/10/2026): a mesma cor de Receita, é o mesmo assunto (dinheiro). */
   --area-bi_financeiro: var(--area-receita);
+  /* Faturamento (20/10/2026): PROVISÓRIA, proposta para a Mika. O lima de Receita, que é o domínio dono
+   * das tabelas fat_* (contrato faturamento.md §1.1). */
+  --area-faturamento: var(--area-receita);
   --area-monetizacao: #f36201; /* laranja, 3,2:1 */
   --area-people: #962dff; /* roxo já passa: 5,1:1 */
   --area-estrategia: #00a454;
@@ -282,6 +286,7 @@
   --area-clientes: #0ae18c;
   --area-receita: #c3e61e;
   --area-bi_financeiro: var(--area-receita);
+  --area-faturamento: var(--area-receita); /* provisória: proposta para a Mika */
   --area-monetizacao: #fa6914;
   --area-people: #962dff; /* 3,6:1, o mais baixo do escuro */
   --area-estrategia: #0ae18c;

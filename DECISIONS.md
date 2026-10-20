@@ -5888,3 +5888,128 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 **Status:**
 - **Aplicado em 20/10.**
 - O gate dos ajustes deu `[]` antes de aplicar (com migration e rollback) e depois. O gate da T1b deu `[]` com os ajustes, antes e depois de aplicar.
+
+## [2026-10-20] Portal de Faturamento, T4 (primeira metade): área no menu, chamadas, Meu faturamento e Pedidos
+
+**Contexto:** plano E1, linha T4, com os contratos aprovados no mesmo dia. A API (T1b) ainda não estava no banco: em 20/10, às 10h, nenhuma `ops.fat_*` existia. As telas foram escritas contra o `API.md`. Enquanto a migration não for aplicada, elas mostram "O Portal de Faturamento ainda não está no banco".
+
+**Decisões:**
+- **Menu.** A área `faturamento` fica depois do Broker. Assim ela não vira a primeira tela de quem já trabalha em outra área e passa a pedir faturamento. São quatro itens:
+  - Meu faturamento;
+  - Pedidos;
+  - Fila da tesouraria, com área `faturamento_tesouraria` e chave `edit.faturamento_tesouraria`;
+  - Configuração, com área `faturamento_controladoria` e chave `admin.faturamento`.
+  "Novo pedido" é o botão principal do cabeçalho. O formulário e a ficha acendem Pedidos.
+- **Cor provisória da área.** `--area-faturamento` usa a mesma cor de `--area-receita` (lima), como propõe o contrato §1.1. **É uma proposta para a Mika.**
+- **Início.** No `/inicio` do admin, o Portal de Faturamento entra na frente Retenção, depois do Financeiro.
+- **Retorno das chamadas.** Toda server function devolve `Resultado<T>`, com os dados ou com o erro já traduzido (tipo, mensagem e campos). O erro lançado por server function chega ao navegador só com a mensagem, e a tela precisa separar quatro casos:
+  - 42501: sem acesso;
+  - P0002: não encontrado;
+  - 22023: erro de campo;
+  - 55000: transição proibida.
+  Função ausente no banco (PGRST202) vira "ainda não está no banco".
+- **Drill-down.** Cada número e cada pendência de Meu faturamento abre Pedidos com o `filtro` que o próprio banco devolve. Quando o filtro não traz empresa, vai junto o recorte de empresa da tela.
+- **Desvio do contrato: destino da tesouraria.** "Erro no Omie" e "Para faturar" da tesouraria abrem Pedidos, e não a Fila da tesouraria, por dois motivos:
+  - a fila ainda é esqueleto;
+  - o "para faturar" de `fat_contexto` inclui Em conferência e a ficha "Para faturar" da fila não inclui, então o total não bateria (N2).
+  Quando a fila existir, a segunda metade decide se troca o destino.
+- **Desvio do contrato: Em atraso.** O card abre Pedidos com `regua=atraso`, o filtro do API.md §1.2. O contrato escrevia `situacao=em_atraso`.
+- **URL de Pedidos.**
+  - As listas vão separadas por vírgula.
+  - Além do contrato, entra `simulacao=sim|nao`, porque o banco pode devolver filtro com essa chave.
+  - Empresa da URL que está fora do recorte não vira "todas": a tela diz que ela não está no recorte.
+- **Gráfico de etapas.** Mostra sempre as sete etapas, com zero incluído: é contagem de agora, e zero é dado.
+- **Esqueletos.** Quatro rotas têm portão de área e "Em construção":
+  - `/faturamento/novo`;
+  - `/faturamento/pedido/$id`, com `volta` aceito só para caminho da área;
+  - `/faturamento/tesouraria`;
+  - `/faturamento/configuracao`.
+- **Para a segunda metade.** Falta a consulta à CNPJá quando `fat_tomador` responde `consultar_receita`. Ela é feita no servidor, com a chave service_role, por `integracoes.receita_cnpj_gravar`.
+
+**Onde:**
+- Código: `src/lib/faturamento/` (`tipos`, `formato`, `rotulos`, `filtro`, `erros`, `faturamento.functions`), `src/hooks/use-faturamento.ts`, `src/components/faturamento/` e as rotas `src/routes/_authenticated/faturamento.*`.
+- Testes: `tests/faturamento-*.test.mjs`.
+
+**Status:** branch `feat/portal-faturamento-telas-20261020`, sem deploy. O formato real de `fat_contexto`, `fat_resumo` e `fat_pedidos` só pode ser conferido quando a T1b estiver aplicada.
+
+## [2026-10-20] Portal de Faturamento, T4 (segunda metade): Novo pedido, Ficha, Fila da tesouraria e Configuração
+
+**Contexto:** segunda metade da T4, sobre a primeira (commit `1544093`). A API (T1b) foi aplicada no banco às 11h46, com os ajustes da seção "Mudanças" do `API.md`: as passagens `ops.fat_conector_*` e `ops.fat_receita_cnpj_gravar`, e o CNPJ alfanumérico. O conector do Omie já estava publicado, simulando.
+
+**Decisões:**
+- **Novo pedido.** As quatro seções seguem a ordem da Ana, com o Dono da receita logo depois da empresa.
+  - O cliente vem pelo documento, via `fat_tomador`.
+  - Quando o banco diz `consultar_receita`, a server function consulta a CNPJá aberta, grava com `ops.fat_receita_cnpj_gravar` (service_role) e chama `fat_tomador` de novo. Isso faz o bloqueio de CNPJ inapto (CA-05) valer sem depender da tela.
+  - Limite de 3 consultas por minuto por processo, com `User-Agent` explícito. Passou do limite, a consulta fica "adiada" e a tela diz isso.
+  - A máscara e a validação aceitam o CNPJ alfanumérico (`12.ABC.345/01DE-35`).
+  - A prévia das parcelas vem de `fat_parcelas_previa`.
+  - Ações: Salvar rascunho (a URL ganha `?pedido=`), Descartar (vira Cancelado, "descartado pelo autor") e Enviar. O botão Enviar vira "Enviar para o OK de {nome}" quando o autor não é o dono.
+  - Sair com alteração não salva pergunta antes.
+  - O lugar da sugestão de serviço e do aviso de descrição (T5) está pronto atrás da prop `assistente`, desligada.
+- **Ficha.** Ações por situação, com uma `default`. Quem não pode vê o botão desabilitado com o motivo que o banco manda (`acoes`).
+  - Devolver e Pedir cancelamento pedem motivo; Faturar e Confirmar cancelamento passam por `AlertDialog`.
+  - Em simulação, a Ficha mostra "o que iria ao Omie" só com o que a pessoa já vê. O envio completo fica nos "Detalhes técnicos", que o banco só manda para a tesouraria e a controladoria.
+  - A página confere a área sozinha. Fora do escopo, `EstadoSemAcesso` sem nenhum dado.
+- **Fila da tesouraria.**
+  - Organizada por empresa (a com mais trabalho abre primeiro) e por dia de chegada, na ordem do banco.
+  - Linha com botão (Conferir, Faturar, Reenviar, Confirmar cancelamento); o foco vai para a linha seguinte.
+  - `Sheet` com o pedido e as mesmas ações da Ficha.
+  - "Reenviar os erros desta empresa", um por um.
+- **Destino em Meu faturamento, decidido agora que a fila existe.**
+  - "Erro no Omie", para quem é só tesouraria, abre a Fila em `emissora=todas&higiene=erro`. A contagem é a mesma de `fat_contexto`.
+  - "Para faturar" continua abrindo Pedidos: o número de `fat_contexto` inclui Em conferência, e a ficha "Para faturar" da fila não inclui.
+- **Configuração.**
+  - Donos, gestores, solicitantes e substitutos por empresa.
+  - Serviços: liberar, categoria e conta corrente salvas ao sair do campo, sincronizar.
+  - "Fatura por" e o Pipefy por empresa.
+  - "Gravar no Omie" só fica habilitado para o admin do Brain e para empresa com chave, sempre com a confirmação do efeito. A controladoria pode voltar para a simulação.
+
+**O que não ficou igual ao contrato:**
+1. **Sem "Abrir no Omie" para a OS.** A API não traz link da OS. Ficaram "Abrir a nota" (`nf_link`) e "Abrir card" (`card_url`).
+2. **Devolver com OS criada.** O diálogo diz que o reenvio altera a mesma OS (`alterar_os`, API §0.7), e não manda excluir a OS no Omie, como o contrato propunha antes da API.
+3. **Pedir cancelamento** aparece nas situações da lista do contrato. Não aparece em Devolvido nem em Simulado, embora a API permita.
+4. **Nada contado no navegador.** A ficha "Todas" da fila não tem número (seria soma). O cabeçalho do dia não conta pedidos. A nota de Em atraso na Ficha não diz quantas parcelas.
+5. **Vencimento no passado não bloqueia o envio,** como diz o `API.md`; o contrato propunha bloquear. É decisão pendente da Ana.
+6. **Cliente não achado** pode ser digitado e enviado, com "situação não conferida" (o contrato deixava "a decidir pela Ana").
+7. **No diálogo de "Gravar no Omie", sem o número de pedidos simulados.** `fat_config` não traz essa contagem.
+8. **"Faturados hoje"** filtra por `situacao=faturado&dia=hoje`, o filtro que o banco devolve.
+
+**Teste com dado real (20/10, 12h13–12h20):** o ciclo inteiro rodou pelas RPCs das telas, como o Pedro (`authenticated`):
+- Pedro reativado como dono da DOC pela RPC da Configuração;
+- FAT-2026-000003 criado com R$ 1,00, usando o mapeamento do formulário;
+- enviado, simulado pelo conector em cerca de 1 minuto;
+- conferido e devolvido. A devolução sem motivo foi recusada (22023), e o OK fora da situação também (55000);
+- descartado, ficando Cancelado.
+
+No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou gravada no cache da Receita (ATIVA).
+
+**Status:** branch `feat/portal-faturamento-telas-20261020`, sem deploy.
+
+## [2026-10-20] Portal de Faturamento, T5: o Jev no Novo pedido (sugerir serviço e conferir a descrição)
+
+**Contexto:** plano E1, linha T5. Os dois lugares já estavam prontos no Novo pedido, atrás da prop `assistente`.
+
+**Decisões:**
+- **Duas server functions** em `src/lib/faturamento/jev.functions.ts`, ligadas só com `FATURAMENTO_JEV=1` e `OPENROUTER_API_KEY`. Sem a variável, o botão e o aviso não aparecem.
+  - **`sugerirServico`:** uma pergunta `choice` com os serviços liberados da empresa e mais a opção `nenhum`. Acima de 25 serviços, os 25 mais prováveis pelas palavras da descrição. Devolve o serviço, a confiança e as três opções mais prováveis.
+  - **`conferirDescricao`:** uma pergunta `noul`, "a descrição é do mesmo tipo de trabalho do serviço?".
+  - Antes de chamar o Jev, as duas leem `ops.fat_servicos` com a sessão da pessoa, que confere a porta do portal e o papel na empresa. A sugestão só escolhe dentro do catálogo.
+  - Corte de 3 s. Estourou, a tela segue sem sugestão.
+- **O que vai ao Jev:** só empresa, serviço, descrição, projeto e valor. `limparTexto` troca por marcador o CPF, o CNPJ (inclusive o alfanumérico), o e-mail, o telefone, o link e o nome do cliente; o nome chega à server function só para ser tirado.
+- **Limiares** (teste de 20/10, `e1/jev-no-produto.md`):
+  - a sugestão só aparece com confiança de 0,5 ou mais (`LIMIAR_SUGESTAO`);
+  - o aviso de descrição só aparece com "não combina" e confiança de 0,7 ou mais (`LIMIAR_AVISO`).
+  Resultado do teste: 9 de 10 sugestões iguais ao E0; nenhuma sugestão errada aparece com o piso; nenhum aviso falso nos 3 pares que combinam; 1 aviso nos 3 pares que não combinam.
+- **Aviso conferido ao sair do campo** Descrição (e quando o serviço muda), não a cada tecla.
+- **Ledger:** `ops.cockpit_ia_consumo` com `cockpit = 'faturamento'`, gravado com a sessão da pessoa, como o Cockpit do COO.
+  - A migration `20261020210000_portal_faturamento_jev_ledger.sql` amplia a constraint e a policy de inserção, que passa a exigir `view.faturamento`. Ela foi ensaiada em transação desfeita (a migration e o rollback) e depois **aplicada** e registrada.
+  - Teto por pessoa e por mês: 3.000 chamadas e US$ 2,00.
+- **Desvio do adaptador:** chamada sem custo informado (o corte de 3 s abortou antes da resposta) entra no teto por US$ 0,001, 20× o custo medido, em vez de travar o Jev até o mês virar.
+- **Endereço da Receita.** A consulta da CNPJá passou a gravar logradouro, número, complemento, bairro e CEP (8 dígitos; outro tamanho fica nulo) em `ops.fat_receita_cnpj_gravar`, como pede a entrada do conector no `API.md`. Conferido com a DOC: `ops.fat_conector_receita_cnpj` devolve o endereço.
+
+**Onde:**
+- Código: `src/lib/faturamento/jev.ts`, `jev.functions.ts`, `receita.ts` e `src/hooks/use-jev-faturamento.ts`.
+- Testes: `tests/faturamento-jev.test.mjs`.
+- Teste real: `PM Work/execution/portal-faturamento-prd-20261013/e1/jev_no_produto.mjs`, com o relatório em `e1/jev-no-produto.md`.
+
+**Custo do teste real:** 16 chamadas, US$ 0,000619, de 331 a 865 ms; mais 18 chamadas para comparar as redações da instrução, cerca de US$ 0,0004.

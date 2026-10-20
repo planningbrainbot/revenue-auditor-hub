@@ -80,6 +80,11 @@ import { Route as AuthenticatedClientesProdutosRouteImport } from './routes/_aut
 import { Route as AuthenticatedCockpitCeoPerguntarRouteImport } from './routes/_authenticated/cockpit-ceo_.perguntar'
 import { Route as AuthenticatedCockpitCooCompromissosRouteImport } from './routes/_authenticated/cockpit-coo_.compromissos'
 import { Route as AuthenticatedCockpitCooPerguntarRouteImport } from './routes/_authenticated/cockpit-coo_.perguntar'
+import { Route as AuthenticatedFaturamentoIndexRouteImport } from './routes/_authenticated/faturamento.index'
+import { Route as AuthenticatedFaturamentoConfiguracaoRouteImport } from './routes/_authenticated/faturamento.configuracao'
+import { Route as AuthenticatedFaturamentoNovoRouteImport } from './routes/_authenticated/faturamento.novo'
+import { Route as AuthenticatedFaturamentoPedidosRouteImport } from './routes/_authenticated/faturamento.pedidos'
+import { Route as AuthenticatedFaturamentoTesourariaRouteImport } from './routes/_authenticated/faturamento.tesouraria'
 import { Route as AuthenticatedMonetizacaoListasRouteImport } from './routes/_authenticated/monetizacao_.listas'
 import { Route as AuthenticatedMonetizacaoProdutosRouteImport } from './routes/_authenticated/monetizacao_.produtos'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
@@ -93,6 +98,7 @@ import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authen
 import { Route as ApiCockpitCeoConversaRouteImport } from './routes/api/cockpit-ceo/conversa'
 import { Route as ApresentacaoListaIdRouteImport } from './routes/apresentacao.lista.$id'
 import { Route as AuthenticatedAdminUsuariosUserIdRouteImport } from './routes/_authenticated/admin.usuarios_.$userId'
+import { Route as AuthenticatedFaturamentoPedidoIdRouteImport } from './routes/_authenticated/faturamento.pedido.$id'
 import { Route as AuthenticatedRoyaltiesUnidadeIdMesRouteImport } from './routes/_authenticated/royalties.$unidadeId.$mes'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -491,6 +497,36 @@ const AuthenticatedCockpitCooPerguntarRoute =
     path: '/cockpit-coo/perguntar',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFaturamentoIndexRoute =
+  AuthenticatedFaturamentoIndexRouteImport.update({
+    id: '/faturamento/',
+    path: '/faturamento/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturamentoConfiguracaoRoute =
+  AuthenticatedFaturamentoConfiguracaoRouteImport.update({
+    id: '/faturamento/configuracao',
+    path: '/faturamento/configuracao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturamentoNovoRoute =
+  AuthenticatedFaturamentoNovoRouteImport.update({
+    id: '/faturamento/novo',
+    path: '/faturamento/novo',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturamentoPedidosRoute =
+  AuthenticatedFaturamentoPedidosRouteImport.update({
+    id: '/faturamento/pedidos',
+    path: '/faturamento/pedidos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturamentoTesourariaRoute =
+  AuthenticatedFaturamentoTesourariaRouteImport.update({
+    id: '/faturamento/tesouraria',
+    path: '/faturamento/tesouraria',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMonetizacaoListasRoute =
   AuthenticatedMonetizacaoListasRouteImport.update({
     id: '/monetizacao_/listas',
@@ -565,6 +601,12 @@ const AuthenticatedAdminUsuariosUserIdRoute =
   AuthenticatedAdminUsuariosUserIdRouteImport.update({
     id: '/admin/usuarios_/$userId',
     path: '/admin/usuarios/$userId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFaturamentoPedidoIdRoute =
+  AuthenticatedFaturamentoPedidoIdRouteImport.update({
+    id: '/faturamento/pedido/$id',
+    path: '/faturamento/pedido/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRoyaltiesUnidadeIdMesRoute =
@@ -644,6 +686,10 @@ export interface FileRoutesByFullPath {
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/faturamento/configuracao': typeof AuthenticatedFaturamentoConfiguracaoRoute
+  '/faturamento/novo': typeof AuthenticatedFaturamentoNovoRoute
+  '/faturamento/pedidos': typeof AuthenticatedFaturamentoPedidosRoute
+  '/faturamento/tesouraria': typeof AuthenticatedFaturamentoTesourariaRoute
   '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
@@ -655,9 +701,11 @@ export interface FileRoutesByFullPath {
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
+  '/faturamento/': typeof AuthenticatedFaturamentoIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades/': typeof AuthenticatedUnidadesIndexRoute
   '/admin/usuarios/$userId': typeof AuthenticatedAdminUsuariosUserIdRoute
+  '/faturamento/pedido/$id': typeof AuthenticatedFaturamentoPedidoIdRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesByTo {
@@ -728,6 +776,10 @@ export interface FileRoutesByTo {
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/faturamento/configuracao': typeof AuthenticatedFaturamentoConfiguracaoRoute
+  '/faturamento/novo': typeof AuthenticatedFaturamentoNovoRoute
+  '/faturamento/pedidos': typeof AuthenticatedFaturamentoPedidosRoute
+  '/faturamento/tesouraria': typeof AuthenticatedFaturamentoTesourariaRoute
   '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
@@ -739,9 +791,11 @@ export interface FileRoutesByTo {
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
+  '/faturamento': typeof AuthenticatedFaturamentoIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades': typeof AuthenticatedUnidadesIndexRoute
   '/admin/usuarios/$userId': typeof AuthenticatedAdminUsuariosUserIdRoute
+  '/faturamento/pedido/$id': typeof AuthenticatedFaturamentoPedidoIdRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesById {
@@ -816,6 +870,10 @@ export interface FileRoutesById {
   '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/_authenticated/cockpit-coo_/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/_authenticated/cockpit-coo_/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/_authenticated/faturamento/configuracao': typeof AuthenticatedFaturamentoConfiguracaoRoute
+  '/_authenticated/faturamento/novo': typeof AuthenticatedFaturamentoNovoRoute
+  '/_authenticated/faturamento/pedidos': typeof AuthenticatedFaturamentoPedidosRoute
+  '/_authenticated/faturamento/tesouraria': typeof AuthenticatedFaturamentoTesourariaRoute
   '/_authenticated/monetizacao_/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/_authenticated/monetizacao_/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
@@ -827,9 +885,11 @@ export interface FileRoutesById {
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
+  '/_authenticated/faturamento/': typeof AuthenticatedFaturamentoIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/unidades/': typeof AuthenticatedUnidadesIndexRoute
   '/_authenticated/admin/usuarios_/$userId': typeof AuthenticatedAdminUsuariosUserIdRoute
+  '/_authenticated/faturamento/pedido/$id': typeof AuthenticatedFaturamentoPedidoIdRoute
   '/_authenticated/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRouteTypes {
@@ -904,6 +964,10 @@ export interface FileRouteTypes {
     | '/cockpit-ceo/perguntar'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
+    | '/faturamento/configuracao'
+    | '/faturamento/novo'
+    | '/faturamento/pedidos'
+    | '/faturamento/tesouraria'
     | '/monetizacao/listas'
     | '/monetizacao/produtos'
     | '/royalties/split'
@@ -915,9 +979,11 @@ export interface FileRouteTypes {
     | '/api/cockpit-ceo/conversa'
     | '/apresentacao/lista/$id'
     | '/broker/'
+    | '/faturamento/'
     | '/royalties/'
     | '/unidades/'
     | '/admin/usuarios/$userId'
+    | '/faturamento/pedido/$id'
     | '/royalties/$unidadeId/$mes'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -988,6 +1054,10 @@ export interface FileRouteTypes {
     | '/cockpit-ceo/perguntar'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
+    | '/faturamento/configuracao'
+    | '/faturamento/novo'
+    | '/faturamento/pedidos'
+    | '/faturamento/tesouraria'
     | '/monetizacao/listas'
     | '/monetizacao/produtos'
     | '/royalties/split'
@@ -999,9 +1069,11 @@ export interface FileRouteTypes {
     | '/api/cockpit-ceo/conversa'
     | '/apresentacao/lista/$id'
     | '/broker'
+    | '/faturamento'
     | '/royalties'
     | '/unidades'
     | '/admin/usuarios/$userId'
+    | '/faturamento/pedido/$id'
     | '/royalties/$unidadeId/$mes'
   id:
     | '__root__'
@@ -1075,6 +1147,10 @@ export interface FileRouteTypes {
     | '/_authenticated/cockpit-ceo_/perguntar'
     | '/_authenticated/cockpit-coo_/compromissos'
     | '/_authenticated/cockpit-coo_/perguntar'
+    | '/_authenticated/faturamento/configuracao'
+    | '/_authenticated/faturamento/novo'
+    | '/_authenticated/faturamento/pedidos'
+    | '/_authenticated/faturamento/tesouraria'
     | '/_authenticated/monetizacao_/listas'
     | '/_authenticated/monetizacao_/produtos'
     | '/_authenticated/royalties/split'
@@ -1086,9 +1162,11 @@ export interface FileRouteTypes {
     | '/api/cockpit-ceo/conversa'
     | '/apresentacao/lista/$id'
     | '/_authenticated/broker/'
+    | '/_authenticated/faturamento/'
     | '/_authenticated/royalties/'
     | '/_authenticated/unidades/'
     | '/_authenticated/admin/usuarios_/$userId'
+    | '/_authenticated/faturamento/pedido/$id'
     | '/_authenticated/royalties/$unidadeId/$mes'
   fileRoutesById: FileRoutesById
 }
@@ -1603,6 +1681,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCockpitCooPerguntarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/faturamento/': {
+      id: '/_authenticated/faturamento/'
+      path: '/faturamento'
+      fullPath: '/faturamento/'
+      preLoaderRoute: typeof AuthenticatedFaturamentoIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturamento/configuracao': {
+      id: '/_authenticated/faturamento/configuracao'
+      path: '/faturamento/configuracao'
+      fullPath: '/faturamento/configuracao'
+      preLoaderRoute: typeof AuthenticatedFaturamentoConfiguracaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturamento/novo': {
+      id: '/_authenticated/faturamento/novo'
+      path: '/faturamento/novo'
+      fullPath: '/faturamento/novo'
+      preLoaderRoute: typeof AuthenticatedFaturamentoNovoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturamento/pedidos': {
+      id: '/_authenticated/faturamento/pedidos'
+      path: '/faturamento/pedidos'
+      fullPath: '/faturamento/pedidos'
+      preLoaderRoute: typeof AuthenticatedFaturamentoPedidosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturamento/tesouraria': {
+      id: '/_authenticated/faturamento/tesouraria'
+      path: '/faturamento/tesouraria'
+      fullPath: '/faturamento/tesouraria'
+      preLoaderRoute: typeof AuthenticatedFaturamentoTesourariaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/monetizacao_/listas': {
       id: '/_authenticated/monetizacao_/listas'
       path: '/monetizacao/listas'
@@ -1692,6 +1805,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/usuarios/$userId'
       fullPath: '/admin/usuarios/$userId'
       preLoaderRoute: typeof AuthenticatedAdminUsuariosUserIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/faturamento/pedido/$id': {
+      id: '/_authenticated/faturamento/pedido/$id'
+      path: '/faturamento/pedido/$id'
+      fullPath: '/faturamento/pedido/$id'
+      preLoaderRoute: typeof AuthenticatedFaturamentoPedidoIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/royalties/$unidadeId/$mes': {
@@ -1810,10 +1930,16 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
   AuthenticatedCockpitCooCompromissosRoute: typeof AuthenticatedCockpitCooCompromissosRoute
   AuthenticatedCockpitCooPerguntarRoute: typeof AuthenticatedCockpitCooPerguntarRoute
+  AuthenticatedFaturamentoConfiguracaoRoute: typeof AuthenticatedFaturamentoConfiguracaoRoute
+  AuthenticatedFaturamentoNovoRoute: typeof AuthenticatedFaturamentoNovoRoute
+  AuthenticatedFaturamentoPedidosRoute: typeof AuthenticatedFaturamentoPedidosRoute
+  AuthenticatedFaturamentoTesourariaRoute: typeof AuthenticatedFaturamentoTesourariaRoute
   AuthenticatedMonetizacaoListasRoute: typeof AuthenticatedMonetizacaoListasRoute
   AuthenticatedMonetizacaoProdutosRoute: typeof AuthenticatedMonetizacaoProdutosRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
+  AuthenticatedFaturamentoIndexRoute: typeof AuthenticatedFaturamentoIndexRoute
   AuthenticatedAdminUsuariosUserIdRoute: typeof AuthenticatedAdminUsuariosUserIdRoute
+  AuthenticatedFaturamentoPedidoIdRoute: typeof AuthenticatedFaturamentoPedidoIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1883,10 +2009,18 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCockpitCooCompromissosRoute:
     AuthenticatedCockpitCooCompromissosRoute,
   AuthenticatedCockpitCooPerguntarRoute: AuthenticatedCockpitCooPerguntarRoute,
+  AuthenticatedFaturamentoConfiguracaoRoute:
+    AuthenticatedFaturamentoConfiguracaoRoute,
+  AuthenticatedFaturamentoNovoRoute: AuthenticatedFaturamentoNovoRoute,
+  AuthenticatedFaturamentoPedidosRoute: AuthenticatedFaturamentoPedidosRoute,
+  AuthenticatedFaturamentoTesourariaRoute:
+    AuthenticatedFaturamentoTesourariaRoute,
   AuthenticatedMonetizacaoListasRoute: AuthenticatedMonetizacaoListasRoute,
   AuthenticatedMonetizacaoProdutosRoute: AuthenticatedMonetizacaoProdutosRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
+  AuthenticatedFaturamentoIndexRoute: AuthenticatedFaturamentoIndexRoute,
   AuthenticatedAdminUsuariosUserIdRoute: AuthenticatedAdminUsuariosUserIdRoute,
+  AuthenticatedFaturamentoPedidoIdRoute: AuthenticatedFaturamentoPedidoIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
