@@ -395,7 +395,7 @@ export const AREAS: Area[] = [
             title: "Venda ao Recebido",
             url: "/unidades/funil-recebido",
             icon: Target,
-            chave: "view.royalties_split",
+            chave: "view.funil_recebido",
           },
           {
             // A mesma lista e ficha da Administração (> Rede), para quem confere

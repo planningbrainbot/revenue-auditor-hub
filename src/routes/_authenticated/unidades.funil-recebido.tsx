@@ -43,8 +43,8 @@ function FunilRecebidoPage() {
         regua: "fluxo do mês; recebido pelo mês da apuração ou do vencimento do boleto",
       }}
     >
-      {/* Mesmo público do Funil da Rede, enquanto não há decisão de quem vê. */}
-      <GuardaUnidades permissao="view.royalties_split" nome="o funil da venda ao recebido">
+      {/* Chave própria, na área Receita: concedida pessoa a pessoa em Permissões. */}
+      <GuardaUnidades permissao="view.funil_recebido" nome="o funil da venda ao recebido">
         <FunilRecebidoContent />
       </GuardaUnidades>
     </MolduraReceita>

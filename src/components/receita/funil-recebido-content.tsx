@@ -158,7 +158,7 @@ export function FunilRecebidoContent() {
       <div className="px-4 py-6 md:px-6">
         <ErroDaConsulta
           erro={erro}
-          chaves="view.royalties_split"
+          chaves="view.funil_recebido"
           titulo="Não foi possível montar o funil"
           tentarNovamente={() => setTentativa((n) => n + 1)}
         />

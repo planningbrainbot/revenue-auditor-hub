@@ -142,6 +142,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.funil_recebido",
+    label: "Venda ao Recebido",
+    description:
+      "Página /unidades/funil-recebido: vendas, contratos, faturado e recebido de cada unidade com os clientes, e o CAC cobrado, pago à Partners e coberto pelos honorários.",
+    group: "Acesso",
+  },
+  {
     key: "view.unidades_rede",
     label: "Unidades e Apuração de Royalties",
     description:

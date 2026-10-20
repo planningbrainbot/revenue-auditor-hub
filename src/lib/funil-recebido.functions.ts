@@ -153,8 +153,8 @@ export const carregarFunilRecebido = createServerFn({ method: "GET" })
     // Mesmo portão e mesmo motivo do Funil da Rede: a chave é checada com a
     // sessão; a leitura é do servidor, senão o RLS das tabelas cruzadas devolve
     // número parcial sem erro.
-    if (!(await can(context.supabase as any, "view.royalties_split"))) {
-      throw new Error("Acesso negado: falta a chave view.royalties_split.");
+    if (!(await can(context.supabase as any, "view.funil_recebido"))) {
+      throw new Error("Acesso negado: falta a chave view.funil_recebido.");
     }
     return montarFunilRecebido(supabaseAdmin);
   });
