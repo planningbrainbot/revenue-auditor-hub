@@ -5779,3 +5779,36 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
   - Cabeçalho: a assinatura da Caixa de Oportunidade.
 - Os números, as réguas e os filtros das duas bases não mudam. Os contratos `monetizacao-base-nova.md` e `monetizacao-operacao.md` ganharam adendos de 20/10.
 - **Correção junto:** o gargalo em zero desenhava o anel vermelho numa pílula de largura zero, que virava um risco solto. Isso também acontecia no "Em que etapa cada produto trava?". Agora zero não tem pílula, e o gargalo fica na taxa vermelha.
+
+## [2026-10-20] Pipe 40: fila do dia no Forecast pela régua do processo, cards pausados lidos da nota; pipe 39: atividade vencida e manual separadas no Hoje
+
+**Contexto.** O Pedro trouxe três pontos.
+1. "Aqui no forecasting do pipe 40 eu não deveria ter a mesma visão do 39 de fazer hoje > semana > mes?"
+2. "Tem card com atividade que tá sendo registrado como sem atividade."
+3. "Fui ver o forecasting da Heloá e tá parado."
+
+O que a medição de 20/10 mostrou:
+- **A carga bate com o Pipedrive.** A próxima atividade confere em 136 de 136 cards abertos do Matheus e da Heloá no pipe 39, e as atividades abertas conferem em 14 de 14 no pipe 40.
+- **O "sem atividade" vinha de três regras:**
+  - no pipe 40, os 5 "Sem tarefa aberta" são os 5 cards de Belém pausados em 19/10 (caso Arcanjo). A pausa apagou as tarefas 01 do Posto Porto Alegre e da Rocon Tintas, e a régua as tinha como "aberta";
+  - no pipe 39, a "Reta final sem próximo passo" contava a atividade vencida como ausência de atividade (exemplo: interior designer);
+  - no pipe 39, a "Abordagem sem cadência" não enxergava atividade criada à mão (exemplos: E.m.a e Chiasa).
+- **O Forecast da Heloá não está quebrado.** Os 112 cards abertos dela estão antes do Agendado (48 Base elegível, 49 Abordagem, 15 Qualificação). Em outubro ela abordou 52, qualificou 14 e agendou 0 levantamentos, e 10 dos 15 em Qualificação estão sem atividade. O gargalo dela é Qualificação → Agendado.
+
+**Decisões do Pedro (AskUserQuestion, 20/10).**
+- **Forecast do 40: "Régua do processo, já".** A urgência vem da tarefa da régua e do prazo prometido, não do Jev.
+  - Fazer hoje: tarefa vencida ou de hoje, prazo vencendo ou card sem tarefa.
+  - Nesta semana: tarefa ou prazo até domingo.
+  - Fecha no mês: prazo + 7 dias até o fim do mês.
+  - Sem data nem valor: antes do D0 ou sem produto.
+  - Entram todos os cards abertos, fora os pausados, agrupados pela etapa, com a última nota do dono, do Matheus ou da Jordana. A régua está em `filaDiagnostico`.
+- **Pausa: "Mostrar Pausado nos 5 de Belém".**
+  - A carga do pipe 40 lê as notas do card. A nota fixada que começa com "Pausado em" vira `pausa`.
+  - Enquanto a nota estiver fixada, o card não recebe tarefa, e a tarefa tirada fica `pausada`. A migration `20261020140000` acrescenta esse status.
+  - Quando a nota é desafixada ou apagada, a tarefa volta ao Pipedrive. Se o card mudou de etapa durante a pausa, a tarefa sai.
+  - O Hoje ganha o quadro "Pausados".
+- **"Separar vencida de sem atividade" e "Contar atividade manual na Abordagem"** (pipe 39, `hoje-pre-venda.ts`).
+  - A nota da reta final passa a dizer "N sem atividade · M com atividade vencida", e a tabela ganha a coluna "Próxima atividade".
+  - O card em Abordagem com atividade criada à mão sai de "sem cadência" e vai para a nota.
+
+**Fica de fora.** Os 2 cards de Belém pausados que estão na reta final do pipe 39 (H. C. Barbosa e Forma Divisórias) continuam em "sem atividade". A carga do 39 (`monetizacao-crm`) não lê notas, e levar a pausa até ela é outra mudança.

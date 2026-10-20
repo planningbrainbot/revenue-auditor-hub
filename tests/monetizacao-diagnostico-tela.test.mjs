@@ -8,6 +8,7 @@ import {
   cadastroDiagnostico,
   forecastDiagnostico,
   funilDiagnostico,
+  filaDiagnostico,
   funisPorUnidadeDiag,
   hojeDiagnostico,
   horizonteDe,
@@ -307,5 +308,129 @@ test("URL: base=nova só nas três abas; pessoa só Matheus ou Jordana; card só
     validarBuscaMonetizacao({ aba: "pre-venda" }).base,
     undefined,
     "sem a chave, base antiga",
+  );
+});
+
+test("fila do dia: tarefa vencida ou de hoje, prazo vencendo e sem tarefa em Fazer hoje; pausado fica fora", () => {
+  const HJ = "2026-11-10"; // terça: a semana vai até domingo, 15/11
+  const ativ = (id, due, done = false) => ({
+    id,
+    subject: `Diagnóstico · 01 · T${id}`,
+    due_date: due,
+    done,
+  });
+  const p = normalizarPainelDiagnostico({
+    sync: {
+      status: "ok",
+      measured_at: "2026-11-10T12:00:00Z",
+      stages: ETAPAS,
+      previa: {},
+      resumo: {},
+    },
+    cards: [
+      card({ id: 11, stage_id: 293, atividades: [ativ(1, "2026-11-09")] }),
+      card({ id: 12, stage_id: 293, atividades: [ativ(2, HJ), ativ(3, "2026-11-12")] }),
+      card({ id: 13, stage_id: 294, atividades: [ativ(4, "2026-11-01", true)] }),
+      card({ id: 14, stage_id: 294, atividades: [ativ(5, "2026-11-13")] }),
+      card({
+        id: 15,
+        stage_id: 297,
+        d0: "2026-10-12",
+        prazo: "2026-11-11",
+        produtos: [
+          {
+            product_id: 61,
+            produto: "consultoria",
+            nome: "C",
+            preco: 1,
+            quantidade: 1,
+            total: 9000,
+          },
+        ],
+        atividades: [ativ(6, "2026-11-20")],
+      }),
+      card({
+        id: 16,
+        stage_id: 293,
+        pausa: { em: "2026-11-01 10:00:00", autor_id: 1, texto: "Pausado em 01/11/2026." },
+      }),
+      card({ id: 17, stage_id: 293, status: "lost" }),
+    ],
+    tarefas: [],
+  });
+  const f = filaDiagnostico(p.cards, HJ);
+  assert.equal(f.total, 5, "abertos fora o pausado");
+  assert.deepEqual(
+    f.pausados.map((c) => c.id),
+    [16],
+  );
+  assert.equal(f.fimDaSemana, "2026-11-15");
+  assert.equal(f.fimDoMes, "2026-11-30");
+  const ids = (k) =>
+    f
+      .grupos(k)
+      .flatMap((g) => g.linhas.map((l) => l.card.id))
+      .sort();
+  assert.deepEqual(ids("hoje"), [11, 12, 13]);
+  assert.deepEqual(ids("semana"), [14, 15]);
+  const l15 = f
+    .grupos("semana")
+    .flatMap((g) => g.linhas)
+    .find((l) => l.card.id === 15);
+  assert.equal(l15.porque, "prazo do cliente em 11/11");
+  assert.equal(l15.fechamento, "2026-11-18");
+  assert.deepEqual(ids("mes"), [15]);
+  assert.deepEqual(ids("semdata"), [11, 12, 13, 14], "sem D0 ou sem produto");
+  assert.deepEqual(f.contagem, { hoje: 3, semana: 2, mes: 1, semdata: 4 });
+  const porque = Object.fromEntries(
+    f
+      .grupos("hoje")
+      .flatMap((g) => g.linhas)
+      .map((l) => [l.card.id, l.porque]),
+  );
+  assert.deepEqual(porque, {
+    11: "tarefa vencida em 09/11",
+    12: "tarefa de hoje",
+    13: "sem tarefa aberta",
+  });
+});
+
+test("Hoje: card pausado sai de parados, prazo e sem tarefa e vai para Pausados", () => {
+  const p = normalizarPainelDiagnostico({
+    sync: {
+      status: "ok",
+      measured_at: "2026-11-10T12:00:00Z",
+      stages: ETAPAS,
+      previa: {},
+      resumo: {},
+    },
+    cards: [
+      card({
+        id: 21,
+        stage_id: 294,
+        stage_since: "2026-11-01 12:00:00",
+        pausa: {
+          em: "2026-11-02 10:00:00",
+          autor_id: 1,
+          texto: "Pausado em 02/11/2026. Espera o sócio.",
+        },
+      }),
+      card({ id: 22, stage_id: 294, stage_since: "2026-11-01 12:00:00" }),
+    ],
+    tarefas: [],
+  });
+  const [m] = hojeDiagnostico(p.cards, ETAPAS, HOJE);
+  assert.deepEqual(
+    m.pausados.map((i) => i.card.id),
+    [21],
+  );
+  assert.match(m.pausados[0].motivo, /Espera o sócio/);
+  assert.deepEqual(
+    m.semProximo.map((i) => i.card.id),
+    [22],
+  );
+  assert.deepEqual(
+    m.parados.map((i) => i.card.id),
+    [22],
   );
 });
