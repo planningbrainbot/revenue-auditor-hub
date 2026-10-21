@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -69,11 +69,29 @@ import {
   type PortfolioFilters,
 } from "@/lib/monetizacao/portfolio";
 import { MultiSelect } from "@/components/monetizacao/multi-select";
-import { buscaDosFiltros, filtrosDaBusca, SITS_CONFIANCA, type BuscaClientes } from "./busca";
+import {
+  buscaDoRecorte,
+  buscaDosFiltros,
+  filtrosDaBusca,
+  recorteDaBusca,
+  SITS_CONFIANCA,
+  type BuscaClientes,
+} from "./busca";
 import { BarraConfianca, CartoesUnidades, TabelaContas, VisaoClientes } from "./regra-cliente";
 import { PainelBase } from "./painel-base";
+import { FiltrosBase } from "./filtros-base";
+import {
+  passaRecorte,
+  perfilRecorte,
+  RECORTE_VAZIO,
+  temRecorte,
+  type PerfilRecorte,
+  type RecorteBase,
+} from "@/lib/clientes/recorte";
 import {
   contarFaixas,
+  ehCliente,
+  ehExCliente,
   FAIXA_META,
   faixaDaConta,
   porCerteza,
@@ -314,6 +332,40 @@ export function ClientesBase() {
     () => new Map((query.data?.accounts ?? []).map((a) => [a.key, a])),
     [query.data],
   );
+  // Recorte por região, porte e segmento (21/10/2026), só nas telas Clientes e Painel, onde ele aparece. O perfil de
+  // cada conta sai uma vez por carga; a UF da unidade entra quando a empresa não tem a própria.
+  const perfis = useMemo(() => {
+    const data = query.data;
+    if (!data) return new Map<string, PerfilRecorte>();
+    const nomes = new Map(data.units.map((u) => [u.key, u.name]));
+    return new Map(data.accounts.map((a) => [a.key, perfilRecorte(a, (k) => nomes.get(k))]));
+  }, [query.data]);
+  const perfil = useCallback(
+    (a: Conta) => perfis.get(a.key) ?? perfilRecorte(a, () => undefined),
+    [perfis],
+  );
+  const recorte: RecorteBase = useMemo(
+    () => recorteDaBusca(search),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify([search.regiao, search.uf, search.porte, search.segmentoCliente])],
+  );
+  const mudarRecorte = (r: RecorteBase) => change({ ...buscaDoRecorte(r), numero: undefined });
+  const rowsNoRecorte = useMemo(
+    () => (temRecorte(recorte) ? rows.filter((a) => passaRecorte(perfil(a), recorte)) : rows),
+    [rows, perfil, recorte],
+  );
+  // O que o recorte conta na tela Clientes: a lista que está à mostra (ativos, inativos, Base Antiga ou Base Nova).
+  const populacaoClientes = useMemo(
+    () =>
+      search.sit === "ex"
+        ? rows.filter(ehExCliente)
+        : rows.filter(
+            (a) =>
+              ehCliente(a) &&
+              (!search.base || (search.base === "antiga") === (a.base?.origin === "antiga")),
+          ),
+    [rows, search.sit, search.base],
+  );
   const accountKeysSemOrigem = useMemo(
     () =>
       new Set(
@@ -407,7 +459,15 @@ export function ClientesBase() {
           key={key}
           type="button"
           aria-current={view === key ? "page" : undefined}
-          onClick={() => change({ view: key, sit: undefined, sub: undefined, base: undefined })}
+          onClick={() =>
+            change({
+              view: key,
+              sit: undefined,
+              sub: undefined,
+              base: undefined,
+              numero: undefined,
+            })
+          }
           className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${FOCO_VISIVEL} ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
         >
           {label}
@@ -572,13 +632,24 @@ export function ClientesBase() {
     ? unidadesSelecionadas.map((u) => u.name).join(", ")
     : "todas as unidades liberadas";
   const temFiltroTopo = !!(search.q || unidadesUrl.length || origensUrl.length || search.gate);
-  const temFiltroClientes = !!(search.q || unidadesUrl.length || search.sit || search.base);
+  const temFiltroClientes = !!(
+    search.q ||
+    unidadesUrl.length ||
+    search.sit ||
+    search.base ||
+    temRecorte(recorte)
+  );
+  // O Painel não tem busca nem origem: só a unidade e o recorte valem nele.
+  const chavesDasUnidades = new Set(unidadesSelecionadas.flatMap((u) => u.account_keys));
+  const contasPainel = unidadesUrl.length
+    ? data.accounts.filter((a) => chavesDasUnidades.has(a.key))
+    : data.accounts;
   const contagemTudo = contarFaixas(data.accounts);
   const descricao =
     view === "clientes"
       ? `${number(contagemTudo.g4 + contagemTudo.g3 + contagemTudo.g2 + contagemTudo.g1)} clientes e ${number(contagemTudo.ex_cliente)} ex-clientes pela regra de cliente · todas as unidades liberadas · a busca acha qualquer empresa do seu escopo`
       : view === "painel"
-        ? `${number(contagemTudo.g4 + contagemTudo.g3 + contagemTudo.g2 + contagemTudo.g1)} clientes pela regra de cliente · todas as unidades liberadas · os números dos gráficos abrem a lista`
+        ? `Clientes pela regra de cliente · ${perimetro} · toque em qualquer número, barra ou filtro para ver as empresas`
         : view === "confianca"
           ? `${number(filtered.length)} empresas no recorte · ${perimetro} · cliente pela regra: ganho no Pipedrive, base de clientes do Pipefy, tag Cliente ou recebimento no Omie · o grau mede a certeza`
           : sub === "gates"
@@ -636,14 +707,40 @@ export function ClientesBase() {
               className="ml-auto text-muted-foreground"
               disabled={!temFiltroClientes}
               motivo={temFiltroClientes ? null : "Nenhum filtro aplicado."}
-              onClick={() => change({ q: "", unidade: undefined, sit: undefined, base: undefined })}
+              onClick={() =>
+                change({
+                  q: "",
+                  unidade: undefined,
+                  sit: undefined,
+                  base: undefined,
+                  ...buscaDoRecorte(RECORTE_VAZIO),
+                })
+              }
             >
               <X className="size-4" aria-hidden />
               Limpar filtros
             </BotaoComMotivo>
           </BarraFiltros>
+          <FiltrosBase
+            contas={populacaoClientes}
+            perfil={perfil}
+            recorte={recorte}
+            aoMudar={mudarRecorte}
+            rotulo={
+              search.sit === "ex"
+                ? "inativos"
+                : search.base === "antiga"
+                  ? "ativos da Base Antiga"
+                  : search.base === "nova"
+                    ? "ativos da Base Nova"
+                    : "clientes ativos"
+            }
+          />
           <VisaoClientes
-            contas={rows}
+            contas={rowsNoRecorte}
+            contasBusca={rows}
+            perfil={perfil}
+            aoLimparRecorte={() => mudarRecorte(RECORTE_VAZIO)}
             busca={search.q}
             sit={search.sit === "ex" ? "ex" : "clientes"}
             base={search.base ?? null}
@@ -654,14 +751,59 @@ export function ClientesBase() {
           />
         </>
       ) : view === "painel" ? (
-        <PainelBase
-          contas={data.accounts}
-          unidades={data.units}
-          aoAbrirUnidade={(u) =>
-            change({ view: "clientes", unidade: [u.key], sit: undefined, base: undefined })
-          }
-          aoAbrirContratos={() => change({ view: "unidades" })}
-        />
+        <>
+          <BarraFiltros>
+            {/* Múltipla escolha (DECISIONS 18/09): as marcadas somam entre si. */}
+            <div className="w-56">
+              <MultiSelect
+                label="Unidade"
+                placeholder="Todas as unidades liberadas"
+                value={unidadeKeys}
+                onChange={(v) => change({ unidade: v.length ? v : undefined, numero: undefined })}
+                options={units.map((u) => ({ value: u.key, label: u.name }))}
+              />
+            </div>
+            <BotaoComMotivo
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
+              disabled={!unidadesUrl.length && !temRecorte(recorte)}
+              motivo={unidadesUrl.length || temRecorte(recorte) ? null : "Nenhum filtro aplicado."}
+              onClick={() =>
+                change({ unidade: undefined, numero: undefined, ...buscaDoRecorte(RECORTE_VAZIO) })
+              }
+            >
+              <X className="size-4" aria-hidden />
+              Limpar filtros
+            </BotaoComMotivo>
+          </BarraFiltros>
+          <PainelBase
+            contas={contasPainel}
+            unidades={unidadesSelecionadas.length ? unidadesSelecionadas : data.units}
+            perfil={perfil}
+            recorte={recorte}
+            aoMudarRecorte={mudarRecorte}
+            numero={search.numero ?? null}
+            aoMudarNumero={(n) => change({ numero: n ?? undefined })}
+            cards={data.cards}
+            aoIrParaClientes={(patch) =>
+              void navigate({
+                search: {
+                  ...search,
+                  pagina: undefined,
+                  numero: undefined,
+                  view: "clientes",
+                  sit: undefined,
+                  base: undefined,
+                  ...patch,
+                },
+                resetScroll: true,
+              })
+            }
+            aoAbrirContratos={() => change({ view: "unidades", numero: undefined })}
+          />
+        </>
       ) : (
         <>
           <nav aria-label="Partes da Confiança" className="flex flex-wrap gap-2">
