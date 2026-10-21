@@ -6459,3 +6459,34 @@ Pedido do dono no mesmo dia, depois de ver o recorte no ar: "coloca só em toggl
 O painel de região, porte e segmento (Clientes e Painel) abre fechado, numa linha com o total do recorte e os filtros
 aplicados em etiquetas removíveis; o botão "Região, porte e segmento" abre e fecha. A escolha fica no `localStorage` de
 quem usa (preferência de tela, não estado de dado): sem acesso ao storage, abre fechado.
+
+## [2026-10-21] Portal de Faturamento: respostas da Ana (conta corrente, CNPJ não encontrado, prazos da tesouraria, Pipefy)
+
+**Contexto:** a Ana Carvalhais (controladoria) respondeu em 21/10 as pendências da E1 (`PM Work/execution/portal-faturamento-prd-20261013/e1/pendencias-ana-tesouraria.md`). O Pedro mandou aplicar quatro: 1 (conta corrente), 3 (CNPJ não achado), 5 (prazos da fila) e 8 (Pipefy). O portal está no ar desde 21/10 (PR #109), só para o Pedro, em simulação.
+
+**Decisões:**
+- **Conta corrente padrão por empresa = o banco que a Ana deu, com o código lido do Omie.** A resposta dela foi empresa – banco. O `nCodCC` saiu de `ListarContasCorrentes` de cada Omie (só leitura, uma chamada por vez), pela regra: tipo CC, não inativa, não bloqueada, banco 341 (Itaú), 104 (Caixa) ou 450 com "Omie.CASH".
+  - Fora da regra: aplicação do mesmo banco (a "Aplicação - Caixa" da PAC) e Omie.CASH bloqueada (recebíveis de cartão da NEO).
+  - **Com duas candidatas, nada é gravado.** Só a PARTNERS caiu nisso: "Itaú - Partners" (1868198302) e "Itaú - CS" (2255763526). Fica nula até o Pedro escolher.
+  - 16 gravadas por migration de dados, cada uma com o evento `configurado` (entidade `emissora`), procedência "Ana (controladoria), 21/10/2026" e a conta lida no Omie.
+- **CNPJ que a Receita não acha bloqueia o envio; Receita fora do ar não bloqueia.** A distinção está no que a CNPJá diz:
+  - 404 com "tax id not registered at revenue service" é consulta feita. O servidor grava `encontrado = false` e o banco bloqueia com "CNPJ não encontrado na Receita Federal: envio bloqueado. Confira o número.", no mesmo lugar do CNPJ inapto (`receita.fat_bloqueio`). O rascunho continua salvando.
+  - Qualquer outra resposta (fora do ar, 429, erro de rede, outro 404) é consulta não feita: nada é gravado, a situação fica "não conferida" e o envio passa.
+  - O não encontrado é consultado de novo depois de 1 dia, para um CNPJ recém-aberto não ficar preso pelos 30 dias do cache. Até uma consulta achar, o bloqueio fica.
+- **Prazos da higiene da tesouraria: 2 dias para conferir e 1 dia útil para faturar.** O "vence em até 3 dias sem nota" vira 2 dias corridos, e a chave `vence_3d` vira `vence_2d` no banco, na URL e na tela. "Parado há mais de 1 dia útil" não muda.
+  - Como o deploy do app vem depois da migration, o banco aceita e devolve também `vence_3d` (com a regra nova). Link guardado com `vence_3d` cai no `vence_2d`. A próxima migration do portal tira o nome antigo.
+- **Pipefy: o mapa do conector não muda.** A Ana disse que o campo "já mostra todas as empresas". Lido de novo pela API em 21/10, o campo "Empresa Planning que irá faturar" do pipe 307098392 (Contas a Receber) tem as mesmas 18 opções, nenhuma para FINANCE, ASCENDIA ou PNE, nem com outro nome.
+  - Quem mostra as 19 empresas é o campo "Empresa do Grupo Planning Responsável" do pipe 307325964 (Contas a Pagar). Provavelmente ela olhou esse.
+  - Nenhuma opção foi criada no Pipefy. O card dessas três empresas segue recusado até a Ana incluir as opções no Contas a Receber.
+
+**Onde:**
+- Banco: migrations `20261021120000_portal_faturamento_contas_correntes`, `20261021121000_portal_faturamento_cnpj_nao_encontrado` e `20261021122000_portal_faturamento_prazos_tesouraria`, com rollbacks em `supabase/rollback/` e um gate só, `supabase/gates/20261021_portal_faturamento_respostas_ana.sql`.
+- App: `src/lib/faturamento/receita.ts` (`naoEncontradoNaCnpja`, `dadosNaoEncontrado`), `faturamento.functions.ts`, `tipos.ts`, `fila.ts` e `src/components/faturamento/novo-pedido.tsx` ("Receita: não encontrado").
+- Contratos: `docs/design/contratos/faturamento-novo.md` e `faturamento-tesouraria.md`, seções "Decisões da Ana (21/10/2026)". `e1/API.md`, Mudanças de 21/10.
+- Testes: `tests/faturamento-formulario.test.mjs` e `tests/faturamento-fila.test.mjs`.
+
+**Status:**
+- As três migrations estão aplicadas no banco único e registradas. O gate passou antes de aplicar (com os rollbacks dentro da transação) e depois.
+- A edge `faturamento-omie` não mudou e não foi republicada.
+- O app não foi publicado (o Pedro publica). Até lá, a tela antiga mostra "3 dias" com a contagem nova de 2, e o 404 da CNPJá segue como "não conferida".
+- **Em aberto:** a conta da PARTNERS (Pedro) e as três opções no Pipefy de Contas a Receber (Ana).

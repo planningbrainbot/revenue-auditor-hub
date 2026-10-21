@@ -443,7 +443,7 @@ export type SituacaoFila =
   | "na_fila_omie"
   | "faturado"
   | "cancelamento_pedido";
-export type HigieneFila = "erro" | "vence_3d" | "parado_1du";
+export type HigieneFila = "erro" | "vence_2d" | "parado_1du";
 
 export interface FiltroFila {
   situacao?: SituacaoFila;
@@ -489,7 +489,7 @@ export interface ItemFila {
     desde: string | null;
     tentar_em: string | null;
   } | null;
-  higiene: { erro: boolean; vence_3d: boolean; parado_1du: boolean };
+  higiene: { erro: boolean; vence_2d: boolean; parado_1du: boolean };
 }
 
 export interface FilaTesouraria {
@@ -503,7 +503,7 @@ export interface FilaTesouraria {
     em_conferencia: ContagemFila;
     faturados_hoje: ContagemFila;
   };
-  higiene: { erro: number; vence_3d: number; parado_1du: number };
+  higiene: { erro: number; vence_2d: number; parado_1du: number };
   itens: ItemFila[];
   total: number;
   total_fila: number;
@@ -546,7 +546,15 @@ export interface Tomador {
   situacao_desde: string | null;
   situacao_fonte: string | null;
   situacao_consultada_em: string | null;
-  /** Sem a consulta da Receita no banco (ou com mais de 30 dias): quem consulta e grava é o servidor. */
+  /**
+   * A consulta da Receita achou o CNPJ? `false` = consultou e a Receita não tem (o envio fica bloqueado, Ana
+   * 21/10/2026); `null` = sem consulta (CNPJá fora do ar, limite) ou CPF: "situação não conferida".
+   */
+  receita_encontrado: boolean | null;
+  /**
+   * Sem a consulta da Receita no banco (ou com mais de 30 dias; o não encontrado, com mais de 1 dia): quem
+   * consulta e grava é o servidor.
+   */
   consultar_receita: boolean;
   emails: string[];
   bloqueio: { motivo: string } | null;

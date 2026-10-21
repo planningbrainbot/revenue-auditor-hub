@@ -42,9 +42,10 @@ export const SITUACOES_FILA: { valor: SituacaoFila; rotulo: string }[] = [
   { valor: "faturado", rotulo: "Faturados" },
 ];
 
+/** Prazos da Ana (21/10/2026): 2 dias para conferir e 1 dia útil para faturar. */
 export const HIGIENES: { valor: HigieneFila; rotulo: string }[] = [
   { valor: "erro", rotulo: "Erro no Omie" },
-  { valor: "vence_3d", rotulo: "Vence em até 3 dias sem nota" },
+  { valor: "vence_2d", rotulo: "Vence em até 2 dias sem nota" },
   { valor: "parado_1du", rotulo: "Parado há mais de 1 dia útil" },
 ];
 
@@ -62,7 +63,8 @@ export function lerBuscaFila(raw: Record<string, unknown>): BuscaFila {
   else if (emissora && APELIDO.test(emissora)) out.emissora = emissora;
   const situacao = texto(raw.situacao);
   if (SITUACOES_FILA.some((s) => s.valor === situacao)) out.situacao = situacao as SituacaoFila;
-  const higiene = texto(raw.higiene);
+  // `vence_3d` é o nome de antes dos prazos da Ana (21/10/2026): link guardado cai no filtro novo.
+  const higiene = texto(raw.higiene) === "vence_3d" ? "vence_2d" : texto(raw.higiene);
   if (HIGIENES.some((h) => h.valor === higiene)) out.higiene = higiene as HigieneFila;
   const dia = texto(raw.dia);
   if (dia === "hoje" || (dia && DIA.test(dia))) out.dia = dia;

@@ -44,7 +44,7 @@
 
 ### `Sheet` do pedido
 - Cabeçalho: número, cliente, `StatusBadge`, "Abrir ficha completa" (vai à Ficha com `volta` desta fila).
-- O que a tesouraria confere, em blocos curtos: cliente (nome, documento, situação na Receita, "situação não conferida" quando o autor digitou o nome), e-mails de envio, serviço (descrição e código no Omie), descrição da nota, valor e parcelas com vencimentos, boleto ou pix, competência, departamento, observações, dono e autor, "Empresa confirmada" quando houve o aviso de contrato em outra empresa.
+- O que a tesouraria confere, em blocos curtos: cliente (nome, documento, situação na Receita, "situação não conferida" quando a Receita não respondeu na hora do pedido; CNPJ que a Receita não acha não chega à fila, porque o envio é bloqueado (Ana, 21/10/2026)), e-mails de envio, serviço (descrição e código no Omie), descrição da nota, valor e parcelas com vencimentos, boleto ou pix, competência, departamento, observações, dono e autor, "Empresa confirmada" quando houve o aviso de contrato em outra empresa.
 - O que está no Omie: OS (número e etapa, "Abrir no Omie"), cliente no Omie (já existia ou cadastrado pelo portal). Em simulação: "Simulado: nada foi gravado no Omie da {empresa}" e o resumo do que iria (o mesmo da Ficha).
 - Ações no rodapé do `Sheet`, uma `default` por situação (tabela "Ações").
 
@@ -55,11 +55,11 @@
 | Em conferência | pedidos em conferência. Nota: R$ da soma | pedido | idem | idem | filtra a tabela | sim |
 | Faturados hoje | pedidos que viraram Faturado hoje, pela tela ou direto no Omie. Nota: R$ da soma | pedido | idem; data da nota, ou do evento quando ela não vier | idem | filtra a tabela (`situacao=faturado&dia=hoje`) | sim |
 | Higiene · Erro no Omie | pedidos em Erro no Omie | pedido | idem | idem | filtra a tabela | sim |
-| Higiene · Vence em até 3 dias sem nota | pedidos sem nota cujo 1º vencimento cai em até 3 dias corridos | pedido | idem | idem | filtra a tabela | sim |
+| Higiene · Vence em até 2 dias sem nota | pedidos sem nota cujo 1º vencimento cai em até 2 dias corridos | pedido | idem | idem | filtra a tabela | sim |
 | Higiene · Parado há mais de 1 dia útil | pedidos em OS criada, Simulado ou Em conferência sem mudança há mais de 1 dia útil | pedido | idem; dias úteis com os feriados nacionais | idem | filtra a tabela | sim |
 | Contagem na ficha da empresa | pedidos com ação da tesouraria nessa empresa | pedido | idem | idem | filtra a empresa | sim |
 
-Os prazos da higiene (3 dias, 1 dia útil) são proposta. *A decidir pela Ana.* O erro há mais de 24 h (RNF-05) aparece como "há mais de 24 h" na coluna Próxima ação e entra no alerta da T6.
+Prazos da higiene decididos pela Ana em 21/10/2026: **2 dias para conferir** (vence em até 2 dias corridos sem nota; antes, a proposta era 3) e **1 dia útil para faturar** (parado há mais de 1 dia útil, sem mudança). O erro há mais de 24 h (RNF-05) aparece como "há mais de 24 h" na coluna Próxima ação e entra no alerta da T6.
 
 Meta: nenhuma definida para a tesouraria (N13). Os cards de ritmo não mostram meta; se a Ana quiser uma ("faturar em até 1 dia útil depois da OS"), ela entra no card Para faturar.
 
@@ -80,7 +80,7 @@ Meta: nenhuma definida para a tesouraria (N13). Os cards de ritmo não mostram m
 |---|---|---|---|
 | `emissora` | apelido, ou `todas` | a empresa com mais trabalho; `todas` se a pessoa tem uma só | tudo, menos as contagens das fichas de empresa |
 | `situacao` | `para_faturar`, `em_conferencia`, `erro_omie`, `na_fila_omie`, `faturado` | todas menos `faturado` | tabela |
-| `higiene` | `erro`, `vence_3d`, `parado_1du` | nenhum | tabela |
+| `higiene` | `erro`, `vence_2d`, `parado_1du` (o antigo `vence_3d`, de link guardado, vira `vence_2d`) | nenhum | tabela |
 | `dia` | `AAAA-MM-DD` ou `hoje` | todos os dias em aberto | tabela |
 | `busca` | número, cliente, documento, projeto | vazio | tabela |
 | `pedido` | id | nenhum | abre o `Sheet` daquele pedido (o link do `Sheet` se compartilha) |
@@ -139,3 +139,7 @@ Faturamento feito direto no Omie (RF-P08): a leitura de status detecta, o pedido
 - [ ] Definição de pronto de `docs/design/README.md` cumprida
 - [ ] Ciclo completo em simulação na DOC (T2), com a tesouraria conferindo, devolvendo e faturando pela tela
 - [ ] CA-12 ensaiado com uma empresa marcada indisponível e outra normal
+
+## Decisões da Ana (21/10/2026)
+1. **Prazos da higiene:** 2 dias para conferir e 1 dia útil para faturar (a pergunta era 3 dias e 1 dia útil). O contador e o filtro "Vence em até 2 dias sem nota" usam a chave `vence_2d` no banco e na URL (`ops.fat_fila_tesouraria`, migration `20261021122000`); "Parado há mais de 1 dia útil" não mudou. Até o app novo entrar no ar, o banco aceita e devolve também `vence_3d`, com a regra nova.
+2. **CNPJ que a Receita não acha:** o envio é bloqueado ("CNPJ não encontrado na Receita Federal: envio bloqueado. Confira o número."), então esse pedido não aparece na fila. "Situação não conferida" passa a querer dizer só que a Receita (CNPJá) não respondeu na hora do pedido (`faturamento-novo.md`, Decisões da Ana).

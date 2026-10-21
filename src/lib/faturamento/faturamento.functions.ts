@@ -2,7 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { fraseDaValidacao, traduzirErroBanco, type Resultado } from "./erros";
-import { dadosDaCnpja, LimiteDeChamadas, URL_CNPJA, USER_AGENT_CNPJA } from "./receita";
+import {
+  dadosDaCnpja,
+  dadosNaoEncontrado,
+  LimiteDeChamadas,
+  naoEncontradoNaCnpja,
+  URL_CNPJA,
+  USER_AGENT_CNPJA,
+} from "./receita";
 import type {
   CatalogoServicos,
   ConfigFaturamento,
@@ -142,7 +149,7 @@ const filtroFila = z
         "cancelamento_pedido",
       ])
       .optional(),
-    higiene: z.enum(["erro", "vence_3d", "parado_1du"]).optional(),
+    higiene: z.enum(["erro", "vence_2d", "parado_1du"]).optional(),
     dia: z.union([dia, z.literal("hoje")]).optional(),
     busca: z.string().trim().max(120).optional(),
     limite: z.number().int().min(1).max(1000).optional(),
@@ -292,6 +299,8 @@ const emCurso = new Map<string, Promise<"feita" | "adiada" | "falhou">>();
 /**
  * Consulta a CNPJá aberta e grava com `ops.fat_receita_cnpj_gravar`, executável só pelo service_role. Só é
  * chamada depois de `fat_tomador` responder com a sessão da pessoa (a porta e o escopo já foram conferidos).
+ * "feita" inclui a Receita dizer que o CNPJ não existe (grava `encontrado: false` e o banco bloqueia o envio,
+ * Ana 21/10/2026); "adiada" e "falhou" não gravam nada (situação não conferida, o envio passa).
  */
 async function consultarEGravarReceita(cnpj: string): Promise<"feita" | "adiada" | "falhou"> {
   const atual = emCurso.get(cnpj);
@@ -299,22 +308,31 @@ async function consultarEGravarReceita(cnpj: string): Promise<"feita" | "adiada"
   const tarefa = (async () => {
     if (!limiteCnpja.tentar()) return "adiada" as const;
     let json: unknown;
+    let naoEncontrado = false;
     try {
       const r = await fetch(`${URL_CNPJA}${encodeURIComponent(cnpj)}`, {
         headers: { "User-Agent": USER_AGENT_CNPJA, Accept: "application/json" },
         signal: AbortSignal.timeout(8_000),
       });
       if (r.status === 429) return "adiada" as const;
-      if (!r.ok) {
-        if (r.status !== 404) console.warn(`[faturamento] CNPJá respondeu ${r.status}`);
+      if (r.status === 404) {
+        const corpo: unknown = await r.json().catch(() => null);
+        if (!naoEncontradoNaCnpja(r.status, corpo)) {
+          console.warn("[faturamento] CNPJá respondeu 404 sem dizer que o CNPJ não existe");
+          return "falhou" as const;
+        }
+        naoEncontrado = true;
+      } else if (!r.ok) {
+        console.warn(`[faturamento] CNPJá respondeu ${r.status}`);
         return "falhou" as const;
+      } else {
+        json = await r.json();
       }
-      json = await r.json();
     } catch (e) {
       console.warn("[faturamento] CNPJá não respondeu", e instanceof Error ? e.message : e);
       return "falhou" as const;
     }
-    const dados = dadosDaCnpja(json);
+    const dados = naoEncontrado ? dadosNaoEncontrado() : dadosDaCnpja(json);
     if (!dados) return "falhou" as const;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await (supabaseAdmin as DB)
@@ -340,8 +358,9 @@ async function consultarEGravarReceita(cnpj: string): Promise<"feita" | "adiada"
 /**
  * §1.8 · Confere o documento do tomador e busca o cliente. Quando `fat_tomador` diz que não há consulta da
  * Receita para o CNPJ (ou ela tem mais de 30 dias), o servidor consulta a CNPJá aberta, grava e chama
- * `fat_tomador` de novo: é isso que deixa o bloqueio de CNPJ inapto (CA-05) valer. Se a consulta não sair
- * (limite, CNPJá fora), devolve a primeira resposta e diz que a consulta ficou para depois.
+ * `fat_tomador` de novo: é isso que deixa valer o bloqueio de CNPJ inapto (CA-05) e o de CNPJ que a Receita não
+ * acha (Ana, 21/10/2026). Se a consulta não sair (limite, CNPJá fora), devolve a primeira resposta e diz que a
+ * consulta ficou para depois.
  */
 export const conferirTomadorFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

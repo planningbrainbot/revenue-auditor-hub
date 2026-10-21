@@ -1226,13 +1226,18 @@ function QuadroCliente({
       </div>
     );
   const ativa = tomador.situacao === "ATIVA";
+  // A Receita não tem o CNPJ (consulta feita): o envio fica bloqueado (Ana, 21/10/2026). Sem consulta (CNPJá fora
+  // do ar, limite), a situação fica "não conferida" e o envio passa.
+  const naoEncontrado = tomador.receita_encontrado === false;
   return (
     <div className="space-y-1.5 rounded-xl border bg-card p-3 text-sm">
       {tomador.nome ? (
         <p className="font-medium text-foreground">{tomador.nome}</p>
       ) : (
         <p className="text-foreground">
-          Não achamos este CNPJ na base nem na Receita. Confira o número.
+          {naoEncontrado
+            ? "Não achamos este CNPJ na base nem na Receita."
+            : "Não achamos este CNPJ na base. Digite o nome do cliente."}
         </p>
       )}
       <p className="text-[13px] text-muted-foreground">
@@ -1245,7 +1250,9 @@ function QuadroCliente({
           .join(" · ")}
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        {tomador.situacao ? (
+        {naoEncontrado ? (
+          <StatusBadge tom="perigo">Receita: não encontrado</StatusBadge>
+        ) : tomador.situacao ? (
           <StatusBadge tom={ativa ? "sucesso" : "perigo"}>
             Receita: {tomador.situacao.toLowerCase()}
           </StatusBadge>
@@ -1262,13 +1269,13 @@ function QuadroCliente({
         )}
       </div>
       {tomador.bloqueio && <MensagemErro mensagem={tomador.bloqueio.motivo} />}
-      {!tomador.situacao && tomador.consulta_receita === "adiada" && (
+      {!tomador.situacao && !naoEncontrado && tomador.consulta_receita === "adiada" && (
         <p className="text-[13px] text-muted-foreground">
           A consulta à Receita ficou para daqui a pouco (limite de consultas). Saia do campo de novo
           em um minuto.
         </p>
       )}
-      {!tomador.situacao && tomador.consulta_receita === "falhou" && (
+      {!tomador.situacao && !naoEncontrado && tomador.consulta_receita === "falhou" && (
         <p className="text-[13px] text-muted-foreground">
           A Receita não respondeu agora; a situação fica como não conferida.
         </p>
