@@ -45,7 +45,7 @@ PRD: https://claude.ai/artifact/9SapRMdQ3ydy8srToQ7NSn (aprovado em 16/10/2026: 
 | Carregando | RPC em curso | `Carregando variante="kpis"` |
 | Carga nunca rodou | `sync.measured_at` vazio | `EstadoVazio` |
 | Pipe vazio | nenhum card no pipe 40 | `EstadoVazio` com de onde os cards nascem |
-| Entrada ou tarefas desligadas | `resumo.entrada.ligada`/`resumo.tarefas.ligada` falsos | aviso com a prévia (quantas vendas e tarefas nasceriam) e a lista das vendas |
+| Entrada ou tarefas desligadas | `resumo.entrada.ligada`/`resumo.tarefas.ligada` falsos | aviso com a prévia (quantos clientes do onboarding e quantas tarefas nasceriam) e a lista dos clientes |
 | Carga falhou | `sync.status = error` | `EstadoErro` com a data da última carga boa |
 | Sem acesso | sem `view.monetizacao` | `EstadoSemAcesso` |
 

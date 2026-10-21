@@ -6490,3 +6490,24 @@ quem usa (preferência de tela, não estado de dado): sem acesso ao storage, abr
 - A edge `faturamento-omie` não mudou e não foi republicada.
 - O app não foi publicado (o Pedro publica). Até lá, a tela antiga mostra "3 dias" com a contagem nova de 2, e o 404 da CNPJá segue como "não conferida".
 - **Em aberto:** a conta da PARTNERS (Pedro) e as três opções no Pipefy de Contas a Receber (Ana).
+## [2026-10-21] Pipe 40: o cliente entra pelo onboarding do CS depois do kickoff, não pela venda ganha
+
+**Contexto:** a trava de assinatura de 19/10 (PR #101) só barrava card novo. Os 15 cards criados antes dela continuaram na régua: em 20/10 a régua criou "Apresentar a Jordana", SLA e checklist para 7 deles, e o Matheus abordou 11 dos 15. Os clientes perceberam: o N9 perguntou "isso tem a ver com o contrato que estamos firmando com a Planning?", e a Norte Sul respondeu que ainda não tinha assinado. Em 21/10 o próprio Matheus suspendeu Rocca e Ronval "para não atrapalhar o fechamento". O sinal de assinatura também é fraco. No pipe 2, a etapa não anda depois de assinar. No Pipefy de contratos, 95 dos 135 contratos de setembro seguem em "Nova Solicitação". O Pedro pediu: "suba apenas clientes que fecharam, passaram pelo onboarding e têm fit com o produto".
+
+**Decisão (Pedro, 21/10, por múltipla escolha):**
+- **Porta de entrada:** cliente do onboarding do CS (Pipefy) que passou do kickoff, pela fase atual ou pelo histórico: kickoff, Setup técnico, Check-out, Concluído ou Pesquisa de Esforço. O Pré Kickoff não conta, e quem deu churn no onboarding não entra. O card do onboarding só nasce quando o contrato vai para "Enviar para Onboarding"; por isso, estar nele já é ter assinado. A venda ganha no Inside Sales deixa de ser porta.
+- **Fit:** o mesmo de 16/10, pela venda ligada ao card do onboarding (`ops.handoff_consultoria_onboarding.pipedrive_deal_id`): Lucro Real, ou Presumido de R$ 10 mi para cima. Venda sem organização agora entra, porque o card é um por venda.
+- **Pipe 39:** conta com card aberto ou ganho no 39 termina lá. Conta perdida no 39 entra, inclusive a já abordada (grupo C da lista de 21/10).
+- **Saída antes do onboarding:** os 11 cards abertos sem assinatura foram marcados como perdidos com o motivo "Ainda não passou pelo onboarding" (`MOTIVO_SEM_ONBOARDING`). A Santana ficou, porque já manda documentos. Quando o cliente passa do kickoff, a carga reabre o card na etapa 01 e apaga as linhas feitas ou apagadas da 01 (`liberarEtapa`), para a tarefa nascer de novo, vencendo hoje.
+- **Unidade pausada:** `MONET_DIAG_UNIDADES_PAUSADAS` (Belém, até o Igor liberar). O card nasce com a nota fixada "Pausado em", e a pausa que já existe faz o resto.
+- **Saem:** `MONET_DIAG_VENDAS_DESDE`, `MONET_DIAG_EXIGE_ASSINATURA`, `vendasAssinadas` e `store.assinaturas`.
+
+**Feito à mão em 21/10 (scripts em `monetizacao/outputs/2026-10-21-pipe40-lista-onboarding/`):**
+- Os 11 cards saíram do pipe 40.
+- Subiram 49 cards da lista do onboarding: 9 limpos, 3 de Belém, 27 já perdidos no 39 e 10 a conferir. Os 10 de Belém subiram pausados.
+- Para não haver duas portas ao mesmo tempo, `MONET_DIAG_ENTRADA_ATIVA=nao` foi gravado antes do código.
+- O ensaio da regra nova com dados reais, só leitura, dá 0 cards a criar: 225 clientes do onboarding, 165 depois do kickoff e 36 sem venda ligada.
+
+**Limite conhecido:** cliente do onboarding sem venda ligada no espelho do Handoff (36 hoje) não entra sozinho. O conserto é o CS ligar o card do contrato.
+
+**Ligar a entrada:** só com o "pode ativar" do Pedro (`MONET_DIAG_ENTRADA_ATIVA=sim`).

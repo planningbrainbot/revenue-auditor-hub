@@ -6,8 +6,11 @@ import {
   CAMPO,
   JORDANA,
   MATHEUS,
+  MOTIVO_SEM_ONBOARDING,
   cardDaVenda,
   elegibilidade,
+  passouDoKickoff,
+  unidadePausada,
   montarCard,
   motivoDeEncerrar,
   planejarEntrada,
@@ -65,7 +68,7 @@ function card(over = {}) {
   );
 }
 
-test("quem entra: Real, ou Presumido de R$ 10 mi para cima, com organização", () => {
+test("quem entra: Real, ou Presumido de R$ 10 mi para cima; sem organização também", () => {
   const v = (regime, faixa, org = 1) => ({
     org_id: org,
     custom_fields: { [CAMPO.regime]: regime, [CAMPO.faixa]: faixa },
@@ -75,7 +78,7 @@ test("quem entra: Real, ou Presumido de R$ 10 mi para cima, com organização", 
   assert.equal(elegibilidade(v(351, 776)).entra, false);
   assert.equal(elegibilidade(v(351, 776)).motivo, "Lucro Presumido abaixo de R$ 10 mi");
   assert.equal(elegibilidade(v(350, 778)).entra, false);
-  assert.equal(elegibilidade(v(352, 778, null)).motivo, "venda sem organização");
+  assert.equal(elegibilidade(v(352, 778, null)).entra, true, "o cliente vem do onboarding");
   assert.equal(elegibilidade(v(null, null)).motivo, "sem regime na venda");
 });
 
@@ -198,6 +201,8 @@ function fakes({
   tarefas = [],
   notas = {},
   apagadas = [],
+  onboarding = [],
+  pipe39 = [],
 } = {}) {
   const chamadas = [];
   let proximo = 9000;
@@ -234,8 +239,15 @@ function fakes({
       if (path === "deals") return deals.filter((d) => d.stage_id === params.stage_id);
       return [];
     },
-    async v2() {
-      return { data: vendas, additional_data: {} };
+    async v2(path, params = {}) {
+      chamadas.push(["v2", path, params]);
+      if (params.ids) {
+        const ids = String(params.ids).split(",").map(Number);
+        return { data: vendas.filter((v) => ids.includes(v.id)), additional_data: {} };
+      }
+      if (params.pipeline_id === 39)
+        return { data: pipe39.filter((d) => d.status === params.status), additional_data: {} };
+      return { data: [], additional_data: {} };
     },
     async post(path, payload) {
       chamadas.push(["post", path, payload]);
@@ -249,12 +261,19 @@ function fakes({
       chamadas.push(["del", path]);
     },
   };
-  const estado = { retrato: null, entradas: [...entradas], tarefas: [...tarefas] };
+  const estado = { retrato: null, entradas: [...entradas], tarefas: [...tarefas], liberadas: [] };
   const store = {
     cardsAtuais: async () => [],
     gravarRetrato: async (r) => void (estado.retrato = r),
     entradas: async () => estado.entradas,
     inserirEntrada: async (l) => void estado.entradas.push(l),
+    onboarding: async () => onboarding,
+    liberarEtapa: async (dealId, etapa) => {
+      estado.liberadas.push([dealId, etapa]);
+      estado.tarefas = estado.tarefas.filter(
+        (t) => !(t.deal_id === dealId && t.etapa === String(etapa) && t.status !== "aberta"),
+      );
+    },
     tarefas: async () => estado.tarefas,
     inserirTarefa: async (l) => {
       if (
@@ -277,52 +296,103 @@ function fakes({
 }
 
 const VENDAS = [
-  {
-    id: 1,
-    org_id: 11,
-    won_time: "2026-10-02T15:00:00Z",
-    update_time: "2026-10-02T15:00:00Z",
-    custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 775 },
-  },
-  {
-    id: 2,
-    org_id: 12,
-    won_time: "2026-10-08T15:00:00Z",
-    update_time: "2026-10-08T15:00:00Z",
-    custom_fields: { [CAMPO.regime]: 351, [CAMPO.faixa]: 776 },
-  },
-  {
-    id: 3,
-    org_id: 11,
-    won_time: "2026-10-09T15:00:00Z",
-    update_time: "2026-10-09T15:00:00Z",
-    custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 775 },
-  },
-  {
-    id: 4,
-    org_id: 14,
-    won_time: "2026-09-29T15:00:00Z",
-    update_time: "2026-10-03T15:00:00Z",
-    custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 775 },
-  },
+  { id: 1, org_id: 11, won_time: "2026-10-02T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 775 } },
+  { id: 2, org_id: 12, won_time: "2026-10-08T15:00:00Z", custom_fields: { [CAMPO.regime]: 351, [CAMPO.faixa]: 776 } },
+  { id: 3, org_id: 11, won_time: "2026-10-09T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 775 } },
+  { id: 4, org_id: 14, won_time: "2026-09-29T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 778 } },
+  { id: 5, org_id: 15, won_time: "2026-09-10T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 777 } },
+];
+const onb = (card, venda, fase, fases = [], unidade = "Matriz") => ({
+  pipefy_card_id: String(card),
+  titulo: "Cliente " + card,
+  unidade,
+  fase_atual: fase,
+  fases,
+  pipedrive_deal_id: venda,
+});
+const ONBOARDING = [
+  onb(101, 1, "Setup técnico"),
+  onb(102, 2, "Concluído"), // Presumido abaixo de R$ 10 mi
+  onb(103, 3, "Pesquisa de Esforço (CES)"), // mesma conta da venda 1
+  onb(104, 4, "Pré Kickoff [ops + cs]"), // ainda antes do kickoff
+  onb(105, 5, "Churn no Onboarding", ["kickoff com [Cliente + ops + cs]"]),
+  onb(106, null, "Concluído"), // sem venda ligada
 ];
 
-test("dry-run: nada escrito no Pipedrive, prévia com uma conta por venda elegível", async () => {
+test("passou do kickoff: fase atual ou histórico; Pré Kickoff não conta; churn não entra", () => {
+  assert.equal(passouDoKickoff(onb(1, 1, "kickoff com [Cliente + ops + cs]")), true);
+  assert.equal(passouDoKickoff(onb(1, 1, "Pré Kickoff [ops + cs]")), false);
+  assert.equal(
+    passouDoKickoff(onb(1, 1, "Pré Kickoff [ops + cs]", ["kickoff com [Cliente + ops + cs]"])),
+    true,
+    "voltou para o Pré Kickoff depois de passar pelo kickoff",
+  );
+  assert.equal(passouDoKickoff(onb(1, 1, "Churn no Onboarding", ["Setup técnico"])), false);
+  assert.equal(unidadePausada(["Belém"], ["Matriz", "BELEM"]), "BELEM");
+  assert.equal(unidadePausada([], ["Belém"]), null);
+});
+
+test("dry-run: nada escrito, prévia de quem passou do kickoff com fit, uma por conta", async () => {
+  const f = fakes({ vendas: VENDAS, onboarding: ONBOARDING });
+  const r = await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: false,
+    tarefasAtiva: false,
+    inicio: null,
+  });
+  assert.equal(f.chamadas.filter((c) => c[0] === "post" || c[0] === "put").length, 0);
+  assert.equal(r.entrada.a_criar_ou_criadas, 1, "só a venda 1: a 3 é da mesma conta");
+  assert.equal(r.entrada.depois_do_kickoff, 4);
+  assert.deepEqual(r.entrada.fora_da_regra, {
+    "onboarding sem venda ligada": 1,
+    "Lucro Presumido abaixo de R$ 10 mi": 1,
+  });
+  assert.equal(f.estado.retrato.previa.entradas[0].empresa, "Cliente 101");
+  assert.equal(f.estado.entradas.length, 0);
+});
+
+test("ligada: cria o card com o nome do onboarding, a nota fixada e a entrada; nada se repete", async () => {
+  const f = fakes({ vendas: VENDAS, onboarding: ONBOARDING });
+  const op = {
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: true,
+    inicio: "2026-10-16T00:00:00Z",
+  };
+  const r = await rodarDiagnostico(op);
+  const posts = f.chamadas.filter((c) => c[0] === "post");
+  assert.deepEqual(
+    posts.map((c) => c[1]),
+    ["deals", "notes"],
+  );
+  assert.equal(posts[0][2].title, "Cliente 101");
+  assert.equal(posts[0][2].stage_id, ETAPA.novo);
+  assert.equal(posts[1][2].pinned_to_deal_flag, 1);
+  assert.match(posts[1][2].content, /Onboarding do CS: Setup técnico/);
+  assert.equal(r.entrada.criadas, 1);
+  assert.deepEqual(
+    f.estado.entradas.map((e) => [e.venda_id, e.status, e.deal_id]),
+    [
+      [1, "criado", 9001],
+      [3, "conta_ja_no_pipe", 9001],
+    ],
+  );
+  const antes = f.chamadas.length;
+  await rodarDiagnostico(op);
+  assert.equal(f.chamadas.slice(antes).filter((c) => c[0] === "post").length, 0);
+});
+
+test("pipe 39: conta com card aberto fica lá; conta perdida no 39 entra", async () => {
   const f = fakes({
     vendas: VENDAS,
-    deals: [
-      {
-        id: 700,
-        pipeline_id: 40,
-        stage_id: 294,
-        status: "open",
-        title: "Y",
-        org_id: { value: 20, name: "Y" },
-        user_id: MATHEUS,
-        stage_change_time: "2026-10-16 10:00:00",
-        add_time: "2026-10-15 10:00:00",
-        update_time: "2026-10-16 10:00:00",
-      },
+    onboarding: [onb(101, 1, "Setup técnico"), onb(107, 5, "Concluído")],
+    pipe39: [
+      { id: 39001, org_id: 11, status: "open" },
+      { id: 39002, org_id: 15, status: "lost" },
     ],
   });
   const r = await rodarDiagnostico({
@@ -332,82 +402,29 @@ test("dry-run: nada escrito no Pipedrive, prévia com uma conta por venda elegí
     entradaAtiva: false,
     tarefasAtiva: false,
     inicio: null,
-    vendasDesde: "2026-10-01",
   });
-  assert.equal(f.chamadas.filter((c) => c[0] !== "get").length, 0);
-  assert.equal(
-    r.entrada.a_criar_ou_criadas,
-    1,
-    "venda 3 é da mesma conta da 1; a 4 é de setembro; a 2 está fora da regra",
+  assert.deepEqual(
+    f.estado.retrato.previa.entradas.map((e) => e.venda_id),
+    [5],
   );
-  assert.deepEqual(r.entrada.fora_da_regra, { "Lucro Presumido abaixo de R$ 10 mi": 1 });
-  assert.equal(f.estado.retrato.previa.entradas[0].empresa, "Conta 11");
-  assert.equal(
-    f.estado.retrato.previa.tarefas.length,
-    3,
-    "card na 02 recebe as três tarefas na prévia",
-  );
-  assert.equal(f.estado.entradas.length, 0);
-  assert.equal(f.estado.tarefas.length, 0);
+  assert.deepEqual(r.entrada.fora_da_regra, { "card aberto ou ganho no pipe 39": 1 });
 });
 
-test("ligada: cria o card, a nota fixada, a entrada; tarefas só depois do início", async () => {
-  const f = fakes({
-    vendas: VENDAS,
-    deals: [
-      {
-        id: 700,
-        pipeline_id: 40,
-        stage_id: 294,
-        status: "open",
-        title: "Y",
-        org_id: { value: 20, name: "Y" },
-        user_id: MATHEUS,
-        stage_change_time: "2026-10-16 10:00:00",
-        add_time: "2026-10-15 10:00:00",
-        update_time: "2026-10-16 10:00:00",
-      },
-    ],
-  });
-  const r = await rodarDiagnostico({
-    pd: f.pd,
-    store: f.store,
-    agora: AGORA,
-    entradaAtiva: true,
-    tarefasAtiva: true,
-    inicio: "2026-10-16T00:00:00Z",
-    vendasDesde: "2026-10-01",
-  });
-  const posts = f.chamadas.filter((c) => c[0] === "post");
-  assert.deepEqual(
-    posts.map((c) => c[1]),
-    ["deals", "notes", "activities", "activities", "activities"],
-  );
-  assert.equal(posts[0][2].stage_id, ETAPA.novo);
-  assert.equal(posts[1][2].pinned_to_deal_flag, 1);
-  assert.equal(r.entrada.criadas, 1);
-  assert.equal(r.tarefas.criadas, 3);
-  assert.deepEqual(
-    f.estado.entradas.map((e) => [e.venda_id, e.status]),
-    [
-      [1, "criado"],
-      [3, "conta_ja_no_pipe"],
-    ],
-  );
-  assert.ok(f.estado.tarefas.every((t) => t.activity_id && t.status === "aberta"));
-
-  // Segunda rodada: nada se repete.
-  const f2posts = f.chamadas.length;
+test("unidade pausada: o card nasce com a nota 'Pausado em' antes da nota da venda", async () => {
+  const f = fakes({ vendas: VENDAS, onboarding: [onb(101, 1, "Concluído", [], "Belém")] });
   await rodarDiagnostico({
     pd: f.pd,
     store: f.store,
     agora: AGORA,
     entradaAtiva: true,
-    tarefasAtiva: true,
-    inicio: "2026-10-16T00:00:00Z",
-    vendasDesde: "2026-10-01",
+    tarefasAtiva: false,
+    inicio: null,
+    unidadesPausadas: ["Belém"],
   });
-  assert.equal(f.chamadas.slice(f2posts).filter((c) => c[0] === "post").length, 0);
+  const notas = f.chamadas.filter((c) => c[0] === "post" && c[1] === "notes");
+  assert.equal(notas.length, 2);
+  assert.match(notas[0][2].content, /^Pausado em 16\/10\/2026\. A unidade Belém/);
+  assert.equal(notas[0][2].pinned_to_deal_flag, 1);
 });
 
 test("ligada: card que saiu da etapa apaga só a tarefa não feita", async () => {
@@ -586,93 +603,68 @@ test("base antiga protegida: conta no pipe 40 não sobe para o 39, fora o perdid
   assert.ok(FORA_DO_ENVIO_39.has(MATHEUS));
 });
 
-// ---------------------------------------------------------------------------- assinatura (19/10/2026)
+// ---------------------------------------------------------------------------- reabertura (21/10/2026)
 
-test("assinatura: venda sem contrato assinado espera, não vira card e é relida; assinada entra", async () => {
-  const f = fakes({ vendas: VENDAS, deals: [] });
-  const assinaturas = [];
-  f.store.assinaturas = async (vendas, orgs) =>
-    assinaturas.filter(
-      (a) =>
-        vendas.includes(Number(a.pipedrive_deal_id)) || orgs.includes(Number(a.org_id_pipedrive)),
-    );
+test("card que saiu antes do onboarding volta à etapa 01 quando o cliente passa do kickoff", async () => {
+  const perdido = {
+    id: 900,
+    pipeline_id: 40,
+    stage_id: 293,
+    status: "lost",
+    lost_reason: MOTIVO_SEM_ONBOARDING,
+    title: "Cliente",
+    org_id: { value: 11, name: "Cliente" },
+    user_id: MATHEUS,
+    stage_change_time: "2026-10-14 12:00:00",
+    add_time: "2026-10-14 12:00:00",
+    update_time: "2026-10-15 12:00:00",
+  };
+  const f = fakes({
+    vendas: VENDAS,
+    deals: [perdido],
+    entradas: [{ venda_id: 1, org_id: 11, deal_id: 900, status: "criado" }],
+    tarefas: [
+      {
+        deal_id: 900,
+        etapa: "293",
+        entrou_em: "2026-10-14 12:00:00",
+        chave: "01-conferir",
+        status: "feita",
+        activity_id: 1,
+      },
+    ],
+    onboarding: [onb(101, 1, "Pré Kickoff [ops + cs]")],
+  });
   const op = {
     pd: f.pd,
     store: f.store,
     agora: AGORA,
     entradaAtiva: true,
-    tarefasAtiva: false,
-    inicio: null,
-    vendasDesde: "2026-10-01",
-    exigirAssinatura: true,
+    tarefasAtiva: true,
+    inicio: "2026-10-01T00:00:00Z",
   };
-  const r1 = await rodarDiagnostico(op);
-  assert.equal(r1.entrada.criadas, 0);
-  assert.equal(r1.entrada.aguardando_assinatura, 2, "venda 1 e a 3, da mesma conta, esperam");
+  await rodarDiagnostico(op);
   assert.equal(
-    f.estado.entradas.length,
+    f.chamadas.filter((c) => c[0] === "put").length,
     0,
-    "quem espera não é gravado: é relido na próxima rodada",
+    "antes do kickoff, o card perdido fica como está",
   );
-  assert.equal(f.chamadas.filter((c) => c[0] === "post").length, 0);
-  assert.equal(f.estado.retrato.previa.aguardando_assinatura.length, 2);
 
-  // Contrato antigo da mesma empresa (antes de vendasDesde) não vale; o da própria venda vale.
-  assinaturas.push({
-    pipedrive_deal_id: null,
-    org_id_pipedrive: "11",
-    data_assinatura: "2025-03-01",
-  });
-  assert.equal((await rodarDiagnostico(op)).entrada.criadas, 0);
-  assinaturas.push({
-    pipedrive_deal_id: "1",
-    org_id_pipedrive: "11",
-    data_assinatura: "2026-10-16",
-  });
-  const r3 = await rodarDiagnostico(op);
-  assert.equal(r3.entrada.criadas, 1);
-  assert.deepEqual(
-    f.estado.entradas.map((e) => [e.venda_id, e.status]),
-    [
-      [1, "criado"],
-      [3, "conta_ja_no_pipe"],
-    ],
-  );
-  assert.deepEqual(r3.entrada.cards_sem_assinatura, []);
-});
+  f.store.onboarding = async () => [onb(101, 1, "kickoff com [Cliente + ops + cs]")];
+  const r = await rodarDiagnostico(op);
+  const put = f.chamadas.find((c) => c[0] === "put");
+  assert.deepEqual(put.slice(1), ["deals/900", { status: "open", stage_id: ETAPA.novo }]);
+  assert.equal(r.entrada.reabertas, 1);
+  assert.deepEqual(f.estado.liberadas, [[900, 293]]);
+  assert.equal(f.estado.tarefas.length, 0, "a 01 feita antes sai, para nascer de novo");
+  assert.equal(f.estado.entradas.length, 1, "a entrada da venda já existia");
 
-test("assinatura: card criado antes da trava sem contrato assinado aparece no resumo", async () => {
-  const f = fakes({
-    vendas: VENDAS,
-    deals: [],
-    entradas: [{ venda_id: 1, org_id: 11, deal_id: 900, status: "criado" }],
-  });
-  f.store.assinaturas = async () => [];
-  const r = await rodarDiagnostico({
-    pd: f.pd,
-    store: f.store,
-    agora: AGORA,
-    entradaAtiva: true,
-    tarefasAtiva: false,
-    inicio: null,
-    vendasDesde: "2026-10-01",
-    exigirAssinatura: true,
-  });
-  assert.deepEqual(r.entrada.cards_sem_assinatura, [900]);
-  assert.equal(r.entrada.exige_assinatura, true);
-});
-
-test("assinatura: sem a trava, a regra antiga (só o ganho) continua", async () => {
-  const f = fakes({ vendas: VENDAS, deals: [] });
-  const r = await rodarDiagnostico({
-    pd: f.pd,
-    store: f.store,
-    agora: AGORA,
-    entradaAtiva: true,
-    tarefasAtiva: false,
-    inicio: null,
-    vendasDesde: "2026-10-01",
-  });
-  assert.equal(r.entrada.criadas, 1);
-  assert.equal(r.entrada.aguardando_assinatura, 0);
+  // Próxima rodada: o card aberto na 01 ganha a tarefa, vencendo hoje e não no dia da entrada antiga.
+  perdido.status = "open";
+  perdido.lost_reason = null;
+  perdido.update_time = "2026-10-16 15:00:00";
+  await rodarDiagnostico(op);
+  const nova = f.estado.tarefas.find((t) => t.deal_id === 900 && t.chave === "01-conferir");
+  assert.equal(nova.status, "aberta");
+  assert.equal(nova.due_date, "2026-10-16");
 });

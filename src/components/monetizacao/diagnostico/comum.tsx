@@ -168,8 +168,8 @@ export function AvisoPrevia({ painel }: { painel: PainelDiag }) {
               <>
                 <span className="font-medium text-foreground">Entrada automática desligada.</span>{" "}
                 {entradas.length
-                  ? `Ligada, ${plural(entradas.length, "venda ganha desde", "vendas ganhas desde")} ${ddmm(sync.resumo.entrada?.desde ?? null)} ${entradas.length === 1 ? "vira card" : "viram cards"} no pipe 40 (Lucro Real e Presumido de R$ 10 mi para cima). `
-                  : "Nenhuma venda nova para entrar. "}
+                  ? `Ligada, ${plural(entradas.length, "cliente do onboarding que passou do kickoff", "clientes do onboarding que passaram do kickoff")} ${entradas.length === 1 ? "vira card" : "viram cards"} no pipe 40 (Lucro Real e Presumido de R$ 10 mi para cima). `
+                  : "Nenhum cliente novo do onboarding para entrar. "}
               </>
             )}
             {!tarefasLigadas && (
@@ -185,14 +185,14 @@ export function AvisoPrevia({ painel }: { painel: PainelDiag }) {
         </p>
         {entradas.length > 0 && (
           <Button variant="outline" size="sm" onClick={() => setAberto(true)}>
-            {entradas.length === 1 ? "Ver a venda" : `Ver as ${INT.format(entradas.length)} vendas`}
+            {entradas.length === 1 ? "Ver o cliente" : `Ver os ${INT.format(entradas.length)} clientes`}
           </Button>
         )}
       </div>
       <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Vendas que entram no pipe 40 quando a entrada for ligada</DialogTitle>
+            <DialogTitle>Clientes que entram no pipe 40 quando a entrada for ligada</DialogTitle>
             <DialogDescription>
               Prévia da rodada de {ddmm(diaSP(sync.previa.gerada_em))}: uma por conta, no nome do
               Matheus, na etapa 01.
