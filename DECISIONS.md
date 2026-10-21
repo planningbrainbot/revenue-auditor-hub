@@ -5836,3 +5836,19 @@ Três decisões do dono por opções, depois da explicação dos números da tel
 - **"Faturado em 2026" sem "a meta":** a meta das OKRs é o aprovado desde 19/10 (101 com o Torres). A descrição da seção deixou de dizer que a meta é o faturado.
 - **Em análise à parte:** empresa no degrau 5 sem diagnóstico entregue ganha o motivo "Ainda em análise". Ela sai do "Achado e parado" (vai para a nota do cartão) e sai da Fila, porque não há o que cobrar. Os degraus do funil não mudam: o nível continua sendo a etapa mais adiantada.
 - **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` junta as filiais pela mesma regra, sem a régua da tela. Em 20/10 deu 6/6, com os degraus 2.003 → 1.742 → 231 → 176 → 132 → 96 → 61 → 51.
+
+## [2026-10-21] Venda ao Recebido: sem pipe Sócios e sem churn
+
+**Contexto:** o funil de Fortaleza mostrava 29 vendas e o Power BI de Mkt e
+Vendas mostrava 19. As 10 a mais eram 7 do pipe Sócios, 2 vendidas depois do
+fim do período do Power BI (13/10) e 1 churn (Bender Industrial, tratativa em
+Perdido).
+
+**Decisão:** a página mede o que a Partners atribuiu à unidade, então a venda
+do pipe Sócios (`origem_pipeline = 'socios'`) fica fora. O cliente com churn
+(`central_tratativas.status = 'lost'`, casado pelo deal) também fica fora. Os
+dois saem do funil, da lista de clientes e do gráfico mensal de vendas e
+contratos. O que pagaram segue só na linha "Carteira toda no período". O
+Itapoços está em Perdido desde 17/07 e sai, embora o Power BI ainda o conte.
+
+O recebido do funil é acumulado desde a venda, não é o do último mês.

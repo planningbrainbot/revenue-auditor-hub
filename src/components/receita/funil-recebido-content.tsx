@@ -563,8 +563,8 @@ function FunilHorizontal({
       rotulo: "Pagou a unidade",
       qtd: pagaram.length,
       nota: soPorCac
-        ? `recebido apurado · ${soPorCac} só pelo CAC (sem valor)`
-        : "recebido apurado desde a venda",
+        ? `recebido acumulado · ${soPorCac} só pelo CAC (sem valor)`
+        : "recebido acumulado desde a venda",
       pct: pct(pagaram.length, n),
       valor: soma(pagaram, "recebido"),
       opacidade: 1,
@@ -612,8 +612,10 @@ function FunilHorizontal({
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Vendido e assinado são MRR (um mês de honorário). Recebido soma todos os meses apurados
-        desde a venda, por isso pode passar do MRR conforme o cliente paga. Cliente que só aparece
+        Vendido e assinado são MRR (um mês de honorário). Recebido é acumulado: soma todos os meses
+        apurados desde a venda, não só o último, por isso pode passar do MRR conforme o cliente
+        paga. Ficam fora do funil o cliente com churn (tratativa em Perdido) e a venda do pipe
+        Sócios, que não é atribuída pela Partners à unidade. Cliente que só aparece
         pela 2ª parcela ou pelo integral do CAC conta como pagante, mas sem valor: a apuração dessas
         unidades não traz o honorário.
       </p>
