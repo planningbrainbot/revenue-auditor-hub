@@ -128,3 +128,13 @@ Pedido do Pedro depois de ver a primeira versão no ar: "é pra ter muito mais c
 - Quem chega por outra área (o sócio, por Minha Unidade) vê as três telas no topo da página, porque não tem a lateral da Base.
 - "Base de Contatos" saiu do menu; a rota continua.
 - `/monetizacao/produtos` e `/monetizacao/listas` redirecionam para a Base.
+
+## Adendo 21/10/2026 · Recorte por região, porte e segmento; o Painel auditável
+
+Pedido do Pedro (21/10): "filtros muito bonitos na primeira tela: especialmente de região, segmento e porte" e "na tela de gráficos eu consiga clicar em cada gráfico e em cada filtro (que deve ter ali também) e conseguir auditar nominalmente o número, assim como acontece com tudo". O pedido vale como "contrato ok". Arquétipos não mudam (Clientes: Lista/Relatório; Painel: Visão geral). Réguas em `DECISIONS.md`, 21/10.
+
+- **Recorte** (Clientes e Painel), abaixo da busca e da unidade: Região (cartões das 5 regiões e "Sem UF"; marcada uma região, os estados dela aparecem em pílulas), Porte (cartões com o medidor de degraus e a régua de cada porte) e Segmento (pílulas dos 8 maiores, "Sem segmento" no fim e "Mais N segmentos" com busca). Cada opção: número com os outros filtros aplicados, % do filtro e barra contra a maior opção. As marcadas aparecem em chips no topo do recorte, com "Limpar recorte". URL: `regiao`, `uf`, `porte`, `segmentoCliente`.
+- **Clientes:** os quatro KPIs e a lista seguem o recorte; a lista ganha UF · região (com "pela unidade" quando a UF veio da unidade), Segmento e Porte. A busca acha qualquer empresa do escopo: o recorte não esconde o cartão "não cite", e o vazio diz quantos clientes com esse nome ficaram fora do recorte, com "Tirar o recorte".
+- **Painel:** unidade e recorte no topo, com o ícone de lista em cada opção do recorte. Todo número abre as empresas numa gaveta à direita (`numero`): KPIs, cada pedaço da barra de cada unidade, o nome e o total da unidade, a legenda dos graus, Região, Porte, as fatias e a legenda de Base Antiga × Nova, Regime, Segmentos, Faixa (e o "sem faixa"), Quem fatura. A gaveta mostra o total no título, a barra de certeza (filtra dentro), busca, Exportar e a tabela; a empresa abre a ficha por cima, com "Voltar para…". "Abrir na lista de Clientes" leva à lista com o mesmo recorte quando ele cabe nos filtros da lista; Inativos leva a Contratos e churn.
+- **N2:** o número da barra é o tamanho da lista que ela abre ("Outros" conta cada empresa uma vez).
+- **Não entra:** o recorte na Confiança e em Contratos e churn; UF da unidade no banco (fica numa tabela fixa no código até a unidade ter UF no cadastro).

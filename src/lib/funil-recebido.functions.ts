@@ -167,9 +167,17 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     .sort()[0];
 
   const COLS_CT =
-    "id,unidade,titulo,cnpj,origem_pipeline,ganho_em,entrada_contrato_assinado_em,mrr_mensal,mrr_override,pipedrive_owner_email";
-  const [contratos, socios, itens, titulos, splitsRetidos, apuracoes, faturas, titulosPartners] =
-    await Promise.all([
+    "id,unidade,titulo,cnpj,origem_pipeline,ganho_em,entrada_contrato_assinado_em,mrr_mensal,mrr_override,pipedrive_deal_id";
+  const [
+    contratos,
+    itens,
+    titulos,
+    splitsRetidos,
+    apuracoes,
+    faturas,
+    titulosPartners,
+    perdidos,
+  ] = await Promise.all([
       todasAsPaginas((i, f) =>
         sb
           .from("contratos")
@@ -177,9 +185,6 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
           .or(`ganho_em.gte.${INICIO},entrada_contrato_assinado_em.gte.${INICIO}`)
           .order("id")
           .range(i, f),
-      ),
-      todasAsPaginas((i, f) =>
-        sb.from("socios").select("id,email,unidade_id").order("id").range(i, f),
       ),
       todasAsPaginas((i, f) =>
         sb
@@ -238,14 +243,19 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
           .order("id")
           .range(i, f),
       ),
+      // Churn: tratativa em Perdido (status vem do id da fase, como em contatos-cs).
+      todasAsPaginas((i, f) =>
+        sb
+          .from("central_tratativas")
+          .select("id,pipedrive_deal_id")
+          .eq("status", "lost")
+          .not("pipedrive_deal_id", "is", null)
+          .order("id")
+          .range(i, f),
+      ),
     ]);
 
   // ---- vendas e contratos por unidade × mês
-  const socioUnid = new Map<string, number>(
-    (socios as any[])
-      .filter((s) => s.email && s.unidade_id)
-      .map((s) => [String(s.email).toLowerCase(), s.unidade_id]),
-  );
   const linhas = new Map<string, LinhaMes>();
   const linha = (unidade: string, mes: string): LinhaMes => {
     const k = `${unidade}|${mes}`;
@@ -291,18 +301,26 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     return f;
   };
 
+  // Fora do funil inteiro (venda, contrato, recebido e lista), com o recebido
+  // seguindo só na carteira do mês (linha de baixo):
+  // - churn: tratativa em Perdido;
+  // - pipe Sócios: venda do sócio, não atribuída pela Partners à unidade. A
+  //   análise é do que a Partners vendeu para cada unidade (21/10/2026).
+  const dealsPerdidos = new Set((perdidos as any[]).map((t) => String(t.pipedrive_deal_id)));
+  const fichasFora = new Set<ClienteFunil>();
+
   for (const c of contratos as any[]) {
-    // Venda do pipe Sócios sem unidade herda a do sócio dono (regra de v_hunter_socio).
-    let nome: string | null = c.unidade;
-    if (!nome && c.origem_pipeline === "socios" && c.pipedrive_owner_email) {
-      nome = porId.get(
-        socioUnid.get(String(c.pipedrive_owner_email).toLowerCase()) ?? -1,
-      )?.nome_da_praca;
-    }
-    const u = nome ? porChave.get(chaveNome(nome)) : null;
+    const u = c.unidade ? porChave.get(chaveNome(c.unidade)) : null;
     if (!u) continue; // Matriz e unidades fora do cadastro
     const mrr = c.mrr_override != null ? N(c.mrr_override) : N(c.mrr_mensal);
     const f = ficha(u.nome_da_praca, digitos(c.cnpj), c.titulo);
+    if (
+      c.origem_pipeline === "socios" ||
+      (c.pipedrive_deal_id != null && dealsPerdidos.has(String(c.pipedrive_deal_id)))
+    ) {
+      fichasFora.add(f);
+      continue;
+    }
     if (c.ganho_em && c.ganho_em >= INICIO) {
       const l = linha(u.nome_da_praca, mesDe(c.ganho_em));
       l.vendas += 1;
@@ -525,7 +543,7 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
       };
     });
 
-  const clientes = fichas.sort(
+  const clientes = fichas.filter((f) => !fichasFora.has(f)).sort(
     (a, b) => a.unidade.localeCompare(b.unidade) || a.cliente.localeCompare(b.cliente),
   );
   return {

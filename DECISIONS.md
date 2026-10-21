@@ -6405,3 +6405,50 @@ Três decisões do dono por opções, depois da explicação dos números da tel
 
   As emissoras novas: PNE 50, ASCENDIA 7, FINANCE 2.
 - **CA-04 com dado real:** um CNPJ com contrato vigente na PAC, consultado para um pedido pela PRJ, recebe o aviso "PAC", sem número nem valor.
+
+## [2026-10-21] Venda ao Recebido: sem pipe Sócios e sem churn
+
+**Contexto:** o funil de Fortaleza mostrava 29 vendas e o Power BI de Mkt e
+Vendas mostrava 19. As 10 a mais eram 7 do pipe Sócios, 2 vendidas depois do
+fim do período do Power BI (13/10) e 1 churn (Bender Industrial, tratativa em
+Perdido).
+
+**Decisão:** a página mede o que a Partners atribuiu à unidade, então a venda
+do pipe Sócios (`origem_pipeline = 'socios'`) fica fora. O cliente com churn
+(`central_tratativas.status = 'lost'`, casado pelo deal) também fica fora. Os
+dois saem do funil, da lista de clientes e do gráfico mensal de vendas e
+contratos. O que pagaram segue só na linha "Carteira toda no período". O
+Itapoços está em Perdido desde 17/07 e sai, embora o Power BI ainda o conte.
+
+O recebido do funil é acumulado desde a venda, não é o do último mês.
+
+## [2026-10-21] Base de clientes: recorte por região, porte e segmento, e todo número do Painel abre as empresas
+
+Pedido do dono em 21/10/2026: "filtros muito bonitos na primeira tela: especialmente de região, segmento e porte" e,
+no Painel, "clicar em cada gráfico e em cada filtro (que deve ter ali também) e conseguir auditar nominalmente o número,
+assim como acontece com tudo". Contrato: `docs/design/contratos/clientes.md`, adendo de 21/10.
+- **Recorte (Clientes e Painel).** Um painel com três filtros visuais, de múltipla escolha: Região (5 regiões e "Sem
+  UF", com os estados da região marcada logo abaixo), Porte (Micro, Pequena, Média, Grande e "Sem porte") e Segmento
+  (os 8 maiores à mostra e o resto num menu com busca). Cada opção mostra quantas empresas tem com os outros filtros já
+  aplicados. Na URL: `regiao`, `uf`, `porte`, `segmentoCliente` (chaves próprias; `segmento` e `faixa` são da tabela de
+  Produtos, com outra régua). O recorte não vale na Confiança, onde não aparece.
+- **UF da conta:** a da empresa (`ops.base_conta_uf`: Receita, cadastro, ECD, Omie, Pipedrive) e, sem ela, a da praça
+  da primeira unidade que a atende (tabela fixa em `src/lib/clientes/recorte.ts`). Em 21/10 só 3.276 dos 6.703
+  clientes tinham UF da empresa; a tabela e a lista dizem "pela unidade" quando a UF veio da unidade.
+- **Porte:** pela faixa de faturamento (declarada ou estimada pela DataStone) e, sem ela, pelo teto do porte na Receita.
+  Micro até R$ 500 mil (inclui ME e "Sem movimentação"), Pequena até R$ 4,8 mi (inclui EPP), Média de R$ 4,8 mi a
+  R$ 78 mi, Grande acima de R$ 78 mi. Em 21/10: 2.005 · 1.462 · 364 · 200 e 2.672 sem porte.
+- **Segmento:** grafias do mesmo segmento viram uma ("Construção civil" = "Construção Civil"), os nomes da DataStone em
+  caixa alta viram o segmento do cadastro mais próximo (VAREJO e ATACADO → Distribuição e Varejo, OUTROS SERVICOS →
+  Serviços…), e vazio ou "Não informado" vira "Sem segmento". Só o rótulo muda; o campo da conta fica como veio.
+- **A busca continua dizendo se a empresa é cliente:** o recorte não esconde o cartão "não cite", e cliente fora do
+  recorte aparece como "N clientes com esse nome ficam fora do recorte", nunca como "não é cliente".
+- **Painel auditável:** os KPIs, cada barra (unidade, cada grau de cada unidade, região, porte, regime, segmento,
+  faixa, quem fatura), as fatias de Base Antiga × Nova, a legenda dos graus, o "sem faixa" e cada opção do recorte
+  (ícone de lista) abrem as empresas numa gaveta à direita (`numero` na URL), no padrão da Consultoria de 20/10: barra
+  de certeza que filtra dentro da gaveta, busca, exportação CSV e a ficha por cima com "Voltar". O número da barra é o
+  tamanho da lista que ela abre; conferido por clique em 37 barras. As barras viraram botões em HTML (antes Recharts
+  sem clique), por isso também abrem pelo teclado. Ganharam gráfico próprio Região e Porte.
+- **Corrige:** "Outros" de "Quem fatura os clientes" somava a mesma empresa uma vez por empresa do grupo; agora conta
+  cada empresa uma vez, para bater com a gaveta. O "Outros" que já existe como segmento no cadastro cai no mesmo balde.
+- **Não muda:** nenhuma régua de cliente, grau ou origem.
