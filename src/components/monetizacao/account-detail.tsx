@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery } from "@tanstack/react-query";
@@ -24,10 +25,13 @@ export function AccountDetail({
   account,
   cards,
   close,
+  voltar,
 }: {
   account: Conta | null;
   cards: Negocio[];
   close: () => void;
+  /** Aberta por cima de uma gaveta (Painel da Base): volta para a lista sem perder o recorte. */
+  voltar?: string;
 }) {
   const fn = useServerFn(detalheAquario);
   const { user } = useAuth();
@@ -60,6 +64,16 @@ export function AccountDetail({
     <Dialog open={!!account} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
+          {voltar && (
+            <button
+              type="button"
+              onClick={close}
+              className="inline-flex max-w-full items-center gap-1.5 self-start rounded-md py-1 text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">Voltar para {voltar}</span>
+            </button>
+          )}
           <DialogTitle>{account?.name}</DialogTitle>
           <DialogDescription>
             {account?.unit_label || "Unidade a confirmar"} ·{" "}

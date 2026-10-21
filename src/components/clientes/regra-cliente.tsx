@@ -18,6 +18,13 @@ import {
   totalClientes,
   type Faixa,
 } from "@/lib/clientes/regra-cliente";
+import {
+  PORTES,
+  SEM_SEGMENTO,
+  SEM_UF,
+  type PerfilRecorte,
+  type Porte,
+} from "@/lib/clientes/recorte";
 import { cn } from "@/lib/utils";
 
 /** Quatro barrinhas: quanto mais cheias, mais certeza. Só para cliente. */
@@ -46,6 +53,41 @@ export function MedidorGrau({
           )}
         />
       ))}
+    </span>
+  );
+}
+
+/** Quatro degraus que sobem com o porte (micro acende um, grande os quatro); sem porte, todos apagados. */
+export function MedidorPorte({ porte, className }: { porte: Porte; className?: string }) {
+  const nivel = PORTES.find((p) => p.chave === porte)?.nivel ?? 0;
+  return (
+    <span className={cn("inline-flex items-end gap-0.5", className)} aria-hidden>
+      {[1, 2, 3, 4].map((n) => (
+        <span
+          key={n}
+          className={cn(
+            "w-1.5 rounded-sm",
+            n <= nivel ? "bg-primary" : "bg-muted-foreground/20",
+            n === 1 ? "h-1.5" : n === 2 ? "h-2.5" : n === 3 ? "h-3.5" : "h-[18px]",
+          )}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** O porte na linha da tabela: o medidor e o nome, com a régua no title. */
+export function SeloPorte({ porte }: { porte: Porte }) {
+  const p = PORTES.find((x) => x.chave === porte);
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm"
+      title={p ? `${p.rotulo}: ${p.dica}` : undefined}
+    >
+      <MedidorPorte porte={porte} />
+      <span className={cn(porte === "sem_porte" && "text-xs text-muted-foreground")}>
+        {p?.rotulo ?? porte}
+      </span>
     </span>
   );
 }
@@ -208,7 +250,22 @@ function Paginacao({
   );
 }
 
-type Coluna = "unidade" | "certeza" | "reuniao" | "motivo";
+type Coluna = "unidade" | "certeza" | "reuniao" | "motivo" | "local" | "segmento" | "porte";
+
+/** UF da conta e de onde ela veio, numa célula ("PR", "AL · pela unidade", "Sem UF"). */
+export function LocalDaConta({ p }: { p: PerfilRecorte }) {
+  if (p.uf === SEM_UF) return <span className="text-xs text-muted-foreground">Sem UF</span>;
+  return (
+    <span className="whitespace-nowrap text-sm">
+      <span className="font-medium">{p.uf}</span>
+      <span className="text-xs text-muted-foreground">
+        {" "}
+        · {p.regiao}
+        {p.fonteUf === "unidade" ? " · pela unidade" : ""}
+      </span>
+    </span>
+  );
+}
 
 /** A tabela das telas da Base: nome e CNPJ, e as colunas pedidas. A linha abre a ficha. */
 export function TabelaContas({
@@ -220,6 +277,7 @@ export function TabelaContas({
   titulo,
   subtitulo,
   acoes,
+  perfil,
 }: {
   contas: Conta[];
   colunas: Coluna[];
@@ -229,6 +287,8 @@ export function TabelaContas({
   titulo: string;
   subtitulo?: string;
   acoes?: ReactNode;
+  /** Região, segmento e porte de cada conta (`perfilRecorte`): obrigatório com as colunas local, segmento e porte. */
+  perfil?: (a: Conta) => PerfilRecorte;
 }) {
   const paginas = Math.max(1, Math.ceil(contas.length / POR_PAGINA));
   const atual = Math.min(pagina, paginas);
@@ -237,7 +297,13 @@ export function TabelaContas({
     certeza: "Certeza",
     reuniao: "Em reunião",
     motivo: "Por quê",
+    local: "UF · região",
+    segmento: "Segmento",
+    porte: "Porte",
   };
+  const cols = perfil
+    ? colunas
+    : colunas.filter((c) => !["local", "segmento", "porte"].includes(c));
   return (
     <section className="overflow-hidden rounded-xl border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
@@ -252,7 +318,7 @@ export function TabelaContas({
           <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-3">Empresa / CNPJ</th>
-              {colunas.map((c) => (
+              {cols.map((c) => (
                 <th key={c} className="px-4 py-3">
                   {cabecalho[c]}
                 </th>
@@ -274,10 +340,23 @@ export function TabelaContas({
                     {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
                   </p>
                 </td>
-                {colunas.map((c) => (
+                {cols.map((c) => (
                   <td key={c} className="px-4 py-3 align-top">
                     {c === "unidade" ? (
                       <span className="text-sm">{a.unit_label || "A confirmar"}</span>
+                    ) : c === "local" && perfil ? (
+                      <LocalDaConta p={perfil(a)} />
+                    ) : c === "segmento" && perfil ? (
+                      <span
+                        className={cn(
+                          "text-sm",
+                          perfil(a).segmento === SEM_SEGMENTO && "text-xs text-muted-foreground",
+                        )}
+                      >
+                        {perfil(a).segmento}
+                      </span>
+                    ) : c === "porte" && perfil ? (
+                      <SeloPorte porte={perfil(a).porte} />
                     ) : c === "certeza" ? (
                       <SeloSituacao conta={a} />
                     ) : c === "reuniao" ? (
@@ -307,6 +386,9 @@ export function TabelaContas({
  */
 export function VisaoClientes({
   contas,
+  contasBusca = contas,
+  perfil,
+  aoLimparRecorte,
   busca,
   sit,
   base,
@@ -315,7 +397,15 @@ export function VisaoClientes({
   aoMudarPagina,
   aoAbrir,
 }: {
+  /** As contas da busca e da unidade, já no recorte de região, porte e segmento. */
   contas: Conta[];
+  /**
+   * As mesmas contas sem o recorte (21/10/2026). A busca diz se a empresa é cliente: o recorte não pode esconder quem não
+   * é (o cartão "não cite") nem fazer um cliente parecer não cliente.
+   */
+  contasBusca?: Conta[];
+  perfil?: (a: Conta) => PerfilRecorte;
+  aoLimparRecorte?: () => void;
   busca: string;
   sit: "clientes" | "ex";
   base: "antiga" | "nova" | null;
@@ -331,8 +421,12 @@ export function VisaoClientes({
   const termo = busca.trim();
   const buscando = termo.length >= 2;
   const foraDaLista = buscando
-    ? contas.filter((a) => !ehCliente(a) && !ehExCliente(a)).sort(porCerteza)
+    ? contasBusca.filter((a) => !ehCliente(a) && !ehExCliente(a)).sort(porCerteza)
     : [];
+  // Clientes e ex-clientes que a busca achou mas o recorte deixou de fora: a tela diz quantos, em vez de "não é cliente".
+  const escondidosPeloRecorte = buscando
+    ? contasBusca.filter((a) => ehCliente(a) || ehExCliente(a)).length - clientes.length - ex.length
+    : 0;
   const lista =
     sit === "ex" ? ex : base === "antiga" ? antigas : base === "nova" ? novas : clientes;
   const resumo = [
@@ -439,10 +533,23 @@ export function VisaoClientes({
               : "Das de mais certeza para as de menos · toque na empresa para abrir a ficha"
           }
           contas={lista}
-          colunas={["certeza", "unidade", "reuniao"]}
+          colunas={["certeza", "unidade", "local", "segmento", "porte", "reuniao"]}
+          perfil={perfil}
           pagina={pagina}
           aoMudarPagina={aoMudarPagina}
           aoAbrir={aoAbrir}
+        />
+      ) : escondidosPeloRecorte > 0 ? (
+        <EstadoVazio
+          titulo={`${number(escondidosPeloRecorte)} ${escondidosPeloRecorte === 1 ? "cliente com esse nome ou CNPJ fica" : "clientes com esse nome ou CNPJ ficam"} fora do recorte de região, porte ou segmento`}
+          descricao="É cliente pela regra: tire o recorte para ver na lista."
+          acao={
+            aoLimparRecorte ? (
+              <BotaoComMotivo variant="outline" size="sm" onClick={aoLimparRecorte}>
+                Tirar o recorte
+              </BotaoComMotivo>
+            ) : undefined
+          }
         />
       ) : (
         <EstadoVazio

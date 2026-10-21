@@ -1,6 +1,14 @@
 import { PRODUTOS } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
 import {
+  PORTES,
+  REGIAO_DA_UF,
+  REGIOES,
+  SEM_UF,
+  type Porte,
+  type RecorteBase,
+} from "@/lib/clientes/recorte";
+import {
   CLASSES_OMIE,
   CLASSES_PROVA,
   CONSULTORIA_FILTRO,
@@ -140,6 +148,16 @@ export type BuscaClientes = {
   segmentoContrato?: string;
   /** Contratos e churn: "com" ou "sem" data de assinatura do contrato. */
   assinatura?: "com" | "sem";
+  /**
+   * Clientes e Painel (21/10/2026): o recorte por região (`REGIOES` ou "sem_uf"), UF, porte (`PORTES`) e segmento (o
+   * rótulo de `segmentoDaConta`). Chaves próprias: `segmento` e `faixa` são da tabela de Produtos, com outra régua.
+   */
+  regiao?: string[];
+  uf?: string[];
+  porte?: Porte[];
+  segmentoCliente?: string[];
+  /** Painel: o número aberto na gaveta para auditar empresa por empresa (`tipo:valor`, `numeroDoPainel`). */
+  numero?: string;
 };
 
 const texto = (v: unknown) => (typeof v === "string" ? v : "");
@@ -208,8 +226,33 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
     erp: texto(s.erp) || undefined,
     segmentoContrato: texto(s.segmentoContrato) || undefined,
     assinatura: umDe(["com", "sem"], s.assinatura),
+    regiao: vazioOuLista(
+      lista(s.regiao)?.filter((r) => r === SEM_UF || REGIOES.includes(r as never)),
+    ),
+    uf: vazioOuLista(lista(s.uf)?.filter((u) => u === SEM_UF || u in REGIAO_DA_UF)),
+    porte: vazioOuLista(
+      lista(s.porte)?.filter((p): p is Porte => PORTES.some((x) => x.chave === p)),
+    ),
+    segmentoCliente: vazioOuLista(lista(s.segmentoCliente)?.filter((v) => v.length <= 80)),
+    numero: typeof s.numero === "string" && s.numero.length <= 200 ? s.numero : undefined,
   };
 }
+
+/** O recorte da URL (Clientes e Painel). */
+export const recorteDaBusca = (b: BuscaClientes): RecorteBase => ({
+  regiao: b.regiao ?? [],
+  uf: b.uf ?? [],
+  porte: b.porte ?? [],
+  segmento: b.segmentoCliente ?? [],
+});
+
+/** O caminho inverso: o recorte vira chaves da URL, sem lista vazia. */
+export const buscaDoRecorte = (r: RecorteBase): Partial<BuscaClientes> => ({
+  regiao: vazioOuLista(r.regiao),
+  uf: vazioOuLista(r.uf),
+  porte: vazioOuLista(r.porte as Porte[]),
+  segmentoCliente: vazioOuLista(r.segmento),
+});
 
 /**
  * Filtros da tabela da Base a partir da URL. `unidadeKeys` são as unidades do topo já resolvidas
