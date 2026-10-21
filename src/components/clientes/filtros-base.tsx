@@ -1,8 +1,20 @@
 // Recorte da Base em painel visual (Pedro, 21/10/2026: "filtros muito bonitos na primeira tela, especialmente de região,
 // segmento e porte"). Cada opção diz quantas empresas tem com os outros filtros já aplicados, com a barra da proporção;
 // tocar marca ou desmarca, e as marcadas do mesmo filtro somam. No Painel, o ícone de lista abre as empresas do número.
-import { useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { Check, ChevronDown, List, MapPin, Ruler, Search, Shapes, X } from "lucide-react";
+// Fechado por padrão (Pedro, 21/10: "coloca só em toggle pra não ficar poluído"): fechado, sobra uma linha com o total e
+// os filtros aplicados em etiquetas; a escolha de abrir fica guardada no navegador de quem usa.
+import { useEffect, useId, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import {
+  Check,
+  ChevronDown,
+  List,
+  MapPin,
+  Ruler,
+  Search,
+  Shapes,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FOCO_VISIVEL, number } from "@/components/monetizacao/common";
@@ -32,6 +44,7 @@ const ORDEM_REGIAO = [...REGIOES, SEM_UF] as string[];
 const ORDEM_PORTE = PORTES.map((p) => p.chave) as string[];
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+const CHAVE_ABERTO = "planning:base-recorte-aberto";
 const ehDesconhecido = (v: string) => v === SEM_UF || v === SEM_SEGMENTO || v === "sem_porte";
 
 type Auditar = (faceta: Faceta, valor: string, n: number) => void;
@@ -54,6 +67,28 @@ export function FiltrosBase({
   /** O que se conta ("clientes", "ex-clientes"). */
   rotulo?: string;
 }) {
+  const idCorpo = useId();
+  const [aberto, setAberto] = useState(false);
+  // Preferência de quem usa, só neste navegador: sem acesso ao storage, abre fechado.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(CHAVE_ABERTO) === "1") setAberto(true);
+    } catch {
+      /* storage bloqueado */
+    }
+  }, []);
+  const alternarAberto = () => {
+    setAberto((a) => {
+      try {
+        localStorage.setItem(CHAVE_ABERTO, a ? "0" : "1");
+      } catch {
+        /* storage bloqueado */
+      }
+      return !a;
+    });
+  };
+  const marcadas =
+    recorte.regiao.length + recorte.uf.length + recorte.porte.length + recorte.segmento.length;
   const contagem = useMemo(
     () => ({
       regiao: contarFaceta(contas, perfil, recorte, "regiao"),
@@ -122,13 +157,37 @@ export function FiltrosBase({
 
   return (
     <section aria-label="Recorte da Base" className="overflow-hidden rounded-xl border bg-card">
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 className="text-sm font-semibold">Recorte</h2>
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={alternarAberto}
+            aria-expanded={aberto}
+            aria-controls={idCorpo}
+            className={cn(
+              "inline-flex h-9 items-center gap-2 rounded-lg px-2 text-[13px] font-semibold hover:bg-muted/60",
+              FOCO_VISIVEL,
+            )}
+          >
+            <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden />
+            Região, porte e segmento
+            {marcadas > 0 && (
+              <span className="num rounded-full bg-primary/15 px-1.5 text-xs font-semibold text-primary-text">
+                {marcadas}
+              </span>
+            )}
+            <ChevronDown
+              className={cn(
+                "size-4 text-muted-foreground transition-transform duration-[120ms]",
+                aberto && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
           <p className="text-[13px] text-muted-foreground">
             <span className="num font-semibold text-foreground">{number(noRecorte)}</span> {rotulo}
-            {temRecorte(recorte) ? ` de ${number(contas.length)}` : ""} · os números de cada opção
-            já contam os outros filtros
+            {temRecorte(recorte) ? ` de ${number(contas.length)}` : ""}
+            {aberto ? " · os números de cada opção já contam os outros filtros" : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -168,102 +227,107 @@ export function FiltrosBase({
         </div>
       </header>
 
-      <div className="divide-y">
-        <Grupo
-          icone={MapPin}
-          titulo="Região"
-          dica="UF da empresa; sem ela, a da unidade que atende"
-        >
-          <div
-            className={cn(
-              "grid grid-cols-2 gap-2 sm:grid-cols-3",
-              regioes.length > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5",
-            )}
+      {aberto && (
+        <div id={idCorpo} className="divide-y border-t">
+          <Grupo
+            icone={MapPin}
+            titulo="Região"
+            dica="UF da empresa; sem ela, a da unidade que atende"
           >
-            {regioes.map((v) => (
-              <Opcao
-                key={v}
-                rotulo={rotuloDaOpcao("regiao", v)}
-                n={contagem.regiao.get(v) ?? 0}
-                max={maxRegiao}
-                total={totalRegiao}
-                marcada={recorte.regiao.includes(v)}
-                neutra={ehDesconhecido(v)}
-                aoAlternar={() => alternar("regiao", v)}
-                aoAuditar={aoAuditar && (() => aoAuditar("regiao", v, contagem.regiao.get(v) ?? 0))}
-              />
-            ))}
-          </div>
-          {ufs.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs font-medium text-muted-foreground">Estados</span>
-              {ufs.map((uf) => (
-                <Pilula
-                  key={uf}
-                  rotulo={uf}
-                  n={contagem.uf.get(uf) ?? 0}
-                  marcada={recorte.uf.includes(uf)}
-                  aoAlternar={() => alternar("uf", uf)}
-                  aoAuditar={aoAuditar && (() => aoAuditar("uf", uf, contagem.uf.get(uf) ?? 0))}
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-2 sm:grid-cols-3",
+                regioes.length > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5",
+              )}
+            >
+              {regioes.map((v) => (
+                <Opcao
+                  key={v}
+                  rotulo={rotuloDaOpcao("regiao", v)}
+                  n={contagem.regiao.get(v) ?? 0}
+                  max={maxRegiao}
+                  total={totalRegiao}
+                  marcada={recorte.regiao.includes(v)}
+                  neutra={ehDesconhecido(v)}
+                  aoAlternar={() => alternar("regiao", v)}
+                  aoAuditar={
+                    aoAuditar && (() => aoAuditar("regiao", v, contagem.regiao.get(v) ?? 0))
+                  }
                 />
               ))}
             </div>
-          )}
-        </Grupo>
-
-        <Grupo
-          icone={Ruler}
-          titulo="Porte"
-          dica="Pela faixa de faturamento; sem ela, pelo porte na Receita"
-        >
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-            {PORTES.map((p) => (
-              <Opcao
-                key={p.chave}
-                rotulo={p.rotulo}
-                dica={p.dica}
-                glifo={<MedidorPorte porte={p.chave} />}
-                n={contagem.porte.get(p.chave) ?? 0}
-                max={maxPorte}
-                total={totalPorte}
-                marcada={recorte.porte.includes(p.chave)}
-                neutra={ehDesconhecido(p.chave)}
-                aoAlternar={() => alternar("porte", p.chave)}
-                aoAuditar={
-                  aoAuditar && (() => aoAuditar("porte", p.chave, contagem.porte.get(p.chave) ?? 0))
-                }
-              />
-            ))}
-          </div>
-        </Grupo>
-
-        <Grupo
-          icone={Shapes}
-          titulo="Segmento"
-          dica="Do cadastro; os nomes da DataStone viram o do cadastro"
-        >
-          <div className="flex flex-wrap items-center gap-1.5">
-            {aMostra.map(([s, n]) => (
-              <Pilula
-                key={s}
-                rotulo={s}
-                n={n}
-                marcada={recorte.segmento.includes(s)}
-                neutra={s === SEM_SEGMENTO}
-                aoAlternar={() => alternar("segmento", s)}
-                aoAuditar={aoAuditar && (() => aoAuditar("segmento", s, n))}
-              />
-            ))}
-            {escondidos.length > 0 && (
-              <MaisSegmentos
-                opcoes={escondidos}
-                marcadas={recorte.segmento}
-                aoAlternar={(s) => alternar("segmento", s)}
-              />
+            {ufs.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs font-medium text-muted-foreground">Estados</span>
+                {ufs.map((uf) => (
+                  <Pilula
+                    key={uf}
+                    rotulo={uf}
+                    n={contagem.uf.get(uf) ?? 0}
+                    marcada={recorte.uf.includes(uf)}
+                    aoAlternar={() => alternar("uf", uf)}
+                    aoAuditar={aoAuditar && (() => aoAuditar("uf", uf, contagem.uf.get(uf) ?? 0))}
+                  />
+                ))}
+              </div>
             )}
-          </div>
-        </Grupo>
-      </div>
+          </Grupo>
+
+          <Grupo
+            icone={Ruler}
+            titulo="Porte"
+            dica="Pela faixa de faturamento; sem ela, pelo porte na Receita"
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+              {PORTES.map((p) => (
+                <Opcao
+                  key={p.chave}
+                  rotulo={p.rotulo}
+                  dica={p.dica}
+                  glifo={<MedidorPorte porte={p.chave} />}
+                  n={contagem.porte.get(p.chave) ?? 0}
+                  max={maxPorte}
+                  total={totalPorte}
+                  marcada={recorte.porte.includes(p.chave)}
+                  neutra={ehDesconhecido(p.chave)}
+                  aoAlternar={() => alternar("porte", p.chave)}
+                  aoAuditar={
+                    aoAuditar &&
+                    (() => aoAuditar("porte", p.chave, contagem.porte.get(p.chave) ?? 0))
+                  }
+                />
+              ))}
+            </div>
+          </Grupo>
+
+          <Grupo
+            icone={Shapes}
+            titulo="Segmento"
+            dica="Do cadastro; os nomes da DataStone viram o do cadastro"
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              {aMostra.map(([s, n]) => (
+                <Pilula
+                  key={s}
+                  rotulo={s}
+                  n={n}
+                  marcada={recorte.segmento.includes(s)}
+                  neutra={s === SEM_SEGMENTO}
+                  aoAlternar={() => alternar("segmento", s)}
+                  aoAuditar={aoAuditar && (() => aoAuditar("segmento", s, n))}
+                />
+              ))}
+              {escondidos.length > 0 && (
+                <MaisSegmentos
+                  opcoes={escondidos}
+                  marcadas={recorte.segmento}
+                  aoAlternar={(s) => alternar("segmento", s)}
+                />
+              )}
+            </div>
+          </Grupo>
+        </div>
+      )}
     </section>
   );
 }

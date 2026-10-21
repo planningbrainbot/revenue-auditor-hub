@@ -5883,3 +5883,10 @@ assim como acontece com tudo". Contrato: `docs/design/contratos/clientes.md`, ad
 - **Corrige:** "Outros" de "Quem fatura os clientes" somava a mesma empresa uma vez por empresa do grupo; agora conta
   cada empresa uma vez, para bater com a gaveta. O "Outros" que já existe como segmento no cadastro cai no mesmo balde.
 - **Não muda:** nenhuma régua de cliente, grau ou origem.
+
+## [2026-10-21] Base de clientes: o recorte abre fechado
+
+Pedido do dono no mesmo dia, depois de ver o recorte no ar: "coloca só em toggle essa aba aqui pra não ficar poluído".
+O painel de região, porte e segmento (Clientes e Painel) abre fechado, numa linha com o total do recorte e os filtros
+aplicados em etiquetas removíveis; o botão "Região, porte e segmento" abre e fecha. A escolha fica no `localStorage` de
+quem usa (preferência de tela, não estado de dado): sem acesso ao storage, abre fechado.
