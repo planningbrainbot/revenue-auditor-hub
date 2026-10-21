@@ -357,7 +357,7 @@ export function TelaDiagnostico({
       ) : !todos.length ? (
         <EstadoVazio
           titulo="O pipe 40 ainda não tem card"
-          descricao="Os cards nascem das vendas ganhas no Inside Sales (Lucro Real e Presumido de R$ 10 mi para cima), quando a entrada automática for ligada, ou de quem criar o card à mão no Pipedrive."
+          descricao="Os cards nascem dos clientes do onboarding do CS que passaram do kickoff (Lucro Real e Presumido de R$ 10 mi para cima), quando a entrada automática for ligada, ou de quem criar o card à mão no Pipedrive."
         />
       ) : aba === "operacao" ? (
         <OperacaoDiagnostico

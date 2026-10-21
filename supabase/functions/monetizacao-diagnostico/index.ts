@@ -11,11 +11,11 @@
 // 1. supabase functions deploy monetizacao-diagnostico --no-verify-jwt   (antes da migration, que liga o cron)
 // 2. A carga do pipe 40 roda sempre: só lê o Pipedrive.
 // 3. MONET_DIAG_INICIO=<instante ISO>: só entrada em etapa depois dele recebe tarefa. Sem ele, nenhuma nasce.
-// 4. MONET_DIAG_ENTRADA_ATIVA=sim: venda ganha no Inside Sales vira card no pipe 40 (desde MONET_DIAG_VENDAS_DESDE,
-//    padrão 2026-10-01). Qualquer outro valor: só prévia.
+// 4. MONET_DIAG_ENTRADA_ATIVA=sim: cliente do onboarding do CS que passou do kickoff, com fit pela venda, vira card
+//    no pipe 40 (21/10/2026; antes era a venda ganha no Inside Sales). Qualquer outro valor: só prévia.
 // 5. MONET_DIAG_TAREFAS_ATIVA=sim: as etapas criam e apagam tarefas e a etapa 04 grava D0 e prazo. Senão, só prévia.
-// 6. MONET_DIAG_EXIGE_ASSINATURA (ligada salvo "nao", 19/10/2026): só vira card a venda com contrato assinado em
-//    ops.contratos_documentos; a venda sem assinatura é relida a cada rodada.
+// 6. MONET_DIAG_UNIDADES_PAUSADAS (lista separada por vírgula, ex.: "Belém"): o card dessas unidades nasce com a nota
+//    fixada "Pausado em", sem tarefa, até o sócio liberar a lista.
 // Usa PIPEDRIVE_TOKEN e MONETIZACAO_SYNC_SECRET, os mesmos das outras funções da Monetização.
 import { pipedriveApi } from "../monetizacao-crm/pipedrive.mjs";
 import {
@@ -32,9 +32,10 @@ const SEGREDO = Deno.env.get("MONETIZACAO_SYNC_SECRET");
 const ENTRADA_ATIVA = Deno.env.get("MONET_DIAG_ENTRADA_ATIVA") === "sim";
 const TAREFAS_ATIVA = Deno.env.get("MONET_DIAG_TAREFAS_ATIVA") === "sim";
 const INICIO = Deno.env.get("MONET_DIAG_INICIO") || null;
-const VENDAS_DESDE = Deno.env.get("MONET_DIAG_VENDAS_DESDE") || "2026-10-01";
-// Só vira card a venda com contrato assinado no Pipefy (19/10/2026). "nao" volta à regra antiga, só pelo ganho.
-const EXIGE_ASSINATURA = Deno.env.get("MONET_DIAG_EXIGE_ASSINATURA") !== "nao";
+const UNIDADES_PAUSADAS = (Deno.env.get("MONET_DIAG_UNIDADES_PAUSADAS") || "")
+  .split(",")
+  .map((u) => u.trim())
+  .filter(Boolean);
 
 const { pd, pages } = pipedriveApi(PD);
 
@@ -112,13 +113,31 @@ const store: StoreDiagnostico = {
       prefer: "resolution=ignore-duplicates,return=minimal",
     });
   },
-  assinaturas: (vendas, orgs) => {
-    const ou = [
-      vendas.length ? `pipedrive_deal_id.in.(${vendas.map(Number).join(",")})` : "",
-      orgs.length ? `org_id_pipedrive.in.(${orgs.map(Number).join(",")})` : "",
-    ].filter(Boolean);
-    return rest(
-      `contratos_documentos?select=pipedrive_deal_id,org_id_pipedrive,data_assinatura&data_assinatura=not.is.null&or=(${ou.join(",")})&limit=5000`,
+  // O espelho do Handoff da Consultoria liga o card do onboarding à venda; as fases vêm do espelho do onboarding do CS.
+  onboarding: async () => {
+    const [handoff, cs] = await Promise.all([
+      rest(
+        "handoff_consultoria_onboarding?select=pipefy_card_id,titulo,unidade,fase_atual,pipedrive_deal_id&ausente_desde=is.null&limit=10000",
+      ),
+      rest("cs_onboarding_cards?select=pipefy_card_id,fase_atual,fases_history&limit=10000"),
+    ]);
+    const fases = new Map((cs || []).map((r: any) => [String(r.pipefy_card_id), r]));
+    return (handoff || []).map((h: any) => {
+      const o: any = fases.get(String(h.pipefy_card_id));
+      return {
+        pipefy_card_id: String(h.pipefy_card_id),
+        titulo: String(h.titulo ?? "").trim(),
+        unidade: h.unidade ?? null,
+        fase_atual: o?.fase_atual ?? h.fase_atual ?? null,
+        fases: (Array.isArray(o?.fases_history) ? o.fases_history : []).map((x: any) => String(x.fase)),
+        pipedrive_deal_id: Number(h.pipedrive_deal_id) || null,
+      };
+    });
+  },
+  liberarEtapa: async (dealId, etapa) => {
+    await rest(
+      `monetizacao_diagnostico_tarefas?deal_id=eq.${Number(dealId)}&etapa=eq.${Number(etapa)}&status=in.(feita,apagada)`,
+      { method: "DELETE", prefer: "return=minimal" },
     );
   },
   tarefas: () =>
@@ -162,8 +181,7 @@ Deno.serve(async (req) => {
       entradaAtiva: ENTRADA_ATIVA && !dry,
       tarefasAtiva: TAREFAS_ATIVA && !dry,
       inicio: INICIO,
-      vendasDesde: VENDAS_DESDE,
-      exigirAssinatura: EXIGE_ASSINATURA,
+      unidadesPausadas: UNIDADES_PAUSADAS,
     });
     return json(resumo);
   } catch (e) {
