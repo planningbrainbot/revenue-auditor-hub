@@ -614,6 +614,59 @@ export const AREAS: Area[] = [
     ],
   },
   {
+    // Portal de Faturamento (E1, 20/10/2026; contratos docs/design/contratos/faturamento*.md). Três áreas no
+    // banco, porque a área libera todas as chaves dela (DECISIONS 15/10/2026): `faturamento` é a porta e o
+    // pedido; a Fila da tesouraria e a Configuração declaram a área própria, como a Matriz do broker. Fica
+    // depois do Broker para não virar a primeira tela de quem já trabalha em outra área e passar a pedir
+    // faturamento. "Novo pedido" não é item: é a ação principal do cabeçalho de Meu faturamento e de Pedidos.
+    slug: "faturamento",
+    nome: "Faturamento",
+    descricao: "Pedidos de faturamento das empresas do grupo, do dono da receita à nota no Omie.",
+    icone: Receipt,
+    grupos: [
+      {
+        label: "Visão geral",
+        items: [{ title: "Meu faturamento", url: "/faturamento", icon: LayoutDashboard }],
+      },
+      {
+        label: "Pedidos",
+        items: [
+          {
+            title: "Pedidos",
+            url: "/faturamento/pedidos",
+            icon: Receipt,
+            // O formulário e a ficha não são itens: acendem Pedidos, de onde se chega a eles.
+            tambem: /^\/faturamento\/(novo|pedido\/[^/]+)$/,
+          },
+        ],
+      },
+      {
+        label: "Tesouraria",
+        items: [
+          {
+            title: "Fila da tesouraria",
+            url: "/faturamento/tesouraria",
+            icon: ListChecks,
+            area: "faturamento_tesouraria",
+            chave: "edit.faturamento_tesouraria",
+          },
+        ],
+      },
+      {
+        label: "Controladoria",
+        items: [
+          {
+            title: "Configuração",
+            url: "/faturamento/configuracao",
+            icon: ShieldCheck,
+            area: "faturamento_controladoria",
+            chave: "admin.faturamento",
+          },
+        ],
+      },
+    ],
+  },
+  {
     // Cockpit do CEO (piloto de 22/09/2026). Área própria porque o PRD o põe no seletor de módulos
     // e porque a fronteira de confiança é outra: ver a Base não dá visão consolidada da empresa.
     // A área existe em `ops.areas` desde 22/09/2026, liberada só para o papel `admin`

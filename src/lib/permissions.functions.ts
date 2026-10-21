@@ -559,6 +559,36 @@ export const KNOWN_PERMISSIONS: {
     description: "Histórico dos 8 checks semanais Pipedrive x Pipefy x Omie.",
     group: "Acesso",
   },
+  // --- Portal de Faturamento (F1, 15/10/2026; migration 20261015150000) ---
+  // Três áreas, porque a área libera todas as chaves dela: `faturamento` (porta e
+  // pedido), `faturamento_tesouraria` e `faturamento_controladoria`. O que cada
+  // pessoa faz em cada empresa (dono, gestor, solicitante) vem de receita.fat_donos,
+  // não de chave.
+  {
+    key: "view.faturamento",
+    label: "Abrir o Portal de Faturamento",
+    description:
+      "Porta do portal. O que a pessoa vê em cada empresa vem do cadastro de donos, gestores e solicitantes.",
+    group: "Faturamento",
+  },
+  {
+    key: "edit.faturamento_pedido",
+    label: "Cadastrar pedidos e contratos",
+    description: "Vale só nas empresas em que a pessoa é dona, gestora ou solicitante.",
+    group: "Faturamento",
+  },
+  {
+    key: "edit.faturamento_tesouraria",
+    label: "Tesouraria do faturamento",
+    description: "Conferir, faturar e devolver pedidos nas empresas do recorte da pessoa.",
+    group: "Faturamento",
+  },
+  {
+    key: "admin.faturamento",
+    label: "Controladoria do faturamento",
+    description: "Configurar empresas, serviços, donos e calendário do portal.",
+    group: "Faturamento",
+  },
   // --- Financial Brain (planningbrain.com.br/financeiro) ---
   // Produto separado, em outro projeto Supabase. A concessão acontece aqui e
   // viaja no token: quando o Ops emite a sessão do Financial, grava estas

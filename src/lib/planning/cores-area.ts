@@ -21,6 +21,7 @@ export const SLUGS_AREA = [
   "people",
   "monetizacao",
   "broker",
+  "faturamento",
   "minha_unidade",
   "estrategia",
   "cockpit_ceo",
