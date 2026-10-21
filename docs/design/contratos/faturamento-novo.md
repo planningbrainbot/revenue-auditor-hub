@@ -31,7 +31,8 @@
 
 Comportamentos da seção:
 - **Cliente inapto (RF-P02, CA-05):** situação diferente de ativa mostra, no quadro do cliente, "CNPJ {situação} na Receita desde {data}. O envio fica bloqueado." O rascunho continua podendo ser salvo; Enviar fica desabilitado com esse motivo.
-- **Cliente não encontrado:** "Não achamos este CNPJ na base nem na Receita. Confira o número." Proposta: deixar digitar o nome e enviar, com a marca "situação não conferida" na Ficha e na fila da tesouraria. *A decidir pela Ana.*
+- **Cliente não encontrado na Receita (Ana, 21/10/2026: bloqueia):** a consulta foi feita e a Receita não tem o CNPJ. O quadro do cliente mostra `StatusBadge` `perigo` "Receita: não encontrado" e a mensagem "CNPJ não encontrado na Receita Federal: envio bloqueado. Confira o número." O rascunho continua podendo ser salvo; Enviar fica desabilitado com esse motivo, e o banco recusa o envio. Sem nome na base, a primeira linha do quadro diz "Não achamos este CNPJ na base nem na Receita."
+- **Receita fora do ar (consulta não feita):** CNPJá fora do ar, limite de consultas ou erro de rede não é "não encontrado". O quadro mostra "situação não conferida" e a frase do motivo ("A Receita não respondeu agora…" ou "A consulta à Receita ficou para daqui a pouco…"); sem nome na base, "Não achamos este CNPJ na base. Digite o nome do cliente." O envio passa, com a marca "situação não conferida" na Ficha e na fila da tesouraria.
 - **Empresa diferente da do contrato (RF-P03, CA-04):** se o cliente tem contrato vigente em outra empresa, aparece, logo abaixo de "Empresa que fatura", caixa com borda: "Este cliente tem contrato vigente na PAC. Você escolheu a PRJ." + caixa de marcar **"Confirmo que quem fatura é a PRJ"** + botão "Trocar para PAC" (só se a pessoa pode pedir pela PAC). Sem a marca, Enviar fica desabilitado com o motivo "Confirme a empresa que fatura". Aviso, não bloqueio: salvar rascunho não exige a marca. Na E1 o contrato vem de `ops.omie_contratos_servico` quando existir (`PLANO-E1.md`, "Fora da E1"); a procedência do aviso diz "contratos lidos do Omie em {data}".
 - Trocar a empresa depois de escolhido o serviço limpa o serviço (o catálogo é por empresa) e diz isso num `toast`.
 
@@ -155,3 +156,6 @@ Enviar valida tudo no servidor (`fat_pedido_enviar`); a tela também confere na 
 - [ ] Definição de pronto de `docs/design/README.md` cumprida
 - [ ] Regra das parcelas conferida contra a função do banco (2, 3, 12 e 36 parcelas; 1º vencimento em 31/01 e 29/02)
 - [ ] CA-04 e CA-05 testados com os CNPJs do E0
+
+## Decisões da Ana (21/10/2026)
+1. **CNPJ não encontrado na Receita bloqueia o envio** ("Aviso que está bloqueado"). Só vale quando a consulta foi feita: a CNPJá aberta respondeu 404 "tax id not registered at revenue service". O servidor grava a consulta como não encontrada (`ops.fat_receita_cnpj_gravar` com `encontrado: false`), `ops.fat_tomador` devolve `receita_encontrado: false` e o `bloqueio`, e `ops.fat_pedido_enviar` recusa (`22023`, campo `tomador_documento`). Qualquer outra resposta da CNPJá (fora do ar, 429, outro 404) deixa a consulta como não feita: "situação não conferida" e o envio passa. O não encontrado é consultado de novo depois de 1 dia, para um CNPJ recém-aberto não ficar preso (migration `20261021121000`).

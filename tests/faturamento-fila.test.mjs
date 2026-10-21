@@ -10,6 +10,7 @@ import {
   filaEmCurso,
   filtroDaFila,
   gruposPorDia,
+  HIGIENES,
   hrefFila,
   lerBuscaFila,
   rotuloDoDia,
@@ -58,7 +59,7 @@ const item = (o = {}) => ({
     desde: "2026-10-22T13:12:00Z",
     tentar_em: null,
   },
-  higiene: { erro: false, vence_3d: true, parado_1du: false },
+  higiene: { erro: false, vence_2d: true, parado_1du: false },
   ...o,
 });
 
@@ -83,6 +84,13 @@ test("lerBuscaFila guarda só o que é válido", () => {
     },
   );
   assert.deepEqual(lerBuscaFila({ emissora: "Todas" }), { emissora: "todas" });
+  // Prazos da Ana (21/10/2026): vence em até 2 dias; o link guardado com o nome antigo cai no filtro novo.
+  assert.deepEqual(lerBuscaFila({ higiene: "vence_2d" }), { higiene: "vence_2d" });
+  assert.deepEqual(lerBuscaFila({ higiene: "vence_3d" }), { higiene: "vence_2d" });
+  assert.deepEqual(
+    HIGIENES.map((h) => h.rotulo),
+    ["Erro no Omie", "Vence em até 2 dias sem nota", "Parado há mais de 1 dia útil"],
+  );
   assert.deepEqual(lerBuscaFila({ situacao: "lixo", higiene: "x", dia: "ontem", pedido: "x" }), {});
   assert.deepEqual(
     filtroDaFila({ emissora: "DOC", situacao: "faturado", dia: "hoje", pedido: PEDIDO }),

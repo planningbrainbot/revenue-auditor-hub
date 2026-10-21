@@ -31,7 +31,12 @@ import {
   tipoDoDocumento,
   valorParaDigitar,
 } from "../src/lib/faturamento/formulario.ts";
-import { dadosDaCnpja, LimiteDeChamadas } from "../src/lib/faturamento/receita.ts";
+import {
+  dadosDaCnpja,
+  dadosNaoEncontrado,
+  LimiteDeChamadas,
+  naoEncontradoNaCnpja,
+} from "../src/lib/faturamento/receita.ts";
 
 const completo = (o = {}) => ({
   ...formularioVazio({ emissora_id: "e1", dono_id: "d1" }),
@@ -359,6 +364,26 @@ test("CNPJá aberta → p_dados de fat_receita_cnpj_gravar", () => {
   // Resposta sem o mínimo não vira cache vazio.
   assert.equal(dadosDaCnpja({}, agora), null);
   assert.equal(dadosDaCnpja(null, agora), null);
+});
+
+test("CNPJ que a Receita não acha é consulta feita; CNPJá fora do ar não é (Ana, 21/10/2026)", () => {
+  // A resposta medida em 21/10/2026 para um CNPJ de dígito certo que não existe.
+  const corpo = { code: 404, message: "tax id not registered at revenue service" };
+  assert.equal(naoEncontradoNaCnpja(404, corpo), true);
+  // Outro 404 (rota, corpo sem a frase, sem corpo) e qualquer outro status ficam como consulta não feita.
+  assert.equal(naoEncontradoNaCnpja(404, { code: 404, message: "Not Found" }), false);
+  assert.equal(naoEncontradoNaCnpja(404, null), false);
+  assert.equal(naoEncontradoNaCnpja(404, "tax id not registered"), false);
+  assert.equal(naoEncontradoNaCnpja(429, corpo), false);
+  assert.equal(naoEncontradoNaCnpja(500, corpo), false);
+  assert.equal(naoEncontradoNaCnpja(200, corpo), false);
+  // O que vai ao banco: só fonte, encontrado = false e a data.
+  const agora = new Date("2026-10-21T15:00:00Z");
+  assert.deepEqual(dadosNaoEncontrado(agora), {
+    fonte: "CNPJá aberta",
+    encontrado: false,
+    consultado_em: "2026-10-21T15:00:00.000Z",
+  });
 });
 
 test("limite de chamadas à CNPJá: janela deslizante", () => {

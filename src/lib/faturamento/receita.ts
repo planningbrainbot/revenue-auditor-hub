@@ -6,6 +6,10 @@
 // A CNPJá aberta responde cerca de 4 consultas por minuto (medido em 14/10/2026) e devolve 429 acima disso:
 // o limite daqui fica abaixo, e passar dele só adia a consulta (a tela segue com "situação não conferida").
 //
+// CNPJ que a Receita não tem (404 "not registered") é consulta feita: grava `encontrado: false` e o banco bloqueia o
+// envio (Ana, 21/10/2026). CNPJá fora do ar, 429 ou erro de rede é consulta não feita: nada é gravado e o envio passa
+// como "situação não conferida".
+//
 // Módulo puro (sem React, sem `@/`), testado em tests/faturamento-formulario.test.mjs (junto com o Novo pedido).
 
 export const URL_CNPJA = "https://open.cnpja.com/office/";
@@ -120,6 +124,32 @@ export function dadosDaCnpja(json: unknown, agora: Date = new Date()): DadosRece
     emails,
     consultado_em: agora.toISOString(),
   };
+}
+
+/**
+ * O `p_dados` de `fat_receita_cnpj_gravar` quando a consulta foi feita e a Receita não tem o CNPJ (Ana, 21/10/2026:
+ * bloqueia o envio). Só fonte e data: o banco ignora o resto.
+ */
+export interface DadosReceitaNaoEncontrado {
+  fonte: string;
+  encontrado: false;
+  consultado_em: string;
+}
+
+/**
+ * A CNPJá respondeu que a Receita não tem o CNPJ? Só o 404 com a frase dela ("tax id not registered at revenue
+ * service", medido em 21/10/2026) conta como consulta feita. Outro 404 (rota mudou, corpo sem a frase) fica como
+ * consulta não feita: "situação não conferida", e o envio passa.
+ */
+export function naoEncontradoNaCnpja(status: number, corpo: unknown): boolean {
+  if (status !== 404 || !corpo || typeof corpo !== "object") return false;
+  const msg = (corpo as { message?: unknown }).message;
+  return typeof msg === "string" && /not registered/i.test(msg);
+}
+
+/** `p_dados` do não encontrado. */
+export function dadosNaoEncontrado(agora: Date = new Date()): DadosReceitaNaoEncontrado {
+  return { fonte: "CNPJá aberta", encontrado: false, consultado_em: agora.toISOString() };
 }
 
 /**
