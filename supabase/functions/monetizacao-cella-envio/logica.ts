@@ -31,7 +31,10 @@ export const PLANNING = {
     cargo: "c7494bbad30183509c108339ca088c9db53948bd",
   },
   contratadoCella: 1204,
-  regime: { 352: "lucro_real", 351: "lucro_presumido", 350: "simples", 681: "simples" } as Record<number, Regime>,
+  regime: { 352: "lucro_real", 351: "lucro_presumido", 350: "simples", 681: "simples" } as Record<
+    number,
+    Regime
+  >,
 };
 
 export const CELLA = {
@@ -84,15 +87,27 @@ export type Estado = {
 export type Decisao =
   | { tipo: "nada" }
   | { tipo: "pendente"; motivo: string }
-  | { tipo: "enviar"; evento: Evento; status: Fonte["status"]; stage_id: number | null; lost_reason: string | null; encerra: boolean };
+  | {
+      tipo: "enviar";
+      evento: Evento;
+      status: Fonte["status"];
+      stage_id: number | null;
+      lost_reason: string | null;
+      encerra: boolean;
+    };
 
 const NEUTRO_PADRAO = "Cliente não seguiu com a proposta";
 
 /** Motivo de perda que pode sair: nunca o texto do card, que às vezes cita outro produto da Planning. */
 export function motivoNeutro(lostReason: string | null | undefined): string {
-  const t = String(lostReason ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  if (/contato|retorno|respond|no.?show|sumiu|esgotad|nao atend/.test(t)) return "Sem retorno do cliente";
-  if (/fit|perfil|escopo|sem oportunidade|nao (tem|ha) credito|sem credito|tese/.test(t)) return "Sem oportunidade identificada";
+  const t = String(lostReason ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+  if (/contato|retorno|respond|no.?show|sumiu|esgotad|nao atend/.test(t))
+    return "Sem retorno do cliente";
+  if (/fit|perfil|escopo|sem oportunidade|nao (tem|ha) credito|sem credito|tese/.test(t))
+    return "Sem oportunidade identificada";
   return NEUTRO_PADRAO;
 }
 
@@ -103,7 +118,11 @@ const etapaCella = (f: Fonte): number | null =>
  * O que fazer com um card. `contratados` só é lido no pipe 39, para card ganho com a Cella: null quando o campo está
  * vazio, senão a lista de opções marcadas.
  */
-export function decidir(f: Fonte, e: Estado | null | undefined, contratados?: number[] | null): Decisao {
+export function decidir(
+  f: Fonte,
+  e: Estado | null | undefined,
+  contratados?: number[] | null,
+): Decisao {
   if (e && (e.estado === "encerrado" || e.estado === "parado_deles")) return { tipo: "nada" };
   const conhecido = !!e && e.estado === "ativo" && !!e.cella_deal_id;
   const etapa = etapaCella(f);
@@ -124,12 +143,26 @@ export function decidir(f: Fonte, e: Estado | null | undefined, contratados?: nu
         return { tipo: "pendente", motivo: 'Ganho sem "Caixa · Produtos contratados"' };
       if (!contratados.includes(PLANNING.contratadoCella)) return sai(NEUTRO_PADRAO);
     }
-    return { tipo: "enviar", evento: "ganhou", status: "won", stage_id: etapa, lost_reason: null, encerra: true };
+    return {
+      tipo: "enviar",
+      evento: "ganhou",
+      status: "won",
+      stage_id: etapa,
+      lost_reason: null,
+      encerra: true,
+    };
   }
   if (etapa == null) {
     // Aberto antes da reunião de proposta: ainda não é da Cella. Se já foi (voltou de etapa), mantém onde está.
     return conhecido
-      ? { tipo: "enviar", evento: "atualizou", status: "open", stage_id: null, lost_reason: null, encerra: false }
+      ? {
+          tipo: "enviar",
+          evento: "atualizou",
+          status: "open",
+          stage_id: null,
+          lost_reason: null,
+          encerra: false,
+        }
       : { tipo: "nada" };
   }
   return {
@@ -156,7 +189,11 @@ export function hashDe(v: unknown): string {
     Array.isArray(x)
       ? x.map(ordenar)
       : x && typeof x === "object"
-        ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, ordenar(x[k])]))
+        ? Object.fromEntries(
+            Object.keys(x)
+              .sort()
+              .map((k) => [k, ordenar(x[k])]),
+          )
         : x;
   const s = JSON.stringify(ordenar(v));
   let h = 0x811c9dc5;
@@ -170,11 +207,33 @@ export function hashDe(v: unknown): string {
 // ---------------------------------------------------------------------------- dados do negócio novo
 
 const UF: Record<string, string> = {
-  acre: "AC", alagoas: "AL", amapa: "AP", amazonas: "AM", bahia: "BA", ceara: "CE", "distrito federal": "DF",
-  "espirito santo": "ES", goias: "GO", maranhao: "MA", "mato grosso": "MT", "mato grosso do sul": "MS",
-  "minas gerais": "MG", para: "PA", paraiba: "PB", parana: "PR", pernambuco: "PE", piaui: "PI", "rio de janeiro": "RJ",
-  "rio grande do norte": "RN", "rio grande do sul": "RS", rondonia: "RO", roraima: "RR", "santa catarina": "SC",
-  "sao paulo": "SP", sergipe: "SE", tocantins: "TO",
+  acre: "AC",
+  alagoas: "AL",
+  amapa: "AP",
+  amazonas: "AM",
+  bahia: "BA",
+  ceara: "CE",
+  "distrito federal": "DF",
+  "espirito santo": "ES",
+  goias: "GO",
+  maranhao: "MA",
+  "mato grosso": "MT",
+  "mato grosso do sul": "MS",
+  "minas gerais": "MG",
+  para: "PA",
+  paraiba: "PB",
+  parana: "PR",
+  pernambuco: "PE",
+  piaui: "PI",
+  "rio de janeiro": "RJ",
+  "rio grande do norte": "RN",
+  "rio grande do sul": "RS",
+  rondonia: "RO",
+  roraima: "RR",
+  "santa catarina": "SC",
+  "sao paulo": "SP",
+  sergipe: "SE",
+  tocantins: "TO",
 };
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 export function ufDe(estado: unknown): string | null {
@@ -204,11 +263,21 @@ export type Detalhe = {
     regime: Regime | null;
     faixa: string | null;
   };
-  contato: { nome: string; cargo: string | null; email: string | null; telefone: string | null } | null;
+  contato: {
+    nome: string;
+    cargo: string | null;
+    email: string | null;
+    telefone: string | null;
+  } | null;
 };
 
 /** Monta empresa e contato a partir do negócio, da organização e da pessoa do Pipedrive da Planning (API v1). */
-export function detalheDe(deal: any, org: any, pessoa: any, rotuloFaixa: (id: number) => string | null): Detalhe {
+export function detalheDe(
+  deal: any,
+  org: any,
+  pessoa: any,
+  rotuloFaixa: (id: number) => string | null,
+): Detalhe {
   const cnpj = soDigitos(org?.[PLANNING.campo.cnpjOrg]);
   const regimeId = Number(deal?.[PLANNING.campo.regime]);
   const faixaId = Number(deal?.[PLANNING.campo.faixa]);
@@ -216,7 +285,12 @@ export function detalheDe(deal: any, org: any, pessoa: any, rotuloFaixa: (id: nu
   return {
     empresa: {
       nome: String(org?.name ?? deal?.org_name ?? deal?.title ?? "").trim(),
-      cnpj: cnpj.length === 14 ? cnpj : cnpj.length > 0 && cnpj.length < 14 ? cnpj.padStart(14, "0") : null,
+      cnpj:
+        cnpj.length === 14
+          ? cnpj
+          : cnpj.length > 0 && cnpj.length < 14
+            ? cnpj.padStart(14, "0")
+            : null,
       cidade: texto(org?.address_locality),
       uf: ufDe(org?.address_admin_area_level_1),
       regime: PLANNING.regime[regimeId] ?? null,
@@ -332,7 +406,12 @@ export type Resumo = {
   erros: { deal_id: number; erro: string }[];
 };
 
-const zeroEventos = (): Record<Evento, number> => ({ entrou: 0, atualizou: 0, ganhou: 0, perdeu: 0 });
+const zeroEventos = (): Record<Evento, number> => ({
+  entrou: 0,
+  atualizou: 0,
+  ganhou: 0,
+  perdeu: 0,
+});
 
 export async function rodarCella(o: {
   fontes: Fonte[];
@@ -360,7 +439,12 @@ export async function rodarCella(o: {
   for (const f of o.fontes) {
     const e = o.estados.get(f.deal_id) ?? null;
     try {
-      const precisaContratados = f.pipe === 39 && f.cella && f.status === "won" && e?.estado !== "encerrado" && e?.estado !== "parado_deles";
+      const precisaContratados =
+        f.pipe === 39 &&
+        f.cella &&
+        f.status === "won" &&
+        e?.estado !== "encerrado" &&
+        e?.estado !== "parado_deles";
       const contratados = precisaContratados ? await o.planning.contratados(f.deal_id) : null;
       const d = decidir(f, e, contratados);
       if (d.tipo === "nada") continue;
@@ -368,7 +452,12 @@ export async function rodarCella(o: {
       if (d.tipo === "pendente") {
         r.pendentes.push(f.deal_id);
         if (e?.estado !== "pendente" && !e?.cella_deal_id)
-          await o.store.salvar({ ...(e ?? novoEstado(f)), estado: "pendente", erro: d.motivo, atualizado_em: agoraIso });
+          await o.store.salvar({
+            ...(e ?? novoEstado(f)),
+            estado: "pendente",
+            erro: d.motivo,
+            atualizado_em: agoraIso,
+          });
         continue;
       }
 
@@ -381,8 +470,19 @@ export async function rodarCella(o: {
         if (e?.simulado_hash === hash) continue;
         r.simulados[d.evento]++;
         const envio = criar ? { detalhe: await o.planning.detalhe(f.deal_id), patch } : { patch };
-        await o.store.log({ deal_id: f.deal_id, evento: d.evento, acao: criar ? "criar" : "atualizar", simulado: true, envio });
-        await o.store.salvar({ ...(e ?? novoEstado(f)), simulado_hash: hash, simulado: { evento: d.evento, acao: criar ? "criar" : "atualizar", envio, em: agoraIso }, atualizado_em: agoraIso });
+        await o.store.log({
+          deal_id: f.deal_id,
+          evento: d.evento,
+          acao: criar ? "criar" : "atualizar",
+          simulado: true,
+          envio,
+        });
+        await o.store.salvar({
+          ...(e ?? novoEstado(f)),
+          simulado_hash: hash,
+          simulado: { evento: d.evento, acao: criar ? "criar" : "atualizar", envio, em: agoraIso },
+          atualizado_em: agoraIso,
+        });
         continue;
       }
 
@@ -393,15 +493,27 @@ export async function rodarCella(o: {
           (await o.cella.criarOrganizacao(corpoOrganizacao(det)));
         const corpoP = corpoPessoa(det, orgId);
         const personId = corpoP
-          ? ((await o.cella.acharPessoa(det.contato?.email ?? null)) ?? (await o.cella.criarPessoa(corpoP)))
+          ? ((await o.cella.acharPessoa(det.contato?.email ?? null)) ??
+            (await o.cella.criarPessoa(corpoP)))
           : null;
-        const dealId = await o.cella.criarNegocio(corpoNegocio(f, det, d, { org_id: orgId, person_id: personId }));
+        const dealId = await o.cella.criarNegocio(
+          corpoNegocio(f, det, d, { org_id: orgId, person_id: personId }),
+        );
         const atividade = await o.cella
-          .criarAtividade(corpoReuniao(f, d, { deal_id: dealId, org_id: orgId, person_id: personId }, hoje))
+          .criarAtividade(
+            corpoReuniao(f, d, { deal_id: dealId, org_id: orgId, person_id: personId }, hoje),
+          )
           .catch(() => null);
         r.criados++;
         r.enviados[d.evento]++;
-        await o.store.log({ deal_id: f.deal_id, evento: d.evento, acao: "criar", simulado: false, envio: { detalhe: det, patch }, resposta: { deal: dealId, org: orgId, person: personId, activity: atividade } });
+        await o.store.log({
+          deal_id: f.deal_id,
+          evento: d.evento,
+          acao: "criar",
+          simulado: false,
+          envio: { detalhe: det, patch },
+          resposta: { deal: dealId, org: orgId, person: personId, activity: atividade },
+        });
         await o.store.salvar({
           ...(e ?? novoEstado(f)),
           vinculo: "criado",
@@ -424,12 +536,29 @@ export async function rodarCella(o: {
       const deles = await o.cella.negocio(e!.cella_deal_id!);
       if (!deles || deles.status !== "open") {
         r.parados_deles.push(f.deal_id);
-        await o.store.salvar({ ...e!, estado: "parado_deles", status_deles: deles?.status ?? "excluido", atualizado_em: agoraIso });
+        await o.store.salvar({
+          ...e!,
+          estado: "parado_deles",
+          status_deles: deles?.status ?? "excluido",
+          atualizado_em: agoraIso,
+        });
         continue;
       }
-      await o.cella.atualizarNegocio(e!.cella_deal_id!, patch);
-      r.enviados[d.evento]++;
-      await o.store.log({ deal_id: f.deal_id, evento: d.evento, acao: "atualizar", simulado: false, envio: { patch } });
+      // Já está igual do lado deles: só guarda o hash, sem mexer no negócio deles.
+      const igual =
+        deles.status === patch.status &&
+        (patch.stage_id == null || deles.stage_id === patch.stage_id);
+      if (!igual) {
+        await o.cella.atualizarNegocio(e!.cella_deal_id!, patch);
+        r.enviados[d.evento]++;
+        await o.store.log({
+          deal_id: f.deal_id,
+          evento: d.evento,
+          acao: "atualizar",
+          simulado: false,
+          envio: { patch },
+        });
+      }
       await o.store.salvar({
         ...e!,
         estado: d.encerra ? "encerrado" : "ativo",
@@ -443,7 +572,9 @@ export async function rodarCella(o: {
     } catch (err) {
       const erro = String((err as Error).message ?? err).slice(0, 300);
       r.erros.push({ deal_id: f.deal_id, erro });
-      await o.store.salvar({ ...(e ?? novoEstado(f)), erro, atualizado_em: agoraIso }).catch(() => {});
+      await o.store
+        .salvar({ ...(e ?? novoEstado(f)), erro, atualizado_em: agoraIso })
+        .catch(() => {});
     }
   }
   return r;
@@ -463,7 +594,9 @@ const novoEstado = (f: Fonte): Estado => ({
 
 /** Card do pipe 39 a partir de ops.monetizacao_deals.payload. */
 export function fonte39(p: any): Fonte {
-  const reuniao = (Array.isArray(p?.moves) ? p.moves : []).find((m: any) => Number(m?.stage_id) === PLANNING.reuniao39);
+  const reuniao = (Array.isArray(p?.moves) ? p.moves : []).find(
+    (m: any) => Number(m?.stage_id) === PLANNING.reuniao39,
+  );
   return {
     pipe: 39,
     deal_id: Number(p.id),
@@ -479,14 +612,18 @@ export function fonte39(p: any): Fonte {
 
 /** Card do pipe 40 a partir de ops.monetizacao_diagnostico_deals.payload. */
 export function fonte40(p: any): Fonte {
-  const reuniao = (Array.isArray(p?.moves) ? p.moves : []).find((m: any) => Number(m?.stage_id) === PLANNING.reuniao40);
+  const reuniao = (Array.isArray(p?.moves) ? p.moves : []).find(
+    (m: any) => Number(m?.stage_id) === PLANNING.reuniao40,
+  );
   return {
     pipe: 40,
     deal_id: Number(p.id),
     nome: String(p.org ?? p.title ?? "").trim(),
     status: p.status,
     stage_id: Number(p.stage_id),
-    cella: (Array.isArray(p.produtos) ? p.produtos : []).some((x: any) => Number(x?.product_id) === PLANNING.produtoTeses),
+    cella: (Array.isArray(p.produtos) ? p.produtos : []).some(
+      (x: any) => Number(x?.product_id) === PLANNING.produtoTeses,
+    ),
     lost_reason: p.lost_reason ?? null,
     reuniao: reuniao ? String(reuniao.at ?? "").slice(0, 10) || null : null,
     org_id: Number(p.org_id) || null,

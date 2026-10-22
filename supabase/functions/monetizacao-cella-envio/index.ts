@@ -92,7 +92,12 @@ const planning: Planning = {
 
 // ---------------------------------------------------------------------------- Pipedrive da Diehl & Cella
 
-async function cellaApi(metodo: string, path: string, corpo?: unknown, params: Record<string, string> = {}): Promise<any> {
+async function cellaApi(
+  metodo: string,
+  path: string,
+  corpo?: unknown,
+  params: Record<string, string> = {},
+): Promise<any> {
   if (!CELLA_TOKEN) throw new Error("CELLA_PIPEDRIVE_TOKEN não configurado");
   const q = new URLSearchParams(params);
   const res = await fetch(`https://api.pipedrive.com/v1/${path}${q.size ? `?${q}` : ""}`, {
@@ -104,7 +109,8 @@ async function cellaApi(metodo: string, path: string, corpo?: unknown, params: R
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Pipedrive da Cella HTTP ${res.status}`);
   const body = await res.json().catch(() => null);
-  if (body && body.success === false) throw new Error("Pipedrive da Cella não confirmou a operação");
+  if (body && body.success === false)
+    throw new Error("Pipedrive da Cella não confirmou a operação");
   return body;
 }
 
@@ -119,19 +125,34 @@ const cella: Cella = {
   acharOrganizacao: async (cnpj, nome) => {
     if (cnpj) {
       const porCnpj = primeiroItem(
-        await cellaApi("GET", "organizations/search", undefined, { term: cnpj, fields: "custom_fields", exact_match: "true" }),
+        await cellaApi("GET", "organizations/search", undefined, {
+          term: cnpj,
+          fields: "custom_fields",
+          exact_match: "true",
+        }),
       );
       if (porCnpj) return porCnpj;
     }
     if (!nome || nome.length < 3) return null;
     return primeiroItem(
-      await cellaApi("GET", "organizations/search", undefined, { term: nome, fields: "name", exact_match: "true" }),
+      await cellaApi("GET", "organizations/search", undefined, {
+        term: nome,
+        fields: "name",
+        exact_match: "true",
+      }),
     );
   },
-  criarOrganizacao: async (corpo) => Number((await cellaApi("POST", "organizations", corpo)).data.id),
+  criarOrganizacao: async (corpo) =>
+    Number((await cellaApi("POST", "organizations", corpo)).data.id),
   acharPessoa: async (email) =>
     email
-      ? primeiroItem(await cellaApi("GET", "persons/search", undefined, { term: email, fields: "email", exact_match: "true" }))
+      ? primeiroItem(
+          await cellaApi("GET", "persons/search", undefined, {
+            term: email,
+            fields: "email",
+            exact_match: "true",
+          }),
+        )
       : null,
   criarPessoa: async (corpo) => Number((await cellaApi("POST", "persons", corpo)).data.id),
   criarNegocio: async (corpo) => Number((await cellaApi("POST", "deals", corpo)).data.id),
@@ -141,8 +162,22 @@ const cella: Cella = {
 // ---------------------------------------------------------------------------- estado
 
 const COLUNAS = [
-  "deal_id", "pipe", "vinculo", "estado", "cella_deal_id", "cella_org_id", "cella_person_id", "cella_activity_id",
-  "status_deles", "hash", "ultimo_evento", "simulado_hash", "simulado", "enviado_em", "erro", "atualizado_em",
+  "deal_id",
+  "pipe",
+  "vinculo",
+  "estado",
+  "cella_deal_id",
+  "cella_org_id",
+  "cella_person_id",
+  "cella_activity_id",
+  "status_deles",
+  "hash",
+  "ultimo_evento",
+  "simulado_hash",
+  "simulado",
+  "enviado_em",
+  "erro",
+  "atualizado_em",
 ];
 
 const store: Store = {
@@ -180,7 +215,9 @@ Deno.serve(async (req) => {
     const fontes = [
       ...(p39 || []).map((r: any) => fonte39(r.payload)),
       ...(p40 || []).map((r: any) => fonte40(r.payload)),
-    ].filter((f) => f.deal_id && (f.cella || estados?.some((e: any) => Number(e.deal_id) === f.deal_id)));
+    ].filter(
+      (f) => f.deal_id && (f.cella || estados?.some((e: any) => Number(e.deal_id) === f.deal_id)),
+    );
     const resumo = await rodarCella({
       fontes,
       estados: new Map((estados || []).map((e: any) => [Number(e.deal_id), e as Estado])),
@@ -191,14 +228,25 @@ Deno.serve(async (req) => {
       agora: new Date(),
     });
     await rest("monetizacao_cella_sync?on_conflict=id", {
-      body: { id: true, status: resumo.erros.length ? "parcial" : "ok", resumo, rodado_em: new Date().toISOString(), erro: null },
+      body: {
+        id: true,
+        status: resumo.erros.length ? "parcial" : "ok",
+        resumo,
+        rodado_em: new Date().toISOString(),
+        erro: null,
+      },
       prefer: "resolution=merge-duplicates,return=minimal",
     });
     return json(resumo);
   } catch (e) {
     const mensagem = (e as Error).message;
     await rest("monetizacao_cella_sync?on_conflict=id", {
-      body: { id: true, status: "erro", erro: mensagem.slice(0, 500), rodado_em: new Date().toISOString() },
+      body: {
+        id: true,
+        status: "erro",
+        erro: mensagem.slice(0, 500),
+        rodado_em: new Date().toISOString(),
+      },
       prefer: "resolution=merge-duplicates,return=minimal",
     }).catch(() => {});
     return json({ status: "erro", error: mensagem }, 500);

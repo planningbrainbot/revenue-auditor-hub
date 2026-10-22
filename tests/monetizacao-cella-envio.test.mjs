@@ -71,7 +71,10 @@ test("a Cella sai do card: perdeu neutro para quem já recebeu, nada para quem n
 });
 
 test("o motivo de perda nunca repete o texto do card", () => {
-  assert.equal(motivoNeutro("Fechou Consultoria e não quis a Cella"), "Cliente não seguiu com a proposta");
+  assert.equal(
+    motivoNeutro("Fechou Consultoria e não quis a Cella"),
+    "Cliente não seguiu com a proposta",
+  );
   assert.equal(motivoNeutro("Tentativa de contato esgotadas"), "Sem retorno do cliente");
   assert.equal(motivoNeutro("Sem fit"), "Sem oportunidade identificada");
   assert.equal(motivoNeutro(null), "Cliente não seguiu com a proposta");
@@ -91,14 +94,27 @@ test("pipe 40: só com a Teses no card, da apresentação agendada em diante", (
   assert.equal(decidir(f({ stage_id: 300 }), null).stage_id, 36);
   assert.equal(decidir(f({ status: "won", stage_id: 301 }), null).evento, "ganhou");
   // Venda parcial sem a Teses: o produto saiu do card antes do ganho.
-  assert.equal(decidir(f({ status: "won", cella: false }), conhecido({ pipe: 40 })).evento, "perdeu");
+  assert.equal(
+    decidir(f({ status: "won", cella: false }), conhecido({ pipe: 40 })).evento,
+    "perdeu",
+  );
 });
 
 test("empresa, contato e corpos do Pipedrive deles", () => {
   const det = detalheDe(
     { [PLANNING.campo.regime]: 352, [PLANNING.campo.faixa]: 778, title: "x" },
-    { name: "Transportadora Exemplo", [PLANNING.campo.cnpjOrg]: "12.345.678/0001-90", address_locality: "Goiânia", address_admin_area_level_1: "Goiás" },
-    { name: "Maria Exemplo", [PLANNING.campo.cargo]: "Diretora", email: [{ value: "maria@exemplo.com.br", primary: true }], phone: [{ value: "+55 (62) 99999-0000", primary: true }] },
+    {
+      name: "Transportadora Exemplo",
+      [PLANNING.campo.cnpjOrg]: "12.345.678/0001-90",
+      address_locality: "Goiânia",
+      address_admin_area_level_1: "Goiás",
+    },
+    {
+      name: "Maria Exemplo",
+      [PLANNING.campo.cargo]: "Diretora",
+      email: [{ value: "maria@exemplo.com.br", primary: true }],
+      phone: [{ value: "+55 (62) 99999-0000", primary: true }],
+    },
     (id) => ({ 778: "R$ 25 milhões até R$ 50 milhões" })[id] ?? null,
   );
   assert.equal(det.empresa.cnpj, "12345678000190");
@@ -120,7 +136,8 @@ test("empresa, contato e corpos do Pipedrive deles", () => {
   assert.equal(neg.title, "Transportadora Exemplo");
   // Nada que denuncie outro produto ou a casa: só os campos combinados.
   const tudo = JSON.stringify({ org, pessoa, neg }).toLowerCase();
-  for (const proibido of ["consultoria", "finance", "rota", "partners"]) assert.ok(!tudo.includes(proibido), proibido);
+  for (const proibido of ["consultoria", "finance", "rota", "partners"])
+    assert.ok(!tudo.includes(proibido), proibido);
   assert.equal(ufDe("SP"), "SP");
   assert.equal(ufDe("Rio Grande do Sul"), "RS");
 });
@@ -137,18 +154,28 @@ function simulado(estados = []) {
   const cella = new Proxy(
     {},
     {
-      get: (_, nome) => async (...args) => {
-        chamadas.push([nome, ...args]);
-        if (nome === "negocio") return { status: args[0] === 2139 ? "lost" : "open", stage_id: 36 };
-        if (nome.startsWith("achar")) return null;
-        return 500 + chamadas.length;
-      },
+      get:
+        (_, nome) =>
+        async (...args) => {
+          chamadas.push([nome, ...args]);
+          if (nome === "negocio")
+            return { status: args[0] === 2139 ? "lost" : "open", stage_id: 36 };
+          if (nome.startsWith("achar")) return null;
+          return 500 + chamadas.length;
+        },
     },
   );
   const planning = {
     contratados: async () => [PLANNING.contratadoCella],
     detalhe: async () => ({
-      empresa: { nome: "Grupo Exemplo", cnpj: null, cidade: null, uf: null, regime: null, faixa: null },
+      empresa: {
+        nome: "Grupo Exemplo",
+        cnpj: null,
+        cidade: null,
+        uf: null,
+        regime: null,
+        faixa: null,
+      },
       contato: null,
     }),
   };
@@ -158,7 +185,15 @@ function simulado(estados = []) {
     salvos,
     logs,
     rodar: (fontes, ativo) =>
-      rodarCella({ fontes, estados: new Map(estados.map((e) => [e.deal_id, e])), planning, cella, store, ativo, agora: new Date("2026-10-22T15:00:00Z") }),
+      rodarCella({
+        fontes,
+        estados: new Map(estados.map((e) => [e.deal_id, e])),
+        planning,
+        cella,
+        store,
+        ativo,
+        agora: new Date("2026-10-22T15:00:00Z"),
+      }),
   };
 }
 
@@ -179,12 +214,20 @@ test("ligado: cria organização, negócio e reunião; existente só recebe etap
     conhecido({ deal_id: 3, cella_deal_id: 2139 }),
   ]);
   const r = await s.rodar(
-    [card({ deal_id: 1, stage_id: 291 }), card({ deal_id: 2, stage_id: 288 }), card({ deal_id: 3, stage_id: 278 })],
+    [
+      card({ deal_id: 1, stage_id: 291 }),
+      card({ deal_id: 2, stage_id: 288 }),
+      card({ deal_id: 3, stage_id: 278 }),
+    ],
     true,
   );
   assert.equal(r.criados, 1);
   const nomes = s.chamadas.map((c) => c[0]);
-  assert.ok(nomes.includes("criarOrganizacao") && nomes.includes("criarNegocio") && nomes.includes("criarAtividade"));
+  assert.ok(
+    nomes.includes("criarOrganizacao") &&
+      nomes.includes("criarNegocio") &&
+      nomes.includes("criarAtividade"),
+  );
   assert.ok(!nomes.includes("criarPessoa"), "sem contato não cria pessoa");
   const put = s.chamadas.find((c) => c[0] === "atualizarNegocio");
   assert.deepEqual(put.slice(1), [2160, { status: "open", stage_id: 37 }]);
@@ -193,12 +236,38 @@ test("ligado: cria organização, negócio e reunião; existente só recebe etap
   assert.equal(s.chamadas.filter((c) => c[0] === "atualizarNegocio").length, 1);
 });
 
+test("negócio deles já na mesma etapa: guarda o hash e não mexe", async () => {
+  const s = simulado([conhecido({ deal_id: 2, cella_deal_id: 2160 })]);
+  const r = await s.rodar([card({ deal_id: 2, stage_id: 278 })], true);
+  assert.equal(s.chamadas.filter((c) => c[0] === "atualizarNegocio").length, 0);
+  assert.equal(r.enviados.atualizou, 0);
+  assert.ok(s.salvos.find((x) => x.deal_id === 2).hash);
+});
+
 test("espelho dos pipes 39 e 40", () => {
-  const f39 = fonte39({ id: 98022, org: "Alves", status: "won", stage_id: 278, offered: ["cella"], moves: [{ stage_id: 291, date: "2026-10-01" }], org_id: 7 });
+  const f39 = fonte39({
+    id: 98022,
+    org: "Alves",
+    status: "won",
+    stage_id: 278,
+    offered: ["cella"],
+    moves: [{ stage_id: 291, date: "2026-10-01" }],
+    org_id: 7,
+  });
   assert.equal(f39.cella, true);
   assert.equal(f39.reuniao, "2026-10-01");
-  const f40 = fonte40({ id: 100701, org: "N9", status: "open", stage_id: 299, produtos: [{ product_id: 63 }], moves: [{ stage_id: 299, at: "2026-11-02 10:00:00" }] });
+  const f40 = fonte40({
+    id: 100701,
+    org: "N9",
+    status: "open",
+    stage_id: 299,
+    produtos: [{ product_id: 63 }],
+    moves: [{ stage_id: 299, at: "2026-11-02 10:00:00" }],
+  });
   assert.equal(f40.cella, true);
   assert.equal(f40.reuniao, "2026-11-02");
-  assert.equal(fonte40({ id: 1, status: "open", stage_id: 299, produtos: [{ product_id: 62 }] }).cella, false);
+  assert.equal(
+    fonte40({ id: 1, status: "open", stage_id: 299, produtos: [{ product_id: 62 }] }).cella,
+    false,
+  );
 });
