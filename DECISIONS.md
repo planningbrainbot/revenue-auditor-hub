@@ -6593,3 +6593,29 @@ os heads ficam como estão), com os contatos na ficha, todas as unidades, public
 - A chave `MONET_DIAG_CADASTRO_CONSULTORIA=sim` liga o cadastro. Desligada, a entrada só confere se já há projeto e deixa o cliente "pendente". O pendente é cadastrado quando a chave ligar, e um erro é tentado de novo depois de 6 h.
 
 **Estado:** o ensaio com dados reais, só leitura, deu 225 clientes no onboarding, 124 concluídos, 83 dentro dos 30 dias e 0 cards a criar hoje. Entram 28 até a semana de 02/11, e 23 deles têm perfil de Consultoria.
+
+## [2026-10-22] Envio dos negócios da Cella para o Pipedrive da Diehl & Cella (desligado)
+
+**Contexto:** a Diehl & Cella quer receber no Pipedrive dela (funil 9 "Projeto Planning", dona Maiara Correa) os
+negócios da Cella. Um card do pipe 39 pode ter mais de um produto, e a Cella não pode saber que existe outro produto
+no negócio (regra do Pedro, 20/10). O plano deles não recebe webhook: nenhum Pipedrive recebe. A Maiara mandou o token
+da API do usuário dela (admin do Pipedrive deles) em 22/10. Arquitetura em https://claude.ai/artifact/DUNzvMEu4c6DSkewjbsmBs;
+contrato em `monetizacao/outputs/2026-10-20-cella-integracao/contrato-v2.md`.
+
+**Decisão (Pedro, 22/10: 1A 2A 3B 4A 5A 6A):**
+- Pipe 39: a Cella recebe o card com ela em "Caixa · Produtos ofertados", da Reunião de proposta em diante (291 → 35,
+  279/278 → 36, 288 → 37). Pipe 40: com o produto "Diagnóstico · Teses Jurídicas" no card, da Apresentação agendada em
+  diante (299 → 35, 300/301 → 36).
+- Campo novo "Caixa · Produtos contratados" (deal field 360, set, Cella 1204). Ganho para a Cella = card ganho com a
+  Cella nele. Ganho sem o campo fica pendente; ganho só com outro produto vira "perdeu" para a Cella.
+- Motivo de perda sempre de uma lista neutra (`motivoNeutro`), nunca o texto do card.
+- Primeira carga: abertos e ganhos; perdido nunca entra na primeira vez.
+- O Brain grava direto no Pipedrive deles pela API (`monetizacao-cella-envio`, cron a cada 5 min), lendo o espelho
+  do Brain. Negócio novo: organização, pessoa, negócio e atividade "Reunião (Parceiros)". Negócio que já existia no
+  funil 9 (ligado à mão em 22/10): só etapa, status e motivo. Negócio fechado do lado deles nunca é reaberto.
+- Desligado até o "pode ativar" do Pedro: sem `MONET_CELLA_ENVIO_ATIVO=sim`, só prévia em
+  `ops.monetizacao_cella_envios_log`.
+
+**Alternativas descartadas:** automação ou webhook do Pipedrive da Planning (manda o card inteiro, com outros produtos;
+a conta está acima do limite de automações); n8n (a regra de etapas e o espelho moram no Brain); Zapier ou Apps Script
+do lado deles (mais uma peça para manter, e o Pipedrive deles aceita a API direto).
