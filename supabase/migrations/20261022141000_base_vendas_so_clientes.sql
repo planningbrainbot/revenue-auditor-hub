@@ -15,7 +15,7 @@
 --     view.aquario (as que os 13 que já usavam a Base têm; o aquário traz os negócios para a ficha);
 --   * sai `view.base_contatos`, que abre a tela /base-contatos, fora da Clientes;
 --   * todas as unidades (`usuario_escopo.todas_unidades`), resposta do Pedro em 22/10.
--- Desfazer: supabase/rollback/20261022120000_base_vendas_so_clientes_rollback.sql.
+-- Desfazer: supabase/rollback/20261022141000_base_vendas_so_clientes_rollback.sql.
 
 begin;
 
