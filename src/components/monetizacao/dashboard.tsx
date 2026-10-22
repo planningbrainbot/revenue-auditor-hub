@@ -111,6 +111,7 @@ const TITULOS: Record<Aba, string> = {
   "pre-venda": "Pré-venda",
   fechamentos: "Forecast",
   "handoff-consultoria": "Consultoria",
+  cella: "Cella",
   funil: "Funil comercial",
   roteiros: "Abordagens",
   distribuicao: "Distribuição",
@@ -119,6 +120,7 @@ const PERGUNTAS: Record<Exclude<Aba, "pre-venda">, string> = {
   operacao: "A pré-venda está no ritmo, e onde a base trava?",
   fechamentos: "O que fazer hoje para o mês fechar?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
+  cella: "Onde está cada contrato da Cella, e quanto vale cada tese?",
   funil: "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?",
   roteiros: "O que eu digo para este produto e este segmento?",
   distribuicao: "A carga está bem dividida entre os responsáveis, ou alguém está sem base?",
@@ -149,6 +151,8 @@ const BARRA: Record<Aba, { periodo: boolean; produto: boolean; responsavel: bool
   roteiros: null,
   // Tela própria (consultoria.tsx: Handoff e Cruzamento), com barra e leitura dela; a rota desvia antes daqui.
   "handoff-consultoria": null,
+  // Tela própria (cella.tsx), com leitura dela; a rota desvia antes daqui.
+  cella: null,
 };
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -813,6 +817,8 @@ function descricaoDaAba(
       return `Responsáveis com negócio aberto hoje (quem só fez movimento e não é dono de nada não aparece) · ${v.produto} · movimentos de ${v.periodo} · negócio`;
     case "handoff-consultoria":
       return "Onboarding Cliente da Expansão · cliente (CNPJ)";
+    case "cella":
+      return "Funil Projeto Planning da Diehl & Cella · contrato e tese";
   }
 }
 

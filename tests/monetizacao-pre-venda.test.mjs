@@ -357,7 +357,7 @@ test("Erro da RPC: sem acesso e função ainda não criada não viram erro de le
 
 // ── Navegação ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-test("Menu da Monetização: sete itens, Pré-venda logo depois da Operação diária e Forecast (14/10) depois da Consultoria", () => {
+test("Menu da Monetização: oito itens, Pré-venda logo depois da Operação diária, Forecast (14/10) depois da Consultoria e Cella (22/10) depois do Forecast", () => {
   const area = AREAS.find((a) => a.slug === "monetizacao");
   const itens = area.grupos.flatMap((g) => g.items);
   assert.deepEqual(
@@ -367,6 +367,7 @@ test("Menu da Monetização: sete itens, Pré-venda logo depois da Operação di
       "Pré-venda",
       "Consultoria",
       "Forecast",
+      "Cella",
       "Funil comercial",
       "Abordagens",
       "Distribuição",

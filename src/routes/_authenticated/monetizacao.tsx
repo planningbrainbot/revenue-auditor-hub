@@ -1,6 +1,7 @@
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { DashboardMonetizacao } from "@/components/monetizacao/dashboard";
 import { Consultoria } from "@/components/monetizacao/consultoria";
+import { Cella } from "@/components/monetizacao/cella";
 import { PainelDiagnostico } from "@/components/monetizacao/diagnostico/painel";
 import { validarBuscaMonetizacao, type BuscaMonetizacao } from "@/components/monetizacao/busca";
 
@@ -23,6 +24,8 @@ function Page() {
   // Consultoria, contratos, PAT): não baixa a carga do CRM que as outras visões dividem.
   if (busca.aba === "handoff-consultoria")
     return <Consultoria busca={busca} mudarBusca={mudarBusca} />;
+  // Cella (22/10/2026): lê o funil da Diehl & Cella pelo Brain, sem a carga do CRM.
+  if (busca.aba === "cella") return <Cella busca={busca} mudarBusca={mudarBusca} />;
   // Base nova (pipe 40, 16/10/2026): Operação, Pré-venda e Forecast têm a seção própria, com leitura própria; a
   // validação da URL só deixa `base=nova` nessas três abas.
   if (busca.base === "nova") return <PainelDiagnostico busca={busca} mudarBusca={mudarBusca} />;

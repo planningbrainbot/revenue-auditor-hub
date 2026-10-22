@@ -454,7 +454,11 @@ export const AREAS: Area[] = [
           { title: "Forecast × Realizado", url: "/bi-financeiro?aba=forecast", icon: Target },
           { title: "Resultado do período", url: "/bi-financeiro?aba=geral", icon: TrendingUp },
           { title: "DRE", url: "/bi-financeiro?aba=dre", icon: ScrollText },
-          { title: "Aquisição × Retenção", url: "/bi-financeiro?aba=aquisicao-retencao", icon: Split },
+          {
+            title: "Aquisição × Retenção",
+            url: "/bi-financeiro?aba=aquisicao-retencao",
+            icon: Split,
+          },
           { title: "Variação", url: "/bi-financeiro?aba=variacao", icon: ArrowRightLeft },
         ],
       },
@@ -581,6 +585,8 @@ export const AREAS: Area[] = [
           },
           // Forecast (14/10/2026, call com o Paulo): data esperada de fechamento e receita do mês.
           { title: "Forecast", url: "/monetizacao?aba=fechamentos", icon: CalendarClock },
+          // Cella (22/10/2026): contratos passados à Diehl & Cella e o valor de cada tese, lidos do funil deles.
+          { title: "Cella", url: "/monetizacao?aba=cella", icon: Scale },
           // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
           // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
         ],
