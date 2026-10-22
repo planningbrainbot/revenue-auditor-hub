@@ -6,10 +6,12 @@ import {
   CAMPO,
   JORDANA,
   MATHEUS,
-  MOTIVO_SEM_ONBOARDING,
+  MOTIVO_ESPERA_ONBOARDING,
   cardDaVenda,
+  cnpjDe,
   elegibilidade,
-  passouDoKickoff,
+  fitConsultoria,
+  saidaDoOnboarding,
   unidadePausada,
   montarCard,
   motivoDeEncerrar,
@@ -267,6 +269,11 @@ function fakes({
     gravarRetrato: async (r) => void (estado.retrato = r),
     entradas: async () => estado.entradas,
     inserirEntrada: async (l) => void estado.entradas.push(l),
+    atualizarEntrada: async (vendaId, patch) =>
+      void Object.assign(
+        estado.entradas.find((e) => e.venda_id === vendaId),
+        patch,
+      ),
     onboarding: async () => onboarding,
     liberarEtapa: async (dealId, etapa) => {
       estado.liberadas.push([dealId, etapa]);
@@ -302,37 +309,58 @@ const VENDAS = [
   { id: 4, org_id: 14, won_time: "2026-09-29T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 778 } },
   { id: 5, org_id: 15, won_time: "2026-09-10T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 777 } },
 ];
-const onb = (card, venda, fase, fases = [], unidade = "Matriz") => ({
+/** Card do onboarding; `saida` é o dia em que ele chegou a "Concluído" (ausente = ainda no onboarding). */
+const onb = (card, venda, fase, saida = null, unidade = "Matriz", cnpj = null) => ({
   pipefy_card_id: String(card),
   titulo: "Cliente " + card,
   unidade,
   fase_atual: fase,
-  fases,
+  fases: saida ? [{ fase: "Concluído", entrou_em: `${saida}T15:00:00Z` }] : [],
   pipedrive_deal_id: venda,
+  cnpj,
 });
+// AGORA = 16/10/2026: concluiu até 16/09 = 30 dias ou mais.
 const ONBOARDING = [
-  onb(101, 1, "Setup técnico"),
-  onb(102, 2, "Concluído"), // Presumido abaixo de R$ 10 mi
-  onb(103, 3, "Pesquisa de Esforço (CES)"), // mesma conta da venda 1
-  onb(104, 4, "Pré Kickoff [ops + cs]"), // ainda antes do kickoff
-  onb(105, 5, "Churn no Onboarding", ["kickoff com [Cliente + ops + cs]"]),
-  onb(106, null, "Concluído"), // sem venda ligada
+  onb(101, 1, "Pesquisa de Esforço (CES)", "2026-09-10"),
+  onb(102, 2, "Concluído", "2026-09-01"), // Presumido abaixo de R$ 10 mi
+  onb(103, 3, "Concluído", "2026-09-05"), // mesma conta da venda 1
+  onb(104, 4, "Concluído", "2026-10-01"), // concluiu há 15 dias: espera
+  onb(105, 5, "Churn no Onboarding", "2026-08-01"),
+  onb(106, null, "Concluído", "2026-09-01"), // sem venda ligada
+  onb(107, 5, "Setup técnico"), // ainda no onboarding
 ];
 
-test("passou do kickoff: fase atual ou histórico; Pré Kickoff não conta; churn não entra", () => {
-  assert.equal(passouDoKickoff(onb(1, 1, "kickoff com [Cliente + ops + cs]")), true);
-  assert.equal(passouDoKickoff(onb(1, 1, "Pré Kickoff [ops + cs]")), false);
+test("saída do onboarding: a primeira chegada a Concluído, Check-out ou Pesquisa; churn nunca sai", () => {
+  assert.equal(saidaDoOnboarding(onb(1, 1, "Concluído", "2026-09-10")), "2026-09-10");
+  assert.equal(saidaDoOnboarding(onb(1, 1, "Setup técnico")), null);
   assert.equal(
-    passouDoKickoff(onb(1, 1, "Pré Kickoff [ops + cs]", ["kickoff com [Cliente + ops + cs]"])),
-    true,
-    "voltou para o Pré Kickoff depois de passar pelo kickoff",
+    saidaDoOnboarding({
+      ...onb(1, 1, "Concluído"),
+      fases: [
+        { fase: "kickoff com [Cliente + ops + cs]", entrou_em: "2026-08-01T12:00:00Z" },
+        { fase: "Pesquisa de Esforço (CES)", entrou_em: "2026-09-02T12:00:00Z" },
+        { fase: "Check-out Onboarding", entrou_em: "2026-08-20T12:00:00Z" },
+      ],
+    }),
+    "2026-08-20",
   );
-  assert.equal(passouDoKickoff(onb(1, 1, "Churn no Onboarding", ["Setup técnico"])), false);
+  assert.equal(saidaDoOnboarding(onb(1, 1, "Churn no Onboarding", "2026-08-01")), null);
   assert.equal(unidadePausada(["Belém"], ["Matriz", "BELEM"]), "BELEM");
   assert.equal(unidadePausada([], ["Belém"]), null);
 });
 
-test("dry-run: nada escrito, prévia de quem passou do kickoff com fit, uma por conta", async () => {
+test("perfil de Consultoria: Real, ou Presumido de R$ 50 mi para cima; CNPJ com 14 dígitos", () => {
+  const v = (regime, faixa) => ({ custom_fields: { [CAMPO.regime]: regime, [CAMPO.faixa]: faixa } });
+  assert.equal(fitConsultoria(v(352, 774)), true);
+  assert.equal(fitConsultoria(v(351, 779)), true);
+  assert.equal(fitConsultoria(v(351, 778)), false, "Presumido de R$ 25 a 50 mi entra no pipe 40, não na Consultoria");
+  assert.equal(fitConsultoria(v(350, 441)), false);
+  assert.equal(cnpjDe("12.345.678/0001-95"), "12345678000195");
+  assert.equal(cnpjDe(0), null);
+  assert.equal(cnpjDe("00000000000000"), null);
+});
+
+test("dry-run: nada escrito, prévia de quem concluiu o onboarding há 30 dias, uma por conta", async () => {
   const f = fakes({ vendas: VENDAS, onboarding: ONBOARDING });
   const r = await rodarDiagnostico({
     pd: f.pd,
@@ -344,12 +372,15 @@ test("dry-run: nada escrito, prévia de quem passou do kickoff com fit, uma por 
   });
   assert.equal(f.chamadas.filter((c) => c[0] === "post" || c[0] === "put").length, 0);
   assert.equal(r.entrada.a_criar_ou_criadas, 1, "só a venda 1: a 3 é da mesma conta");
-  assert.equal(r.entrada.depois_do_kickoff, 4);
+  assert.equal(r.entrada.concluiram_onboarding, 5);
+  assert.equal(r.entrada.aguardando_30_dias, 1);
   assert.deepEqual(r.entrada.fora_da_regra, {
     "onboarding sem venda ligada": 1,
     "Lucro Presumido abaixo de R$ 10 mi": 1,
   });
-  assert.equal(f.estado.retrato.previa.entradas[0].empresa, "Cliente 101");
+  const p = f.estado.retrato.previa.entradas[0];
+  assert.equal(p.empresa, "Cliente 101");
+  assert.equal(p.saiu_onboarding_em, "2026-09-10");
   assert.equal(f.estado.entradas.length, 0);
 });
 
@@ -372,13 +403,14 @@ test("ligada: cria o card com o nome do onboarding, a nota fixada e a entrada; n
   assert.equal(posts[0][2].title, "Cliente 101");
   assert.equal(posts[0][2].stage_id, ETAPA.novo);
   assert.equal(posts[1][2].pinned_to_deal_flag, 1);
-  assert.match(posts[1][2].content, /Onboarding do CS: Setup técnico/);
+  assert.match(posts[1][2].content, /Concluiu o onboarding em 10\/09\/2026/);
+  assert.match(posts[1][2].content, /a venda não tem CNPJ/);
   assert.equal(r.entrada.criadas, 1);
   assert.deepEqual(
-    f.estado.entradas.map((e) => [e.venda_id, e.status, e.deal_id]),
+    f.estado.entradas.map((e) => [e.venda_id, e.status, e.deal_id, e.consultoria ?? null]),
     [
-      [1, "criado", 9001],
-      [3, "conta_ja_no_pipe", 9001],
+      [1, "criado", 9001, "sem_cnpj"],
+      [3, "conta_ja_no_pipe", 9001, null],
     ],
   );
   const antes = f.chamadas.length;
@@ -389,7 +421,7 @@ test("ligada: cria o card com o nome do onboarding, a nota fixada e a entrada; n
 test("pipe 39: conta com card aberto fica lá; conta perdida no 39 entra", async () => {
   const f = fakes({
     vendas: VENDAS,
-    onboarding: [onb(101, 1, "Setup técnico"), onb(107, 5, "Concluído")],
+    onboarding: [onb(101, 1, "Concluído", "2026-09-01"), onb(108, 5, "Concluído", "2026-09-01")],
     pipe39: [
       { id: 39001, org_id: 11, status: "open" },
       { id: 39002, org_id: 15, status: "lost" },
@@ -411,7 +443,7 @@ test("pipe 39: conta com card aberto fica lá; conta perdida no 39 entra", async
 });
 
 test("unidade pausada: o card nasce com a nota 'Pausado em' antes da nota da venda", async () => {
-  const f = fakes({ vendas: VENDAS, onboarding: [onb(101, 1, "Concluído", [], "Belém")] });
+  const f = fakes({ vendas: VENDAS, onboarding: [onb(101, 1, "Concluído", "2026-09-01", "Belém")] });
   await rodarDiagnostico({
     pd: f.pd,
     store: f.store,
@@ -425,6 +457,138 @@ test("unidade pausada: o card nasce com a nota 'Pausado em' antes da nota da ven
   assert.equal(notas.length, 2);
   assert.match(notas[0][2].content, /^Pausado em 16\/10\/2026\. A unidade Belém/);
   assert.equal(notas[0][2].pinned_to_deal_flag, 1);
+});
+
+// ---------------------------------------------------------------------------- cadastro na Consultoria (22/10/2026)
+
+const COM_CNPJ = [
+  { id: 21, org_id: 31, won_time: "2026-08-02T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 775, [CAMPO.cnpj]: "11222333000181" } },
+  { id: 22, org_id: 32, won_time: "2026-08-02T15:00:00Z", custom_fields: { [CAMPO.regime]: 352, [CAMPO.faixa]: 776, [CAMPO.cnpj]: "44555666000172" } },
+  { id: 23, org_id: 33, won_time: "2026-08-02T15:00:00Z", custom_fields: { [CAMPO.regime]: 351, [CAMPO.faixa]: 778, [CAMPO.cnpj]: "77888999000163" } },
+];
+const fakeConsultoria = (comProjeto = []) => {
+  const registrados = [];
+  return {
+    registrados,
+    consultoria: {
+      temProjeto: async (cnpj) => comProjeto.includes(cnpj),
+      registrar: async (d) => {
+        registrados.push(d);
+        return { projeto_id: "proj-" + d.cnpj.slice(0, 4) };
+      },
+    },
+  };
+};
+
+test("cadastro: Real sem projeto é cadastrado; com projeto, não; Presumido abaixo de R$ 50 mi fica fora", async () => {
+  const f = fakes({
+    vendas: COM_CNPJ,
+    onboarding: [
+      onb(121, 21, "Concluído", "2026-09-01"),
+      onb(122, 22, "Concluído", "2026-09-01"),
+      onb(123, 23, "Concluído", "2026-09-01"),
+    ],
+  });
+  const c = fakeConsultoria(["44555666000172"]);
+  const r = await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+    consultoria: c.consultoria,
+    cadastroConsultoria: true,
+  });
+  assert.equal(c.registrados.length, 1);
+  assert.equal(c.registrados[0].cnpj, "11222333000181");
+  assert.equal(c.registrados[0].razao_social, "Cliente 121");
+  assert.match(c.registrados[0].observacoes, /concluiu o onboarding em 01\/09\/2026/);
+  assert.deepEqual(
+    f.estado.entradas.map((e) => [e.venda_id, e.consultoria, e.consultoria_projeto_id ?? null]),
+    [
+      [21, "criado", "proj-1122"],
+      [22, "ja_existia", null],
+      [23, "sem_fit", null],
+    ],
+  );
+  assert.deepEqual(r.entrada.consultoria, { ligada: true, criado: 1, ja_existia: 1, sem_fit: 1 });
+});
+
+test("cadastro desligado: o cliente fica pendente e é cadastrado quando a chave liga", async () => {
+  const f = fakes({ vendas: COM_CNPJ.slice(0, 1), onboarding: [onb(121, 21, "Concluído", "2026-09-01")] });
+  const c = fakeConsultoria();
+  const op = {
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+    consultoria: c.consultoria,
+    cadastroConsultoria: false,
+  };
+  await rodarDiagnostico(op);
+  assert.equal(c.registrados.length, 0);
+  assert.equal(f.estado.entradas[0].consultoria, "pendente");
+  assert.equal(f.estado.entradas[0].consultoria_cnpj, "11222333000181");
+
+  f.store.cardsAtuais = async () => [];
+  const deal = {
+    id: 9001,
+    pipeline_id: 40,
+    stage_id: 293,
+    status: "open",
+    title: "Cliente 121",
+    org_id: { value: 31, name: "Cliente 121" },
+    user_id: MATHEUS,
+    stage_change_time: "2026-10-16 12:00:00",
+    add_time: "2026-10-16 12:00:00",
+    update_time: "2026-10-16 12:00:00",
+  };
+  const f2 = fakes({ vendas: COM_CNPJ.slice(0, 1), deals: [deal], entradas: f.estado.entradas, onboarding: [onb(121, 21, "Concluído", "2026-09-01")] });
+  await rodarDiagnostico({ ...op, pd: f2.pd, store: f2.store, cadastroConsultoria: true });
+  assert.equal(c.registrados.length, 1);
+  assert.equal(f2.estado.entradas[0].consultoria, "criado");
+  assert.ok(
+    f2.chamadas.some((x) => x[0] === "post" && x[1] === "notes" && /cadastrado na plataforma hoje/.test(x[2].content)),
+  );
+});
+
+test("tarefa 03: 'Cadastrar na plataforma' não nasce quando o cadastro resolveu; sem CNPJ, nasce", async () => {
+  const card = (id) => ({
+    id,
+    pipeline_id: 40,
+    stage_id: 296,
+    status: "open",
+    title: "C" + id,
+    org_id: { value: id, name: "C" + id },
+    user_id: MATHEUS,
+    stage_change_time: "2026-10-16 10:00:00",
+    add_time: "2026-10-01 10:00:00",
+    update_time: "2026-10-16 10:00:00",
+  });
+  const f = fakes({
+    deals: [card(801), card(802)],
+    entradas: [
+      { venda_id: 81, org_id: 801, deal_id: 801, status: "criado", consultoria: "criado" },
+      { venda_id: 82, org_id: 802, deal_id: 802, status: "criado", consultoria: "sem_cnpj" },
+    ],
+  });
+  f.pd.pages = async (path, params = {}) =>
+    path === "deals" ? [card(801), card(802)].filter((d) => d.stage_id === params.stage_id) : [];
+  f.pd.get = (orig => async (path, params) => path === "stages" ? { data: [{ id: 296, pipeline_id: 40, order_nr: 3, name: "Coleta", active_flag: true }] } : orig(path, params))(f.pd.get);
+  await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: false,
+    tarefasAtiva: true,
+    inicio: "2026-10-01T00:00:00Z",
+  });
+  const chaves = (id) => f.estado.tarefas.filter((t) => t.deal_id === id).map((t) => t.chave).sort();
+  assert.deepEqual(chaves(801), ["03-cobrar-1", "03-pasta"]);
+  assert.deepEqual(chaves(802), ["03-cobrar-1", "03-pasta", "03-plataforma"]);
 });
 
 test("ligada: card que saiu da etapa apaga só a tarefa não feita", async () => {
@@ -603,15 +767,15 @@ test("base antiga protegida: conta no pipe 40 não sobe para o 39, fora o perdid
   assert.ok(FORA_DO_ENVIO_39.has(MATHEUS));
 });
 
-// ---------------------------------------------------------------------------- reabertura (21/10/2026)
+// ---------------------------------------------------------------------------- reabertura (21–22/10/2026)
 
-test("card que saiu antes do onboarding volta à etapa 01 quando o cliente passa do kickoff", async () => {
+test("card que espera o onboarding volta à etapa 01 no 30º dia depois da conclusão", async () => {
   const perdido = {
     id: 900,
     pipeline_id: 40,
     stage_id: 293,
     status: "lost",
-    lost_reason: MOTIVO_SEM_ONBOARDING,
+    lost_reason: MOTIVO_ESPERA_ONBOARDING,
     title: "Cliente",
     org_id: { value: 11, name: "Cliente" },
     user_id: MATHEUS,
@@ -633,7 +797,7 @@ test("card que saiu antes do onboarding volta à etapa 01 quando o cliente passa
         activity_id: 1,
       },
     ],
-    onboarding: [onb(101, 1, "Pré Kickoff [ops + cs]")],
+    onboarding: [onb(101, 1, "Concluído", "2026-09-20")],
   });
   const op = {
     pd: f.pd,
@@ -647,10 +811,10 @@ test("card que saiu antes do onboarding volta à etapa 01 quando o cliente passa
   assert.equal(
     f.chamadas.filter((c) => c[0] === "put").length,
     0,
-    "antes do kickoff, o card perdido fica como está",
+    "concluiu há 26 dias: o card perdido fica como está",
   );
 
-  f.store.onboarding = async () => [onb(101, 1, "kickoff com [Cliente + ops + cs]")];
+  f.store.onboarding = async () => [onb(101, 1, "Concluído", "2026-09-15")];
   const r = await rodarDiagnostico(op);
   const put = f.chamadas.find((c) => c[0] === "put");
   assert.deepEqual(put.slice(1), ["deals/900", { status: "open", stage_id: ETAPA.novo }]);
@@ -658,6 +822,10 @@ test("card que saiu antes do onboarding volta à etapa 01 quando o cliente passa
   assert.deepEqual(f.estado.liberadas, [[900, 293]]);
   assert.equal(f.estado.tarefas.length, 0, "a 01 feita antes sai, para nascer de novo");
   assert.equal(f.estado.entradas.length, 1, "a entrada da venda já existia");
+  assert.equal(f.estado.entradas[0].saiu_onboarding_em, "2026-09-15");
+  assert.ok(
+    f.chamadas.some((c) => c[0] === "post" && c[1] === "notes" && /concluiu o onboarding em 15\/09\/2026, há 31 dias/.test(c[2].content)),
+  );
 
   // Próxima rodada: o card aberto na 01 ganha a tarefa, vencendo hoje e não no dia da entrada antiga.
   perdido.status = "open";
@@ -667,4 +835,40 @@ test("card que saiu antes do onboarding volta à etapa 01 quando o cliente passa
   const nova = f.estado.tarefas.find((t) => t.deal_id === 900 && t.chave === "01-conferir");
   assert.equal(nova.status, "aberta");
   assert.equal(nova.due_date, "2026-10-16");
+});
+
+test("o motivo de 21/10 ('Ainda não passou pelo onboarding') também volta no 30º dia", async () => {
+  const f = fakes({
+    vendas: VENDAS,
+    deals: [
+      {
+        id: 901,
+        pipeline_id: 40,
+        stage_id: 294,
+        status: "lost",
+        lost_reason: "Ainda não passou pelo onboarding",
+        title: "C",
+        org_id: { value: 11, name: "C" },
+        user_id: MATHEUS,
+        stage_change_time: "2026-10-14 12:00:00",
+        add_time: "2026-10-14 12:00:00",
+        update_time: "2026-10-15 12:00:00",
+      },
+    ],
+    entradas: [{ venda_id: 1, org_id: 11, deal_id: 901, status: "criado" }],
+    onboarding: [onb(101, 1, "Concluído", "2026-09-01")],
+  });
+  f.pd.pages = async (path, params = {}) =>
+    path === "deals" && params.stage_id === 294
+      ? [{ id: 901, pipeline_id: 40, stage_id: 294, status: "lost", lost_reason: "Ainda não passou pelo onboarding", title: "C", org_id: { value: 11, name: "C" }, user_id: MATHEUS, stage_change_time: "2026-10-14 12:00:00", add_time: "2026-10-14 12:00:00", update_time: "2026-10-15 12:00:00" }]
+      : [];
+  const r = await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+  });
+  assert.equal(r.entrada.reabertas, 1);
 });

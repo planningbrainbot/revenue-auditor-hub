@@ -2,9 +2,10 @@
 // Base nova da Monetização: pipe 40 (Onboarding | Diagnóstico de Oportunidades), pedido do Pedro em 16/10/2026.
 // Três trabalhos por rodada, nesta ordem:
 //   1. carga: lê o pipe 40 inteiro (cards, histórico de etapas, produtos e atividades) e grava o retrato no banco;
-//   2. entrada: cliente do onboarding do CS (Pipefy) que passou do kickoff, de Lucro Real ou Presumido de R$ 10 mi para
-//      cima pela venda, vira card no pipe 40, um por conta, no nome do Matheus (desde 21/10/2026; antes, a venda ganha
-//      no Inside Sales, que é marcada antes da assinatura);
+//   2. entrada: cliente que concluiu o onboarding do CS (Pipefy) há pelo menos 30 dias, de Lucro Real ou Presumido de
+//      R$ 10 mi para cima pela venda, vira card no pipe 40, um por conta, no nome do Matheus (22/10/2026; de 19 a 21/10
+//      era a venda ganha no Inside Sales e de 21 a 22/10 o kickoff). Quem tem perfil de Consultoria é cadastrado na
+//      plataforma da Consultoria no mesmo dia, se o CNPJ ainda não tiver projeto lá;
 //   3. tarefas: cada etapa cria as tarefas dela (regua.ts) e, quando o card sai, apaga as que não foram feitas. Card com
 //      nota fixada "Pausado em" não recebe tarefa; a que a pausa tirou do Pipedrive volta quando a nota sair.
 // A carga só lê o Pipedrive. A entrada e as tarefas escrevem, e cada uma tem a própria chave: desligada, a rodada
@@ -199,6 +200,7 @@ export function notaDaVenda(
   venda: any,
   rotulo: (chave: string, valor: any) => string | null,
   cliente?: ClienteOnboarding,
+  extras: (string | undefined)[] = [],
 ): string {
   const linha = (nome: string, chave: string) =>
     `${nome}: ${rotulo(chave, campo(venda, chave)) ?? "—"}`;
@@ -219,6 +221,7 @@ export function notaDaVenda(
       cliente
         ? `Onboarding do CS: ${cliente.fase_atual ?? "—"} (card ${cliente.pipefy_card_id} no Pipefy)`
         : null,
+      ...extras.filter((x): x is string => !!x),
       "",
       'Etapa 01: confira regime e faturamento antes de mover. Fora do perfil, Perdido com o motivo "Fora do escopo".',
     ]
@@ -238,21 +241,48 @@ export type ClienteOnboarding = {
   titulo: string;
   unidade: string | null;
   fase_atual: string | null;
-  /** Fases por que o card passou (fases_history). */
-  fases: string[];
+  /** Fases por que o card passou (fases_history), com o instante de entrada em cada uma. */
+  fases: { fase: string; entrou_em: string | null }[];
   /** Negócio do Pipedrive ligado ao card (a venda). */
   pipedrive_deal_id: number | null;
+  /** CNPJ do espelho do Handoff (reserva para quando a venda não tem). */
+  cnpj?: string | null;
 };
 
-/** Fases que contam como "passou do kickoff" (decisão do Pedro, 21/10/2026). "Pré Kickoff" não conta. */
-const DEPOIS_DO_KICKOFF = /^kickoff com|setup t[eé]cnico|check-?out|conclu[ií]do|pesquisa de esfor/i;
+/** Fases que contam como "concluiu o onboarding" (decisão do Pedro, 22/10/2026). */
+const SAIDA_DO_ONBOARDING = /conclu[ií]do|check-?out|pesquisa de esfor/i;
 const CHURN = /churn/i;
-/** Motivo de perda de quem saiu do pipe 40 antes do onboarding (21/10/2026): o card volta quando o cliente passar do kickoff. */
-export const MOTIVO_SEM_ONBOARDING = "Ainda não passou pelo onboarding";
+/** O pipe 40 trabalha o cliente 30 dias depois de ele concluir o onboarding: antes disso a documentação não chega. */
+export const DIAS_DEPOIS_DO_ONBOARDING = 30;
+/** Motivo de perda de quem saiu do pipe 40 esperando os 30 dias (22/10/2026): o card volta à etapa 01 no 30º dia. */
+export const MOTIVO_ESPERA_ONBOARDING = "Aguardando 30 dias do onboarding";
+/** Os dois motivos de espera: o de 21/10 ("Ainda não passou pelo onboarding") volta pela mesma regra. */
+export const MOTIVOS_DE_ESPERA = [MOTIVO_ESPERA_ONBOARDING, "Ainda não passou pelo onboarding"] as const;
 
-export function passouDoKickoff(c: ClienteOnboarding): boolean {
-  if (c.fase_atual && CHURN.test(c.fase_atual)) return false;
-  return [c.fase_atual, ...c.fases].some((f) => !!f && DEPOIS_DO_KICKOFF.test(f));
+/** O dia (São Paulo) em que o cliente concluiu o onboarding: a primeira entrada numa fase de saída. Churn: nunca. */
+export function saidaDoOnboarding(c: ClienteOnboarding): string | null {
+  if (c.fase_atual && CHURN.test(c.fase_atual)) return null;
+  const dias = c.fases
+    .filter((f) => SAIDA_DO_ONBOARDING.test(f.fase) && f.entrou_em)
+    .map((f) => dataSP(instante(f.entrou_em) as Date))
+    .sort();
+  return dias[0] ?? null;
+}
+
+/**
+ * Perfil de Consultoria (call de 05/10/2026 e regra de 06/10): Lucro Real, ou Lucro Presumido de R$ 50 mi para cima.
+ * Mais estreito que o do pipe 40 (Presumido de R$ 10 mi).
+ */
+const FAIXA_CONSULTORIA: ReadonlySet<string> = new Set(["779", "440", "441", "780"]);
+export function fitConsultoria(venda: any): boolean {
+  const regime = REGIME_OPCAO[opcao(campo(venda, CAMPO.regime)) ?? ""] ?? null;
+  if (regime === "real") return true;
+  return regime === "presumido" && FAIXA_CONSULTORIA.has(opcao(campo(venda, CAMPO.faixa)) ?? "");
+}
+/** CNPJ com 14 dígitos, ou null (o formulário de venda aceita 0 e texto livre). */
+export function cnpjDe(v: unknown): string | null {
+  const d = String(v ?? "").replace(/\D/g, "");
+  return d.length === 14 && !/^(\d)\1+$/.test(d) ? d : null;
 }
 
 const semAcento = (s: string) =>
@@ -684,10 +714,10 @@ export type StoreDiagnostico = {
     previa: unknown;
     resumo: unknown;
   }): Promise<void>;
-  entradas(): Promise<
-    { venda_id: number; org_id: number | null; deal_id: number | null; status: string }[]
-  >;
+  entradas(): Promise<EntradaDiagnostico[]>;
   inserirEntrada(linha: Record<string, unknown>): Promise<void>;
+  /** Grava o resultado do cadastro na Consultoria numa entrada que já existe (card reaberto, ou nova tentativa). */
+  atualizarEntrada?(vendaId: number, patch: Record<string, unknown>): Promise<void>;
   /** Clientes do onboarding do CS. Sem este método, nenhum card novo nasce. */
   onboarding?(): Promise<ClienteOnboarding[]>;
   /** Apaga as linhas feitas ou apagadas de uma etapa do card, para a tarefa dela nascer de novo (card reaberto). */
@@ -699,6 +729,29 @@ export type StoreDiagnostico = {
     patch: Partial<LinhaTarefa>,
   ): Promise<void>;
 };
+/** Uma venda lida pela entrada (ops.monetizacao_diagnostico_entradas). */
+export type EntradaDiagnostico = {
+  venda_id: number;
+  org_id: number | null;
+  deal_id: number | null;
+  status: string;
+  /** Cadastro na plataforma da Consultoria (22/10/2026): criado, ja_existia, sem_fit, sem_cnpj, pendente ou erro. */
+  consultoria?: string | null;
+  consultoria_cnpj?: string | null;
+  consultoria_em?: string | null;
+};
+
+/** O cadastro de projeto da plataforma da Consultoria (planningtax-system.com.br/parceiro, o mesmo do formulário). */
+export type ConsultoriaDiagnostico = {
+  /** O CNPJ já tem projeto de Diagnóstico Tributário na plataforma (aberto ou baixado). */
+  temProjeto(cnpj: string): Promise<boolean>;
+  registrar(dados: {
+    cnpj: string;
+    razao_social: string;
+    observacoes: string;
+  }): Promise<{ projeto_id: string }>;
+};
+
 export type OpcoesDiagnostico = {
   pd: PipedriveDiagnostico;
   store: StoreDiagnostico;
@@ -711,7 +764,22 @@ export type OpcoesDiagnostico = {
   inicio: string | null;
   /** Unidades com a abordagem pausada (MONET_DIAG_UNIDADES_PAUSADAS): o card delas nasce com a nota "Pausado em". */
   unidadesPausadas?: readonly string[];
+  /** A plataforma da Consultoria. Sem ela, o cadastro fica "pendente". */
+  consultoria?: ConsultoriaDiagnostico;
+  /** Chave do cadastro na Consultoria (MONET_DIAG_CADASTRO_CONSULTORIA=sim). Desligada: só confere e marca pendente. */
+  cadastroConsultoria?: boolean;
   orcamentoMs?: number;
+};
+
+/** Cadastro na Consultoria que não pede a tarefa "03 · Cadastrar o cliente na plataforma" (decisão de 22/10/2026). */
+const SEM_TAREFA_PLATAFORMA: ReadonlySet<string> = new Set(["criado", "ja_existia", "sem_fit", "pendente"]);
+const NOTA_CONSULTORIA: Readonly<Record<string, string>> = {
+  criado: "Consultoria: cadastrado na plataforma hoje, como Carteira BPO (Diagnóstico — Curva B e C).",
+  ja_existia: "Consultoria: o CNPJ já tem projeto na plataforma; nada foi cadastrado.",
+  sem_fit: "Consultoria: fora do perfil (Lucro Real, ou Presumido de R$ 50 mi para cima); nada foi cadastrado.",
+  sem_cnpj: "Consultoria: a venda não tem CNPJ; cadastre o cliente na plataforma pela tarefa da etapa 03.",
+  pendente: "Consultoria: o cadastro automático na plataforma está desligado; o cliente fica na fila para cadastro.",
+  erro: "Consultoria: o cadastro automático falhou; cadastre o cliente na plataforma pela tarefa da etapa 03.",
 };
 
 /** Organizações com card aberto ou ganho no pipe 39: o cliente termina lá (decisão de 16/10/2026). */
@@ -828,8 +896,9 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
   });
   const porId = new Map(cards.map((c) => [c.id, c]));
 
-  // 2. entrada: cliente do onboarding do CS que passou do kickoff, com fit pela venda (decisão do Pedro, 21/10/2026).
-  // A venda já vista não é relida, fora a do card que saiu do pipe 40 com MOTIVO_SEM_ONBOARDING: esse volta à etapa 01.
+  // 2. entrada: cliente que concluiu o onboarding do CS há pelo menos 30 dias, com fit pela venda (decisão do Pedro,
+  // 22/10/2026). A venda já vista não é relida, fora a do card que saiu do pipe 40 esperando o onboarding
+  // (MOTIVOS_DE_ESPERA): esse volta à etapa 01 no 30º dia.
   const entradas = await store.entradas();
   const porVenda = new Map(entradas.map((e) => [Number(e.venda_id), e]));
   const porOrg = new Map<number, CardDiagnostico>();
@@ -843,28 +912,34 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
         : e.org_id
           ? porOrg.get(Number(e.org_id))
           : undefined;
-  const saiuSemOnboarding = (c: CardDiagnostico | undefined) =>
-    !!c && c.status === "lost" && String(c.lost_reason ?? "").startsWith(MOTIVO_SEM_ONBOARDING);
+  const esperandoOnboarding = (c: CardDiagnostico | undefined) =>
+    !!c &&
+    c.status === "lost" &&
+    MOTIVOS_DE_ESPERA.some((m) => String(c.lost_reason ?? "").startsWith(m));
   const foraDaRegra: Record<string, number> = {};
   const fora = (motivo: string) => (foraDaRegra[motivo] = (foraDaRegra[motivo] || 0) + 1);
   const clientes = store.onboarding ? await store.onboarding() : [];
-  const depoisDoKickoff = clientes.filter(passouDoKickoff);
-  const aLer: ClienteOnboarding[] = [];
+  const concluidos = clientes
+    .map((cliente) => ({ cliente, saida: saidaDoOnboarding(cliente) }))
+    .filter((x): x is { cliente: ClienteOnboarding; saida: string } => !!x.saida);
+  const prontos = concluidos.filter((x) => diasCorridos(x.saida, hoje) >= DIAS_DEPOIS_DO_ONBOARDING);
+  const aLer: { cliente: ClienteOnboarding; saida: string }[] = [];
   const vistas = new Set<number>();
-  for (const c of depoisDoKickoff) {
-    if (!c.pipedrive_deal_id) {
+  for (const x of prontos) {
+    const vendaId = x.cliente.pipedrive_deal_id;
+    if (!vendaId) {
       fora("onboarding sem venda ligada");
       continue;
     }
-    if (vistas.has(c.pipedrive_deal_id)) continue;
-    vistas.add(c.pipedrive_deal_id);
-    const e = porVenda.get(c.pipedrive_deal_id);
-    if (e && !saiuSemOnboarding(cardDaEntrada(e))) continue;
-    aLer.push(c);
+    if (vistas.has(vendaId)) continue;
+    vistas.add(vendaId);
+    const e = porVenda.get(vendaId);
+    if (e && !esperandoOnboarding(cardDaEntrada(e))) continue;
+    aLer.push(x);
   }
   const vendas = new Map<number, any>();
   for (let k = 0; k < aLer.length; k += 100) {
-    const lote = aLer.slice(k, k + 100).map((c) => c.pipedrive_deal_id);
+    const lote = aLer.slice(k, k + 100).map((x) => x.cliente.pipedrive_deal_id);
     const corpo = await pd.v2("deals", { ids: lote.join(","), limit: 100 });
     for (const d of corpo?.data || []) vendas.set(Number(d.id), d);
   }
@@ -872,9 +947,44 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
   const previaEntradas: any[] = [];
   const criadas: number[] = [];
   const reabertas: number[] = [];
+  const cadastros: Record<string, number> = {};
   /** Conta que ganhou card nesta rodada → o card (null na prévia): a segunda venda dela não vira outro card. */
   const contasNovas = new Map<number, number | null>();
-  for (const cliente of aLer) {
+
+  /** Cadastro na plataforma da Consultoria no dia em que o cliente entra no pipe 40 (decisão do Pedro, 22/10/2026). */
+  const consultoriaDe = async (cnpj: string | null, fit: boolean, razao: string, saida: string | null) => {
+    const r: Record<string, unknown> = { consultoria_em: agora.toISOString(), consultoria_cnpj: cnpj };
+    if (!fit) r.consultoria = "sem_fit";
+    else if (!cnpj) r.consultoria = "sem_cnpj";
+    else if (!op.consultoria) r.consultoria = "pendente";
+    else
+      try {
+        if (await op.consultoria.temProjeto(cnpj)) r.consultoria = "ja_existia";
+        else if (!op.cadastroConsultoria) r.consultoria = "pendente";
+        else {
+          const { projeto_id } = await op.consultoria.registrar({
+            cnpj,
+            razao_social: razao,
+            observacoes:
+              `Cadastro automático do Brain (pipe 40, Diagnóstico de Oportunidades): ` +
+              (saida
+                ? `o cliente concluiu o onboarding em ${dataBR(saida)} e entrou no diagnóstico 30 dias depois.`
+                : "o cliente concluiu o onboarding há pelo menos 30 dias."),
+          });
+          r.consultoria = "criado";
+          r.consultoria_projeto_id = projeto_id;
+        }
+      } catch (err) {
+        r.consultoria = "erro";
+        r.consultoria_erro = (err as Error).message.slice(0, 300);
+        erros.push(`cadastro na Consultoria (${cnpj}): ${r.consultoria_erro}`);
+      }
+    const estado = String(r.consultoria);
+    cadastros[estado] = (cadastros[estado] || 0) + 1;
+    return r;
+  };
+
+  for (const { cliente, saida } of aLer) {
     if (Date.now() - comeco > orcamento) break;
     const venda = vendas.get(Number(cliente.pipedrive_deal_id));
     if (!venda) {
@@ -907,19 +1017,23 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
     const existente = cardDaEntrada(e) ?? (org ? porOrg.get(org) : undefined);
     const unidadeDaVenda = rotulo(CAMPO.unidade, campo(venda, CAMPO.unidade));
     const pausada = unidadePausada(op.unidadesPausadas, [cliente.unidade, unidadeDaVenda]);
+    const fit = fitConsultoria(venda);
+    const cnpj = cnpjDe(campo(venda, CAMPO.cnpj)) ?? cnpjDe(cliente.cnpj);
     const item = {
       venda_id: Number(venda.id),
       org_id: org,
       empresa: cliente.titulo,
       onboarding: cliente.fase_atual,
+      saiu_onboarding_em: saida,
       ganho_em: ganhoEm(venda),
       regime: rotulo(CAMPO.regime, campo(venda, CAMPO.regime)),
       faixa: rotulo(CAMPO.faixa, campo(venda, CAMPO.faixa)),
       unidade: cliente.unidade || unidadeDaVenda,
       motivo: el.motivo,
       pausada: !!pausada,
+      consultoria: !fit ? "sem_fit" : !cnpj ? "sem_cnpj" : "a cadastrar se não tiver projeto",
     };
-    if (existente && !saiuSemOnboarding(existente)) {
+    if (existente && !esperandoOnboarding(existente)) {
       // Um card por conta: a venda fica registrada para não ser relida.
       if (op.entradaAtiva && !e)
         await store.inserirEntrada({
@@ -936,62 +1050,82 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
     previaEntradas.push(existente ? { ...item, reabrir: existente.id } : item);
     if (!op.entradaAtiva) continue;
     try {
-      if (existente) {
-        // Saiu antes do onboarding e o cliente passou do kickoff: volta à etapa 01, e a tarefa dela nasce de novo.
-        await pd.put(`deals/${existente.id}`, { status: "open", stage_id: ETAPA.novo });
-        await store.liberarEtapa?.(existente.id, ETAPA.novo);
-        if (pausada && !existente.pausa)
-          await pd.post("notes", {
-            deal_id: existente.id,
-            content: notaDePausa(pausada, hoje),
-            pinned_to_deal_flag: 1,
-          });
+      const dealId = existente
+        ? existente.id
+        : Number((await pd.post("deals", cardDaVenda(venda, cliente.titulo)))?.data?.id) || 0;
+      if (!dealId) throw new Error("Pipedrive não devolveu o card");
+      if (existente)
+        // Esperava o onboarding e chegou o 30º dia: volta à etapa 01, e a tarefa dela nasce de novo.
+        await pd.put(`deals/${dealId}`, { status: "open", stage_id: ETAPA.novo });
+      else if (org) contasNovas.set(org, dealId);
+      if (existente) await store.liberarEtapa?.(dealId, ETAPA.novo);
+      if (pausada && !existente?.pausa)
         await pd.post("notes", {
-          deal_id: existente.id,
-          content: notaHtml(
-            `Voltou ao pipe 40 em ${dataBR(hoje)}: o cliente passou do kickoff do onboarding ` +
-              `(${cliente.fase_atual ?? "—"}).`,
-          ),
-        });
-        if (!e)
-          await store.inserirEntrada({
-            venda_id: item.venda_id,
-            org_id: org,
-            deal_id: existente.id,
-            status: "criado",
-            motivo: `reaberto: ${el.motivo}`,
-            ganho_em: item.ganho_em,
-          });
-        reabertas.push(existente.id);
-        continue;
-      }
-      const novo = (await pd.post("deals", cardDaVenda(venda, cliente.titulo)))?.data;
-      if (!novo?.id) throw new Error("Pipedrive não devolveu o card");
-      if (org) contasNovas.set(org, Number(novo.id));
-      if (pausada)
-        await pd.post("notes", {
-          deal_id: novo.id,
+          deal_id: dealId,
           content: notaDePausa(pausada, hoje),
           pinned_to_deal_flag: 1,
         });
-      await pd.post("notes", {
-        deal_id: novo.id,
-        content: notaDaVenda(venda, rotulo, cliente),
-        pinned_to_deal_flag: 1,
-      });
-      await store.inserirEntrada({
-        venda_id: item.venda_id,
-        org_id: org,
-        deal_id: Number(novo.id),
-        status: "criado",
-        motivo: el.motivo,
-        ganho_em: item.ganho_em,
-      });
-      criadas.push(Number(novo.id));
+      const cadastro = await consultoriaDe(cnpj, fit, cliente.titulo, saida);
+      const aviso = NOTA_CONSULTORIA[String(cadastro.consultoria)];
+      if (existente)
+        await pd.post("notes", {
+          deal_id: dealId,
+          content: notaHtml(
+            `Voltou ao pipe 40 em ${dataBR(hoje)}: o cliente concluiu o onboarding em ${dataBR(saida)}, há ` +
+              `${diasCorridos(saida, hoje)} dias.\n${aviso}`,
+          ),
+        });
+      else
+        await pd.post("notes", {
+          deal_id: dealId,
+          content: notaDaVenda(venda, rotulo, cliente, [
+            `Concluiu o onboarding em ${dataBR(saida)}; entrou no pipe 40 no 30º dia.`,
+            aviso,
+          ]),
+          pinned_to_deal_flag: 1,
+        });
+      const linha = { ...cadastro, saiu_onboarding_em: saida, onboarding_card_id: cliente.pipefy_card_id };
+      if (e) await store.atualizarEntrada?.(item.venda_id, { ...linha, deal_id: dealId });
+      else
+        await store.inserirEntrada({
+          venda_id: item.venda_id,
+          org_id: org,
+          deal_id: dealId,
+          status: "criado",
+          motivo: existente ? `reaberto: ${el.motivo}` : el.motivo,
+          ganho_em: item.ganho_em,
+          ...linha,
+        });
+      (existente ? reabertas : criadas).push(dealId);
     } catch (err) {
       erros.push(`entrada da venda ${venda.id}: ${(err as Error).message}`);
     }
   }
+
+  // 2b. cadastro pendente: entrou com o cadastro desligado (ou deu erro há mais de 6 h) e a chave está ligada.
+  if (op.entradaAtiva && op.cadastroConsultoria && op.consultoria)
+    for (const e of entradas) {
+      if (Date.now() - comeco > orcamento) break;
+      const card = e.deal_id ? porId.get(Number(e.deal_id)) : undefined;
+      const tentouHa = Date.now() - Date.parse(e.consultoria_em ?? "1970-01-01");
+      const tentar =
+        e.consultoria === "pendente" || (e.consultoria === "erro" && tentouHa > 6 * 3_600_000);
+      if (!tentar || !card || card.status !== "open" || !e.consultoria_cnpj) continue;
+      const cadastro = await consultoriaDe(e.consultoria_cnpj, true, card.org || card.title, null);
+      await store.atualizarEntrada?.(Number(e.venda_id), cadastro);
+      e.consultoria = String(cadastro.consultoria);
+      if (cadastro.consultoria !== "erro")
+        await pd.post("notes", {
+          deal_id: card.id,
+          content: notaHtml(NOTA_CONSULTORIA[String(cadastro.consultoria)]),
+        });
+    }
+  /** Cards cujo cadastro na Consultoria dispensa a tarefa da etapa 03 (feito, já existia, sem fit ou na fila). */
+  const semTarefaPlataforma = new Set(
+    entradas
+      .filter((e) => e.deal_id && SEM_TAREFA_PLATAFORMA.has(String(e.consultoria)))
+      .map((e) => Number(e.deal_id)),
+  );
 
   // 3. tarefas
   const linhas = await store.tarefas();
@@ -1126,7 +1260,10 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
     const planos: TarefaPlanejada[] = [];
     const entrada = instante(card.stage_since);
     if (card.status === "open" && !card.pausa && entrada && temInicio && entrada >= temInicio) {
-      const daEntrada = planejarEntrada(card);
+      // A tarefa "03 · Cadastrar o cliente na plataforma" não nasce quando o cadastro automático resolveu (22/10/2026).
+      const daEntrada = planejarEntrada(card).filter(
+        (t) => !(t.chave === "03-plataforma" && semTarefaPlataforma.has(card.id)),
+      );
       if (!daEntrada.some((t) => existentes.has(conta(t)))) planos.push(...daEntrada);
       const cobranca = proximaCobranca(card, linhas, hoje);
       if (cobranca && !existentes.has(conta(cobranca))) planos.push(cobranca);
@@ -1204,12 +1341,15 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
       ligada: op.entradaAtiva,
       porta: "onboarding",
       onboarding_lidos: clientes.length,
-      depois_do_kickoff: depoisDoKickoff.length,
+      concluiram_onboarding: concluidos.length,
+      aguardando_30_dias: concluidos.length - prontos.length,
+      prontos: prontos.length,
       vendas_lidas: vendas.size,
       a_criar_ou_criadas: previaEntradas.length,
       criadas: criadas.length,
       reabertas: reabertas.length,
       fora_da_regra: foraDaRegra,
+      consultoria: { ligada: !!op.cadastroConsultoria, ...cadastros },
     },
     tarefas: {
       ligada: op.tarefasAtiva,

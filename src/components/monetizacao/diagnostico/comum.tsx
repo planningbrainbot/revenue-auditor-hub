@@ -168,7 +168,7 @@ export function AvisoPrevia({ painel }: { painel: PainelDiag }) {
               <>
                 <span className="font-medium text-foreground">Entrada automática desligada.</span>{" "}
                 {entradas.length
-                  ? `Ligada, ${plural(entradas.length, "cliente do onboarding que passou do kickoff", "clientes do onboarding que passaram do kickoff")} ${entradas.length === 1 ? "vira card" : "viram cards"} no pipe 40 (Lucro Real e Presumido de R$ 10 mi para cima). `
+                  ? `Ligada, ${plural(entradas.length, "cliente que concluiu o onboarding há 30 dias", "clientes que concluíram o onboarding há 30 dias")} ${entradas.length === 1 ? "vira card" : "viram cards"} no pipe 40 (Lucro Real e Presumido de R$ 10 mi para cima). `
                   : "Nenhum cliente novo do onboarding para entrar. "}
               </>
             )}

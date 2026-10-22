@@ -14,12 +14,18 @@
 // 4. MONET_DIAG_ENTRADA_ATIVA=sim: cliente do onboarding do CS que passou do kickoff, com fit pela venda, vira card
 //    no pipe 40 (21/10/2026; antes era a venda ganha no Inside Sales). Qualquer outro valor: só prévia.
 // 5. MONET_DIAG_TAREFAS_ATIVA=sim: as etapas criam e apagam tarefas e a etapa 04 grava D0 e prazo. Senão, só prévia.
+// 7. MONET_DIAG_CADASTRO_CONSULTORIA=sim (22/10/2026): no dia em que o cliente entra no pipe 40, quem tem perfil de
+//    Consultoria e ainda não tem projeto com o CNPJ é cadastrado na plataforma da Consultoria, pela mesma função do
+//    formulário do parceiro (fn_projeto_registrar_parceiro), como Carteira BPO, canal Máquina de Vendas Comercial BPO,
+//    Diagnóstico Curva B e C. Usa o login técnico (CONSULTORIA_PLAT_*), que precisa estar ligado a um parceiro na
+//    plataforma. Desligada: confere se já há projeto e deixa o cadastro "pendente", que sai quando ligar.
 // 6. MONET_DIAG_UNIDADES_PAUSADAS (lista separada por vírgula, ex.: "Belém"): o card dessas unidades nasce com a nota
 //    fixada "Pausado em", sem tarefa, até o sócio liberar a lista.
 // Usa PIPEDRIVE_TOKEN e MONETIZACAO_SYNC_SECRET, os mesmos das outras funções da Monetização.
 import { pipedriveApi } from "../monetizacao-crm/pipedrive.mjs";
 import {
   rodarDiagnostico,
+  type ConsultoriaDiagnostico,
   type LinhaTarefa,
   type PipedriveDiagnostico,
   type StoreDiagnostico,
@@ -36,6 +42,16 @@ const UNIDADES_PAUSADAS = (Deno.env.get("MONET_DIAG_UNIDADES_PAUSADAS") || "")
   .split(",")
   .map((u) => u.trim())
   .filter(Boolean);
+const CADASTRO_CONSULTORIA = Deno.env.get("MONET_DIAG_CADASTRO_CONSULTORIA") === "sim";
+const PLAT_URL = Deno.env.get("CONSULTORIA_PLAT_URL");
+const PLAT_ANON = Deno.env.get("CONSULTORIA_PLAT_ANON");
+const PLAT_EMAIL = Deno.env.get("CONSULTORIA_PLAT_EMAIL");
+const PLAT_SENHA = Deno.env.get("CONSULTORIA_PLAT_SENHA");
+/** Parceiro "Carteira BPO" e canal "Máquina de Vendas Comercial BPO" do catálogo da plataforma (22/10/2026). */
+const PLAT_PARCEIRO =
+  Deno.env.get("MONET_DIAG_CONSULTORIA_PARCEIRO_ID") || "39bc9f08-9a9d-4ecd-b574-c552824af930";
+const PLAT_CANAL =
+  Deno.env.get("MONET_DIAG_CONSULTORIA_CANAL_ID") || "77443e0b-98a0-4150-8059-ea2aee120684";
 
 const { pd, pages } = pipedriveApi(PD);
 
@@ -106,7 +122,16 @@ const store: StoreDiagnostico = {
     });
   },
   entradas: () =>
-    rest("monetizacao_diagnostico_entradas?select=venda_id,org_id,deal_id,status&limit=10000"),
+    rest(
+      "monetizacao_diagnostico_entradas?select=venda_id,org_id,deal_id,status,consultoria,consultoria_cnpj,consultoria_em&limit=10000",
+    ),
+  atualizarEntrada: async (vendaId, patch) => {
+    await rest(`monetizacao_diagnostico_entradas?venda_id=eq.${Number(vendaId)}`, {
+      method: "PATCH",
+      body: patch,
+      prefer: "return=minimal",
+    });
+  },
   inserirEntrada: async (linha) => {
     await rest("monetizacao_diagnostico_entradas?on_conflict=venda_id", {
       body: linha,
@@ -117,7 +142,7 @@ const store: StoreDiagnostico = {
   onboarding: async () => {
     const [handoff, cs] = await Promise.all([
       rest(
-        "handoff_consultoria_onboarding?select=pipefy_card_id,titulo,unidade,fase_atual,pipedrive_deal_id&ausente_desde=is.null&limit=10000",
+        "handoff_consultoria_onboarding?select=pipefy_card_id,titulo,unidade,fase_atual,pipedrive_deal_id,cnpj&ausente_desde=is.null&limit=10000",
       ),
       rest("cs_onboarding_cards?select=pipefy_card_id,fase_atual,fases_history&limit=10000"),
     ]);
@@ -129,8 +154,12 @@ const store: StoreDiagnostico = {
         titulo: String(h.titulo ?? "").trim(),
         unidade: h.unidade ?? null,
         fase_atual: o?.fase_atual ?? h.fase_atual ?? null,
-        fases: (Array.isArray(o?.fases_history) ? o.fases_history : []).map((x: any) => String(x.fase)),
+        fases: (Array.isArray(o?.fases_history) ? o.fases_history : []).map((x: any) => ({
+          fase: String(x.fase),
+          entrou_em: x.entrou_em ?? null,
+        })),
         pipedrive_deal_id: Number(h.pipedrive_deal_id) || null,
+        cnpj: h.cnpj ?? null,
       };
     });
   },
@@ -160,6 +189,81 @@ const store: StoreDiagnostico = {
   },
 };
 
+// ---------------------------------------------------------------------------- plataforma da Consultoria
+
+let sessaoPlataforma: { token: string; expira: number } | null = null;
+async function plataforma(path: string, init: { method?: string; body?: unknown } = {}): Promise<any> {
+  if (!PLAT_URL || !PLAT_ANON || !PLAT_EMAIL || !PLAT_SENHA)
+    throw new Error("login técnico da plataforma não configurado");
+  if (!sessaoPlataforma || sessaoPlataforma.expira < Date.now() + 60_000) {
+    const res = await fetch(`${PLAT_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: PLAT_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: PLAT_EMAIL, password: PLAT_SENHA }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body?.access_token) throw new Error(`login na plataforma: HTTP ${res.status}`);
+    sessaoPlataforma = { token: body.access_token, expira: Date.now() + Number(body.expires_in ?? 3600) * 1000 };
+  }
+  const res = await fetch(`${PLAT_URL}/rest/v1/${path}`, {
+    method: init.method || (init.body === undefined ? "GET" : "POST"),
+    headers: {
+      apikey: PLAT_ANON,
+      Authorization: `Bearer ${sessaoPlataforma!.token}`,
+      "Content-Type": "application/json",
+      "Accept-Profile": "public",
+      "Content-Profile": "public",
+    },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    signal: AbortSignal.timeout(30000),
+  });
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(`plataforma ${path.split("?")[0]}: ${body?.message || res.status}`);
+  return body;
+}
+
+const soDigitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+const consultoria: ConsultoriaDiagnostico = {
+  temProjeto: async (cnpj) => {
+    const linhas = await plataforma(
+      `projetos_gestao?select=cnpj,departamento&cnpj_raiz=eq.${cnpj.slice(0, 8)}&limit=200`,
+    );
+    return (linhas || []).some(
+      (l: any) => soDigitos(l.cnpj) === cnpj && l.departamento === "diagnostico_tributario",
+    );
+  },
+  // O mesmo caminho do formulário "Cadastrar novo projeto" (planningtax-system.com.br/parceiro/novo): código do projeto
+  // pela raiz do CNPJ e a função fn_projeto_registrar_parceiro.
+  registrar: async ({ cnpj, razao_social, observacoes }) => {
+    const raiz = cnpj.slice(0, 8);
+    const jaTem = await plataforma(`projetos_gestao?select=codserv&cnpj_raiz=eq.${raiz}&limit=500`);
+    const usados = new Set((jaTem || []).map((l: any) => String(l.codserv)));
+    let n = (jaTem?.length ?? 0) + 1;
+    while (usados.has(`${raiz}-${String(n).padStart(2, "0")}`)) n++;
+    const linhas = await plataforma("rpc/fn_projeto_registrar_parceiro", {
+      body: {
+        p_razao_social: razao_social,
+        p_codserv: `${raiz}-${String(n).padStart(2, "0")}`,
+        p_departamento: "diagnostico_tributario",
+        p_produto: "Diagnóstico de oportunidades - Curva B e C",
+        p_categoria: "curva_b_c",
+        p_cnpj: cnpj,
+        p_observacoes: observacoes,
+        p_canal_venda_id: PLAT_CANAL,
+        p_parceiro_id: PLAT_PARCEIRO,
+        p_confirmado: true,
+        p_documentos_liberados: false,
+      },
+    });
+    const r = Array.isArray(linhas) ? linhas[0] : linhas;
+    if (!r?.projeto_id) throw new Error(`a plataforma respondeu ${r?.resultado ?? "sem projeto"}`);
+    return { projeto_id: String(r.projeto_id) };
+  },
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -182,6 +286,8 @@ Deno.serve(async (req) => {
       tarefasAtiva: TAREFAS_ATIVA && !dry,
       inicio: INICIO,
       unidadesPausadas: UNIDADES_PAUSADAS,
+      consultoria: PLAT_URL ? consultoria : undefined,
+      cadastroConsultoria: CADASTRO_CONSULTORIA && !dry,
     });
     return json(resumo);
   } catch (e) {
