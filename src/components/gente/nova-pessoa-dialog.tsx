@@ -967,6 +967,7 @@ export function EditarPessoaDialog({
   const [aberto, setAberto] = useState(false);
   const inicial = () => ({
     nomeCompleto: pessoa.nomeCompleto,
+    email: pessoa.email ?? "",
     cargo: pessoa.cargo ?? "",
     departamento: pessoa.departamento ?? "",
     tipoVinculo: pessoa.tipoVinculo ?? SEM_VINCULO,
@@ -994,6 +995,8 @@ export function EditarPessoaDialog({
         data: {
           pessoaId: pessoa.id,
           nomeCompleto: f.nomeCompleto,
+          // Só manda o e-mail quando pode trocar: quem tem login não mexe.
+          ...(pessoa.temLogin ? {} : { email: f.email }),
           cargo: f.cargo,
           departamento: f.departamento,
           tipoVinculo: f.tipoVinculo === SEM_VINCULO ? "" : f.tipoVinculo,
@@ -1058,6 +1061,23 @@ export function EditarPessoaDialog({
               onChange={(e) => set("nomeCompleto")(e.target.value)}
               required
             />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="ep-email">E-mail</Label>
+            <Input
+              id="ep-email"
+              type="email"
+              value={f.email}
+              onChange={(e) => set("email")(e.target.value)}
+              disabled={pessoa.temLogin}
+              required
+            />
+            {pessoa.temLogin ? (
+              <p className="text-[12px] text-muted-foreground">
+                Esta pessoa já entra no Brain com este e-mail. Para trocar, fale com a Matriz.
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

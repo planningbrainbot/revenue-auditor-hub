@@ -6690,3 +6690,10 @@ Function `reporte-ceo` continua gravando a tabela; ninguém no Ops lê mais.
 
 **Exceção ao guia do sistema novo:** construída no Ops atual por decisão do dono (21/10/2026), não no módulo Minha Unidade do `app.`; migra junto com o Funil de CAC na fase 3 daquele módulo.
 
+
+## [2026-10-22] Planning People: RH corrige o e-mail de quem não tem login
+
+Pedido do RH de Maceió (22/10/2026): cadastro com e-mail errado não tinha saída (o Editar não trocava e a planilha recusa e-mail já cadastrado).
+- O Editar passa a trocar o e-mail de quem ainda não tem login (52 de 57 em Maceió). De quem tem login, o campo fica travado com aviso: o e-mail é o login, e a unidade trocá-lo deixaria alguém tomar a conta de outra pessoa. A troca continua com a Matriz.
+- E-mail repetido na rede é recusado; a troca entra no histórico, como os outros campos.
+- Layout: o fim da vigência ocupa a linha inteira, com o aviso ao lado do próprio campo (estava parecendo ser do Nascimento).

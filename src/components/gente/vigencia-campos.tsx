@@ -29,19 +29,23 @@ export function CamposVigencia({
 }) {
   if (!exigeVigencia(vinculo)) return null;
   const doQue = vinculo === "estagio" ? "do TCE" : "do contrato";
+  // Ocupa a linha inteira: o aviso fica ao lado do próprio campo e não parece ser do
+  // campo vizinho (o RH leu como sendo do Nascimento, 22/10/2026).
   return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={`${prefixo}-vig-fim`}>Fim da vigência {doQue}</Label>
-      <Input
-        id={`${prefixo}-vig-fim`}
-        type="date"
-        required
-        min={inicio || undefined}
-        value={fim}
-        onChange={(e) => aoMudarFim(e.target.value)}
-      />
-      <p className="text-[12px] text-muted-foreground">
-        O RH recebe aviso por e-mail 30 e 15 dias antes e no dia. Para renovar, mude o fim: o
+    <div className="grid gap-3 rounded-md border border-dashed p-3 sm:col-span-2 sm:grid-cols-2">
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${prefixo}-vig-fim`}>Fim da vigência {doQue}</Label>
+        <Input
+          id={`${prefixo}-vig-fim`}
+          type="date"
+          required
+          min={inicio || undefined}
+          value={fim}
+          onChange={(e) => aoMudarFim(e.target.value)}
+        />
+      </div>
+      <p className="self-end text-[12px] text-muted-foreground">
+        O RH recebe aviso por e-mail 30 e 15 dias antes do fim e no dia. Para renovar, mude o fim: o
         período novo fica registrado.
       </p>
     </div>

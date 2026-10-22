@@ -807,6 +807,8 @@ export interface EditarPessoaInput {
   gestorId?: number | null;
   /** Obrigatório para estágio e terceiro; renovar é mudar o fim. */
   vigenciaFim?: string;
+  /** Ausente não mexe. Só troca de quem ainda não tem login (22/10/2026). */
+  email?: string;
 }
 
 // Edição do cadastro pelo RH da unidade (pedido de 28/09/2026: a unidade
@@ -814,7 +816,10 @@ export interface EditarPessoaInput {
 // depois). O update roda como o usuário: `gente_pessoas_write` pede
 // `manage.gente` e a RESTRICTIVE prende na unidade.
 //
-// Fora de propósito: e-mail (é a chave que liga o login), unidade
+// E-mail: o RH corrige o de quem ainda não tem login (pedido do RH de Maceió,
+// 22/10/2026: cadastro com e-mail errado não tinha saída). De quem tem login, não:
+// o e-mail é o login, e trocá-lo pela unidade deixaria alguém tomar a conta de outro.
+// Fora de propósito: unidade
 // (transferência é com a Matriz) e status (desligar precisa revogar o acesso,
 // o que esta tela ainda não faz).
 export const editarPessoa = createServerFn({ method: "POST" })
@@ -836,8 +841,13 @@ export const editarPessoa = createServerFn({ method: "POST" })
     const gestorId = input.gestorId ?? null;
     if (gestorId != null && !Number.isInteger(gestorId)) throw new Error("Gestor inválido.");
     if (gestorId === input.pessoaId) throw new Error("A pessoa não pode ser gestora de si mesma.");
+    const email = input.email === undefined ? undefined : input.email.trim().toLowerCase();
+    if (email !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error("E-mail inválido.");
+    }
     return {
       ...validarVigencia(tipoVinculo, dataAdmissao, input.vigenciaFim),
+      email,
       pessoaId: input.pessoaId,
       nomeCompleto,
       cargo: input.cargo?.trim() || null,
@@ -854,6 +864,25 @@ export const editarPessoa = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as Cliente;
+
+    let trocaEmail = false;
+    if (data.email !== undefined) {
+      const { data: atual } = await supabase
+        .from("gente_pessoas")
+        .select("email,user_id")
+        .eq("id", data.pessoaId)
+        .maybeSingle();
+      if (!atual) throw new Error("Sem permissão para alterar esta pessoa.");
+      trocaEmail =
+        String(atual.email ?? "")
+          .trim()
+          .toLowerCase() !== data.email;
+      if (trocaEmail && atual.user_id) {
+        throw new Error(
+          "Esta pessoa já tem login no Brain: o e-mail é o login dela. Peça a troca à Matriz.",
+        );
+      }
+    }
 
     // Ciclo na hierarquia: sobe a partir do novo gestor; se chegar na própria
     // pessoa, ela viraria gestora de quem a gere.
@@ -890,6 +919,7 @@ export const editarPessoa = createServerFn({ method: "POST" })
       .from("gente_pessoas")
       .update({
         nome_completo: data.nomeCompleto,
+        ...(trocaEmail ? { email: data.email } : {}),
         cargo: data.cargo,
         departamento: data.departamento,
         tipo_vinculo: data.tipoVinculo,
@@ -920,6 +950,9 @@ export const editarPessoa = createServerFn({ method: "POST" })
       .select("id");
     if (error) {
       if (error.code === "42501") throw new Error("Sem permissão para alterar esta pessoa.");
+      if (error.code === "23505") {
+        throw new Error("Já existe alguém com esse e-mail no cadastro da rede.");
+      }
       throw new Error(error.message);
     }
     // RLS que recusa update não dá erro, só volta vazio.
@@ -1280,7 +1313,7 @@ export const importarPessoas = createServerFn({ method: "POST" })
               l,
               completou.length
                 ? `Já estava no cadastro. Completado: ${completou.join(", ")}.`
-                : "Já está no cadastro da rede. Não foi alterada.",
+                : "Já está no cadastro da rede. Não foi alterada (para corrigir e-mail ou outros dados, use o Editar da pessoa).",
             ),
             situacao: "ja_existe",
           });
