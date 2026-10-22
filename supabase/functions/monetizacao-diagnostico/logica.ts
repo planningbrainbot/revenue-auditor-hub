@@ -952,11 +952,18 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
   const contasNovas = new Map<number, number | null>();
 
   /** Cadastro na plataforma da Consultoria no dia em que o cliente entra no pipe 40 (decisão do Pedro, 22/10/2026). */
-  const consultoriaDe = async (cnpj: string | null, fit: boolean, razao: string, saida: string | null) => {
+  // Card de unidade pausada não é cadastrado: fica pendente e sai quando a pausa for liberada.
+  const consultoriaDe = async (
+    cnpj: string | null,
+    fit: boolean,
+    razao: string,
+    saida: string | null,
+    pausado = false,
+  ) => {
     const r: Record<string, unknown> = { consultoria_em: agora.toISOString(), consultoria_cnpj: cnpj };
     if (!fit) r.consultoria = "sem_fit";
     else if (!cnpj) r.consultoria = "sem_cnpj";
-    else if (!op.consultoria) r.consultoria = "pendente";
+    else if (!op.consultoria || pausado) r.consultoria = "pendente";
     else
       try {
         if (await op.consultoria.temProjeto(cnpj)) r.consultoria = "ja_existia";
@@ -1065,7 +1072,7 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
           content: notaDePausa(pausada, hoje),
           pinned_to_deal_flag: 1,
         });
-      const cadastro = await consultoriaDe(cnpj, fit, cliente.titulo, saida);
+      const cadastro = await consultoriaDe(cnpj, fit, cliente.titulo, saida, !!pausada || !!existente?.pausa);
       const aviso = NOTA_CONSULTORIA[String(cadastro.consultoria)];
       if (existente)
         await pd.post("notes", {
@@ -1110,7 +1117,7 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
       const tentouHa = Date.now() - Date.parse(e.consultoria_em ?? "1970-01-01");
       const tentar =
         e.consultoria === "pendente" || (e.consultoria === "erro" && tentouHa > 6 * 3_600_000);
-      if (!tentar || !card || card.status !== "open" || !e.consultoria_cnpj) continue;
+      if (!tentar || !card || card.status !== "open" || card.pausa || !e.consultoria_cnpj) continue;
       const cadastro = await consultoriaDe(e.consultoria_cnpj, true, card.org || card.title, null);
       await store.atualizarEntrada?.(Number(e.venda_id), cadastro);
       e.consultoria = String(cadastro.consultoria);
