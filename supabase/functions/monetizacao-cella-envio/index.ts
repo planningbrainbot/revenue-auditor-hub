@@ -7,6 +7,10 @@
 // ops.monetizacao_diagnostico_deals). O Pipedrive da Planning só é chamado para o "Caixa · Produtos contratados" de card
 // ganho e para empresa e contato quando o negócio vai ser criado do lado deles.
 //
+// Volta (22/10/2026, escolha do Pedro): na mesma rodada, lê o funil 9 deles (contrato e uma linha por tese, com valor,
+// fase e "Data do Contrato") para ops.monetizacao_cella_negocios, e grava a data do contrato na "Caixa · Data de
+// assinatura" do card da Planning quando ela está vazia. Só lê o funil 9; roda mesmo com o envio desligado.
+//
 // Roda pelo cron a cada 5 minutos (cabeçalho x-monetizacao-sync), com {"action":"rodar"}; {"dry": true} força a prévia.
 //
 // Como ligar (só com o "pode ativar" do Pedro):
@@ -20,6 +24,7 @@ import {
   detalheDe,
   fonte39,
   fonte40,
+  lerVolta,
   rodarCella,
   type Cella,
   type Estado,
@@ -176,6 +181,7 @@ const COLUNAS = [
   "simulado_hash",
   "simulado",
   "enviado_em",
+  "assinatura",
   "erro",
   "atualizado_em",
 ];
@@ -192,6 +198,57 @@ const store: Store = {
     await rest("monetizacao_cella_envios_log", { body: l, prefer: "return=minimal" });
   },
 };
+
+// ---------------------------------------------------------------------------- volta
+
+const ASSINATURA = "97cd6f5f0f051d7dfd29e709bfde5c048a17cf3e";
+
+async function rodarVolta(): Promise<Record<string, unknown>> {
+  if (!CELLA_TOKEN) return { status: "sem token" };
+  const res = await fetch(
+    `https://api.pipedrive.com/api/v2/deals?${new URLSearchParams({ pipeline_id: "9", status: "open,won,lost", limit: "500" })}`,
+    { headers: { "x-api-token": CELLA_TOKEN }, signal: AbortSignal.timeout(25000) },
+  );
+  if (!res.ok) throw new Error(`Pipedrive da Cella HTTP ${res.status}`);
+  const deals = (await res.json())?.data || [];
+  const estados =
+    (await rest("monetizacao_cella_envios?select=deal_id,cella_deal_id,assinatura&limit=10000")) ||
+    [];
+  const { linhas, assinaturas } = lerVolta(deals, estados);
+  const agora = new Date().toISOString();
+  if (linhas.length)
+    await rest("monetizacao_cella_negocios?on_conflict=cella_deal_id", {
+      body: linhas.map((l) => ({ ...l, lido_em: agora, ausente_desde: null })),
+      prefer: "resolution=merge-duplicates,return=minimal",
+    });
+  const ids = linhas.map((l) => l.cella_deal_id).join(",");
+  await rest(
+    `monetizacao_cella_negocios?ausente_desde=is.null${ids ? `&cella_deal_id=not.in.(${ids})` : ""}`,
+    { method: "PATCH", body: { ausente_desde: agora }, prefer: "return=minimal" },
+  );
+  let gravadas = 0;
+  for (const a of assinaturas) {
+    const e = estados.find((x: any) => Number(x.deal_id) === a.deal_id);
+    if (String(e?.assinatura ?? "").slice(0, 10) === a.data) continue;
+    const nosso = (await pd(`deals/${a.deal_id}`)).data;
+    if (!String(nosso?.[ASSINATURA] ?? "").trim()) {
+      await pd(`deals/${a.deal_id}`, {}, { [ASSINATURA]: a.data }, "PUT");
+      gravadas++;
+    }
+    await rest(`monetizacao_cella_envios?deal_id=eq.${a.deal_id}`, {
+      method: "PATCH",
+      body: { assinatura: a.data },
+      prefer: "return=minimal",
+    });
+  }
+  return {
+    lidos: linhas.length,
+    ligados: linhas.filter((l) => l.deal_id).length,
+    teses: linhas.filter((l) => l.deal_id && !l.principal).length,
+    com_valor: linhas.filter((l) => l.valor > 0).length,
+    assinaturas_gravadas: gravadas,
+  };
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -227,17 +284,18 @@ Deno.serve(async (req) => {
       ativo,
       agora: new Date(),
     });
+    const volta = await rodarVolta().catch((e) => ({ erro: (e as Error).message.slice(0, 300) }));
     await rest("monetizacao_cella_sync?on_conflict=id", {
       body: {
         id: true,
-        status: resumo.erros.length ? "parcial" : "ok",
-        resumo,
+        status: resumo.erros.length || "erro" in volta ? "parcial" : "ok",
+        resumo: { ...resumo, volta },
         rodado_em: new Date().toISOString(),
         erro: null,
       },
       prefer: "resolution=merge-duplicates,return=minimal",
     });
-    return json(resumo);
+    return json({ ...resumo, volta });
   } catch (e) {
     const mensagem = (e as Error).message;
     await rest("monetizacao_cella_sync?on_conflict=id", {

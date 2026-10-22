@@ -629,3 +629,128 @@ export function fonte40(p: any): Fonte {
     org_id: Number(p.org_id) || null,
   };
 }
+
+// ---------------------------------------------------------------------------- volta: o que está no funil deles
+
+/** Campos do negócio no Pipedrive da Diehl & Cella (lidos em 22/10/2026). */
+export const CELLA_NEGOCIO = {
+  dataContrato: "bab815c88f80c7c90f4b4b68d48f6fa7395d721b",
+  classificacao: "df153dc1ea1dc6d633121a93bd0ad75184538789",
+  tipoContrato: "0b8eadf281613827252bd589336591cf776e2fe2",
+  tipoTrabalho: "39493ba2370839e53490d9c35c51e51c14dfebc9",
+  rotulo: {
+    classificacao: {
+      241: "Societário",
+      321: "Comex/International Tax",
+      242: "Advocacia",
+      243: "Consultoria",
+      244: "Parceiro",
+      248: "Êxitos",
+      249: "Prospecção",
+    } as Record<number, string>,
+    tipoContrato: {
+      295: "Advocacia Mensal",
+      296: "Consultoria Mensal",
+      297: "Defesas/Processos Administrativos",
+      298: "Processos Judiciais - Diversos",
+      299: "Processos Judiciais - Teses",
+      300: "Revisão Tributária",
+      315: "Trabalhos Específicos",
+    } as Record<number, string>,
+    tipoTrabalho: {
+      301: "Ações Judiciais",
+      302: "Processos Administrativos",
+      303: "Consultas / Legal Opinion / Pareceres",
+      304: "Mensalidades",
+      305: "Revisões Tributárias (Novas)",
+      306: "Revisões Tributárias (Carteira)",
+      307: "Trabalhos Societários",
+      308: "Outros",
+    } as Record<number, string>,
+  },
+};
+
+/** Um negócio do funil 9 deles: o contrato (principal) ou uma tese daquele cliente. */
+export type LinhaVolta = {
+  cella_deal_id: number;
+  deal_id: number | null;
+  principal: boolean;
+  cella_org_id: number | null;
+  titulo: string;
+  status: string;
+  stage_id: number;
+  valor: number;
+  moeda: string | null;
+  data_contrato: string | null;
+  classificacao: string[];
+  tipo_contrato: string | null;
+  tipo_trabalho: string | null;
+  lost_reason: string | null;
+  criado_deles_em: string | null;
+  atualizado_deles_em: string | null;
+  ganho_em: string | null;
+  perdido_em: string | null;
+};
+
+const idsDe = (v: unknown): number[] =>
+  (Array.isArray(v) ? v : String(v ?? "").split(","))
+    .map((x: any) => Number(x?.id ?? x))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+/**
+ * Liga cada negócio do funil 9 deles ao card da Planning: o principal pelo vínculo do envio, e as teses pela
+ * organização do principal. `assinaturas` traz a data do contrato dos principais ganhos, para a "Caixa · Data de
+ * assinatura" do card (só é gravada onde o card está vazio).
+ */
+export function lerVolta(
+  deals: any[],
+  estados: Pick<Estado, "deal_id" | "cella_deal_id">[],
+): { linhas: LinhaVolta[]; assinaturas: { deal_id: number; data: string }[] } {
+  const porNegocio = new Map(
+    estados.filter((e) => e.cella_deal_id).map((e) => [Number(e.cella_deal_id), Number(e.deal_id)]),
+  );
+  const orgDe = (d: any) => Number(d?.org_id?.value ?? d?.org_id) || null;
+  const porOrg = new Map<number, number>();
+  for (const d of deals) {
+    const nosso = porNegocio.get(Number(d.id));
+    const org = orgDe(d);
+    if (nosso && org && !porOrg.has(org)) porOrg.set(org, nosso);
+  }
+  const R = CELLA_NEGOCIO.rotulo;
+  const linhas = deals.map((d): LinhaVolta => {
+    const cf = d.custom_fields ?? d;
+    const principal = porNegocio.has(Number(d.id));
+    const org = orgDe(d);
+    const enumDe = (k: string, mapa: Record<number, string>) => {
+      const id = idsDe(cf?.[k])[0];
+      return id ? (mapa[id] ?? String(id)) : null;
+    };
+    const data = String(cf?.[CELLA_NEGOCIO.dataContrato] ?? "").slice(0, 10) || null;
+    return {
+      cella_deal_id: Number(d.id),
+      deal_id: principal ? porNegocio.get(Number(d.id))! : org ? (porOrg.get(org) ?? null) : null,
+      principal,
+      cella_org_id: org,
+      titulo: String(d.title ?? "").trim(),
+      status: String(d.status ?? ""),
+      stage_id: Number(d.stage_id) || 0,
+      valor: Number(d.value) || 0,
+      moeda: d.currency ?? null,
+      data_contrato: data,
+      classificacao: idsDe(cf?.[CELLA_NEGOCIO.classificacao]).map(
+        (i) => R.classificacao[i] ?? String(i),
+      ),
+      tipo_contrato: enumDe(CELLA_NEGOCIO.tipoContrato, R.tipoContrato),
+      tipo_trabalho: enumDe(CELLA_NEGOCIO.tipoTrabalho, R.tipoTrabalho),
+      lost_reason: d.lost_reason ?? null,
+      criado_deles_em: d.add_time ?? null,
+      atualizado_deles_em: d.update_time ?? null,
+      ganho_em: d.won_time ?? null,
+      perdido_em: d.lost_time ?? null,
+    };
+  });
+  const assinaturas = linhas
+    .filter((l) => l.principal && l.deal_id && l.status === "won" && l.data_contrato)
+    .map((l) => ({ deal_id: l.deal_id!, data: l.data_contrato! }));
+  return { linhas, assinaturas };
+}
