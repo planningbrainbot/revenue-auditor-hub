@@ -1,4 +1,4 @@
--- Desfaz 20261022120000_base_vendas_so_clientes.sql, com o estado de 22/10/2026 antes dela.
+-- Desfaz 20261022141000_base_vendas_so_clientes.sql, com o estado de 22/10/2026 antes dela.
 begin;
 
 delete from ops.usuario_chaves where permission_key = 'view.clientes_painel';
