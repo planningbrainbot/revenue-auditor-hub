@@ -1,10 +1,11 @@
 // Tela Pré-venda da Monetização (`/monetizacao?aba=pre-venda`). Contrato docs/design/contratos/monetizacao-pre-venda.md;
 // PRD aprovado em 09/10/2026 (https://claude.ai/artifact/VVsFAthHk5cSdd8yuLHSwg, slide 6). Três visões na mesma aba, com
 // a visão na URL (`visao`, N7) e controle segmentado no topo:
-//   Hoje      → pre-venda-hoje.tsx       Fila de trabalho: "O que cada pré-vendedor faz hoje?" (padrão desde 14/10/2026)
-//   Ritmo     → pre-venda-ritmo.tsx      Visão geral: "Quem está no ritmo da cadência?"
+//   Ritmo     → pre-venda-ritmo.tsx      Visão geral: "Quem está no ritmo da cadência?" (padrão desde 22/10/2026)
 //   Aderência → pre-venda-aderencia.tsx  Visão geral: "Quem segue o script, e onde pula?"
 //   Ficha     → pre-venda-ficha.tsx      Lista/Relatório com a ficha ao lado; "Reuniões" é a tela Gravações, sem reescrever.
+// A visão Hoje (pre-venda-hoje.tsx, fila de trabalho) saiu do menu em 22/10/2026, a pedido do Pedro: a fila do dia fica no
+// Forecast. O componente continua no repositório, sem rota.
 // Nada é calculado aqui: a régua mora em src/lib/monetizacao/pre-venda.ts e o dado chega das quatro RPCs do contrato de
 // dados. Acesso (decisão 4B): todos que veem a Monetização veem tudo, sem trava por closer.
 import type { ReactNode } from "react";
@@ -18,11 +19,8 @@ import {
   type LinhaAvaliacao,
   type LinhaRitmo,
 } from "@/lib/monetizacao/pre-venda";
-import type { AtividadeCadencia, SugestaoJev } from "@/lib/monetizacao/hoje-pre-venda";
 import {
   carregarAtrasadosPreVenda,
-  carregarCadenciasPreVenda,
-  carregarSugestoesPreVenda,
   carregarAvaliacaoPreVenda,
   carregarAvaliacoesPreVenda,
   carregarRitmoPreVenda,
@@ -33,14 +31,12 @@ import { VisaoGravacoes, type MudarBusca } from "./gravacoes";
 import { AderenciaPreVenda } from "./pre-venda-aderencia";
 import { LIMPA_VISAO, Segmentado, visaoDa, type Consulta } from "./pre-venda-comum";
 import { FichaPreVenda } from "./pre-venda-ficha";
-import { HojePreVenda, type AbrirCards } from "./pre-venda-hoje";
 import { RitmoPreVenda } from "./pre-venda-ritmo";
 
 export { FONTE_PRE_VENDA, visaoDa } from "./pre-venda-comum";
 
 /** A pergunta de cada visão (o `<h1>`, N1). Ficha › Reuniões mantém a pergunta da tela Gravações. */
 export const PERGUNTAS_PRE_VENDA: Record<Visao | "reunioes", string> = {
-  hoje: "O que cada pré-vendedor faz hoje?",
   ritmo: "Quem está no ritmo da cadência?",
   aderencia: "Quem segue o script, e onde pula?",
   ficha: "O que foi dito em cada ligação?",
@@ -48,7 +44,6 @@ export const PERGUNTAS_PRE_VENDA: Record<Visao | "reunioes", string> = {
 };
 
 const VISOES: { chave: Visao; rotulo: string }[] = [
-  { chave: "hoje", rotulo: "Hoje" },
   { chave: "ritmo", rotulo: "Ritmo" },
   { chave: "aderencia", rotulo: "Aderência" },
   { chave: "ficha", rotulo: "Ficha" },
@@ -67,7 +62,7 @@ export function SeletorVisaoPreVenda({
       rotulo="Visões da Pré-venda"
       opcoes={VISOES}
       valor={visaoDa(busca)}
-      mudar={(v) => mudarBusca({ ...LIMPA_VISAO, visao: v === "hoje" ? undefined : v })}
+      mudar={(v) => mudarBusca({ ...LIMPA_VISAO, visao: v === "ritmo" ? undefined : v })}
     />
   );
 }
@@ -91,10 +86,6 @@ export function PainelPreVenda({
   escopo,
   reunioes,
   atualizadoEm,
-  data,
-  cadencias,
-  sugestoes,
-  abrir,
 }: {
   busca: BuscaMonetizacao;
   mudarBusca: MudarBusca;
@@ -108,23 +99,8 @@ export function PainelPreVenda({
   escopo: string;
   reunioes: ReactNode;
   atualizadoEm: string | null;
-  data: Pick<BaseMonetizacao, "cards" | "stages" | "units">;
-  cadencias: Consulta<AtividadeCadencia[]>;
-  sugestoes: Consulta<SugestaoJev[]>;
-  abrir: AbrirCards;
 }) {
   const visao = visaoDa(busca);
-  if (visao === "hoje")
-    return (
-      <HojePreVenda
-        data={data}
-        cadencias={cadencias}
-        sugestoes={sugestoes}
-        hoje={periodo.hoje}
-        pessoa={busca.responsavel}
-        abrir={abrir}
-      />
-    );
   if (visao === "ritmo")
     return (
       <RitmoPreVenda
@@ -164,14 +140,12 @@ export function VisaoPreVenda({
   mudarBusca,
   periodo,
   quem,
-  abrir,
 }: {
   data: BaseMonetizacao;
   busca: BuscaMonetizacao;
   mudarBusca: MudarBusca;
   periodo: PeriodoPreVenda;
   quem: string;
-  abrir: AbrirCards;
 }) {
   const { user } = useAuth();
   const visao = visaoDa(busca);
@@ -179,8 +153,6 @@ export function VisaoPreVenda({
   const atrasadosFn = useServerFn(carregarAtrasadosPreVenda);
   const avaliacoesFn = useServerFn(carregarAvaliacoesPreVenda);
   const fichaFn = useServerFn(carregarAvaliacaoPreVenda);
-  const cadenciasFn = useServerFn(carregarCadenciasPreVenda);
-  const sugestoesFn = useServerFn(carregarSugestoesPreVenda);
   const intervalo = { de: periodo.de, ate: periodo.ate };
   // "Ainda não ativada" e "sem acesso" não melhoram tentando de novo.
   const repetir = (n: number, e: Error) => n < 1 && classificarErroPreVenda(e.message) === "erro";
@@ -195,18 +167,6 @@ export function VisaoPreVenda({
     queryKey: ["monetizacao-pre-venda-atrasados", user?.id],
     queryFn: () => atrasadosFn(),
     enabled: !!user && visao === "ritmo",
-    ...comum,
-  });
-  const qCadencias = useQuery({
-    queryKey: ["monetizacao-pre-venda-cadencias", user?.id],
-    queryFn: () => cadenciasFn(),
-    enabled: !!user && visao === "hoje",
-    ...comum,
-  });
-  const qSugestoes = useQuery({
-    queryKey: ["monetizacao-pre-venda-sugestoes", user?.id],
-    queryFn: () => sugestoesFn(),
-    enabled: !!user && visao === "hoje",
     ...comum,
   });
   const qAvaliacoes = useQuery({
@@ -239,10 +199,6 @@ export function VisaoPreVenda({
       escopo={user?.id ?? "anonimo"}
       reunioes={<VisaoGravacoes data={data} busca={busca} mudarBusca={mudarBusca} />}
       atualizadoEm={data.measured_at}
-      data={data}
-      cadencias={consulta(qCadencias)}
-      sugestoes={consulta(qSugestoes)}
-      abrir={abrir}
     />
   );
 }

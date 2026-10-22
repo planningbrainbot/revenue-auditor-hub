@@ -88,7 +88,7 @@ export const LIMPA_VISAO: Partial<BuscaMonetizacao> = {
 };
 
 export const visaoDa = (b: Pick<BuscaMonetizacao, "visao">): Visao =>
-  b.visao === "ritmo" || b.visao === "aderencia" || b.visao === "ficha" ? b.visao : "hoje";
+  b.visao === "aderencia" || b.visao === "ficha" ? b.visao : "ritmo";
 
 /**
  * Controle segmentado do DS (o mesmo do período da barra): grupo de botões com `aria-pressed`, o ativo em

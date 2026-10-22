@@ -130,3 +130,9 @@ Pedido do Pedro: "tem card com atividade que tá sendo registrado como sem ativi
   ou "vencida em dd/mm").
 - **"Abordagem sem cadência":** o card fora da cadência mas com atividade criada à mão sai da conta e vai para a nota
   ("N com atividade manual, fora da conta").
+
+## Adendo · 22/10/2026 · Sem a visão Hoje; atalhos Ontem e Semana
+
+- A visão Hoje saiu do seletor da Pré-venda nas duas bases, a pedido do Pedro. A fila do dia fica no Forecast. O padrão passa a ser o Ritmo (`visao` ausente = Ritmo). O componente da visão Hoje continua no repositório, sem rota.
+- Os atalhos de período ganham "Ontem" e "Semana". "Ontem" é o dia útil anterior: na segunda, a sexta, e na volta de feriado, o último dia útil. "Semana" vai da segunda-feira até hoje.
+- O atalho fica aceso quando o início e o fim batem com ele.

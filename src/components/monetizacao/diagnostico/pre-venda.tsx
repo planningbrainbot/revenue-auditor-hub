@@ -79,7 +79,6 @@ import {
 } from "./comum";
 
 export const PERGUNTAS_DIAG: Record<VisaoPreVenda, string> = {
-  hoje: "O que o Matheus e a Jordana fazem hoje no diagnóstico?",
   ritmo: "As tarefas do diagnóstico estão saindo no dia?",
   aderencia: "O processo do diagnóstico está sendo seguido?",
   ficha: "Onde está cada card do diagnóstico, e o que falta nele?",
@@ -106,17 +105,6 @@ export function PreVendaDiagnostico({
   abrirCard: (id: number | undefined) => void;
   abrir: AbrirDiag;
 }) {
-  if (visao === "hoje")
-    return (
-      <Hoje
-        cards={cards}
-        etapas={etapas}
-        hoje={hoje}
-        pessoa={filtro.pessoa}
-        abrir={abrir}
-        abrirCard={abrirCard}
-      />
-    );
   if (visao === "ritmo") return <Ritmo cards={cards} filtro={filtro} hoje={hoje} />;
   if (visao === "aderencia")
     return (
@@ -132,6 +120,7 @@ export function PreVendaDiagnostico({
 }
 
 // ---------------------------------------------------------------------------- Hoje
+// Saiu do menu em 22/10/2026, a pedido do Pedro: a fila do dia fica no Forecast. O componente fica, sem rota.
 
 // O tom do KpiCard só acende com número acima de zero; Tarefas de hoje e Sem tarefa aberta são neutros.
 const BLOCOS: {

@@ -6530,3 +6530,16 @@ os heads ficam como estão), com os contatos na ficha, todas as unidades, public
   ninguém de fora perde nada; os 30 sócios regionais continuam com as três telas.
 - **Fica aberto:** a RLS de contratos, empresas e tratativas aceita `view.clientes`, então o vendedor ainda consegue ler
   essas tabelas pela API, sem tela. Fechar isso é trocar a chave das policies, que outras telas usam.
+
+## [2026-10-22] Monetização: a visão Hoje sai da Pré-venda; atalhos Ontem e Semana no período
+
+**Contexto:** o Pedro pediu, sobre as telas da daily: "tira esse botão de hoje da visão das telas" e "acrescenta uns botões de ontem e semana também". A daily olha o dia anterior e a semana, e a fila do dia já existe no Forecast das duas bases (PRs #100 e #105).
+
+**Decisão:**
+- A Pré-venda (pipe 39 e pipe 40) fica com Ritmo, Aderência e Ficha. O Ritmo é o padrão, e um link sem `visao` abre nele. O código da visão Hoje fica no repositório, sem rota (`pre-venda-hoje.tsx` e o bloco Hoje de `diagnostico/pre-venda.tsx`).
+- Os atalhos de período passam a ser:
+  - pipe 39: Hoje, Ontem, Semana, 7 dias, 30 dias e Mês;
+  - pipe 40: Ontem, Semana, 7 dias, 30 dias, Mês e Desde 01/10.
+- "Ontem" é o dia útil anterior (`diaUtilAnterior`, com os feriados de `feriados.ts`): na segunda, a sexta. A escolha é minha, porque a daily de segunda revisa a sexta.
+- "Semana" vai da segunda-feira até hoje (`segundaDaSemana`).
+- O atalho aceso compara início e fim.
