@@ -555,6 +555,24 @@ test("cadastro desligado: o cliente fica pendente e é cadastrado quando a chave
   );
 });
 
+test("unidade pausada: o cliente com perfil fica pendente, sem cadastro na Consultoria", async () => {
+  const f = fakes({ vendas: COM_CNPJ.slice(0, 1), onboarding: [onb(121, 21, "Concluído", "2026-09-01", "Belém")] });
+  const c = fakeConsultoria();
+  await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+    unidadesPausadas: ["Belém"],
+    consultoria: c.consultoria,
+    cadastroConsultoria: true,
+  });
+  assert.equal(c.registrados.length, 0);
+  assert.equal(f.estado.entradas[0].consultoria, "pendente");
+});
+
 test("tarefa 03: 'Cadastrar na plataforma' não nasce quando o cadastro resolveu; sem CNPJ, nasce", async () => {
   const card = (id) => ({
     id,
