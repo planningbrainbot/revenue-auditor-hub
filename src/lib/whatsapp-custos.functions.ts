@@ -94,7 +94,7 @@ export const listWhatsappCustos = createServerFn({ method: "GET" })
   });
 
 // Força um refresh imediato do extrato chamando a Edge Function de sync, em
-// vez de esperar o agendamento. Mesmo padrão do botão de sync do /ebit-operacional.
+// vez de esperar o agendamento.
 export const syncWhatsappCustos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ linhas: number; custoTotal: number }> => {

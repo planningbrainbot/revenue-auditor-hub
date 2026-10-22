@@ -428,12 +428,8 @@ export const AREAS: Area[] = [
         // RATEIA custo por unidade e se apura comissão, lá se mostra resultado.
         label: "Custos e comissões",
         items: [
+          // EBIT Operacional (/ebit-operacional) apagado em 22/10/2026.
           { title: "Comissões", url: "/comissoes", icon: Percent },
-          {
-            title: "EBIT Operacional",
-            url: "/ebit-operacional",
-            icon: Scale,
-          },
         ],
       },
     ],

@@ -103,7 +103,7 @@ Receita e Repasses (receita)
   Receita da rede .... Funil de Receita /funil-receita · Contas a Receber /contas-receber
   Repasses ........... Regras da Rede /unidades · Apuração de Royalties /unidades/royalties
                        · Funil de CAC /unidades/funil-cac · Split do Asaas /unidades/split
-  Custos e comissões . Comissões /comissoes · EBIT Operacional /ebit-operacional
+  Custos e comissões . Comissões /comissoes
 Planning People (people)
   Minha rotina ....... Minha vez · Meu time           (todas /gente?tela=…)
   Conversas .......... 1:1 · Sentimento e prioridades · Feedback · Elogios

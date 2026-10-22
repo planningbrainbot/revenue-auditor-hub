@@ -6697,3 +6697,10 @@ Pedido do RH de Maceió (22/10/2026): cadastro com e-mail errado não tinha saí
 - O Editar passa a trocar o e-mail de quem ainda não tem login (52 de 57 em Maceió). De quem tem login, o campo fica travado com aviso: o e-mail é o login, e a unidade trocá-lo deixaria alguém tomar a conta de outra pessoa. A troca continua com a Matriz.
 - E-mail repetido na rede é recusado; a troca entra no histórico, como os outros campos.
 - Layout: o fim da vigência ocupa a linha inteira, com o aviso ao lado do próprio campo (estava parecendo ser do Nascimento).
+## [2026-10-22] Tela /ebit-operacional apagada
+
+**Contexto:** o dono pediu para excluir a página EBIT Operacional (planningbrain.com.br/ebit-operacional).
+
+**Decisão:** saem a rota, o item de menu (Receita e Repasses, Custos e comissões), o componente `ebit-operacional-view` e as server fns de `ebit-operacional.functions`, que só ela usava.
+
+**Fica de pé:** as tabelas `vendas_servicos_unidades` e `custo_operacional_mensal`, as Edge Functions `pipefy-vendas-servicos-sync` e `custo-operacional-sync` com os agendamentos, e a chave `view.ebit_operacional` (pode estar em RLS dessas tabelas).

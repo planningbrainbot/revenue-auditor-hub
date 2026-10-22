@@ -49,7 +49,6 @@ import { Route as AuthenticatedFinanceiroSemanalRouteImport } from './routes/_au
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
 import { Route as AuthenticatedFilaCellaRouteImport } from './routes/_authenticated/fila-cella'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
-import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_authenticated/ebit-operacional'
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
 import { Route as AuthenticatedDreCaixaRouteImport } from './routes/_authenticated/dre-caixa'
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
@@ -324,12 +323,6 @@ const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
   path: '/equipe',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedEbitOperacionalRoute =
-  AuthenticatedEbitOperacionalRouteImport.update({
-    id: '/ebit-operacional',
-    path: '/ebit-operacional',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedDrePartnersRoute =
   AuthenticatedDrePartnersRouteImport.update({
     id: '/dre-partners',
@@ -670,7 +663,6 @@ export interface FileRoutesByFullPath {
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
-  '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
@@ -766,7 +758,6 @@ export interface FileRoutesByTo {
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
-  '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
@@ -863,7 +854,6 @@ export interface FileRoutesById {
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/_authenticated/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
-  '/_authenticated/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
@@ -963,7 +953,6 @@ export interface FileRouteTypes {
     | '/disparos-whatsapp'
     | '/dre-caixa'
     | '/dre-partners'
-    | '/ebit-operacional'
     | '/equipe'
     | '/fila-cella'
     | '/financeiro-partners'
@@ -1059,7 +1048,6 @@ export interface FileRouteTypes {
     | '/disparos-whatsapp'
     | '/dre-caixa'
     | '/dre-partners'
-    | '/ebit-operacional'
     | '/equipe'
     | '/fila-cella'
     | '/financeiro-partners'
@@ -1155,7 +1143,6 @@ export interface FileRouteTypes {
     | '/_authenticated/disparos-whatsapp'
     | '/_authenticated/dre-caixa'
     | '/_authenticated/dre-partners'
-    | '/_authenticated/ebit-operacional'
     | '/_authenticated/equipe'
     | '/_authenticated/fila-cella'
     | '/_authenticated/financeiro-partners'
@@ -1527,13 +1514,6 @@ declare module '@tanstack/react-router' {
       path: '/equipe'
       fullPath: '/equipe'
       preLoaderRoute: typeof AuthenticatedEquipeRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/ebit-operacional': {
-      id: '/_authenticated/ebit-operacional'
-      path: '/ebit-operacional'
-      fullPath: '/ebit-operacional'
-      preLoaderRoute: typeof AuthenticatedEbitOperacionalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dre-partners': {
@@ -1982,7 +1962,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
   AuthenticatedDreCaixaRoute: typeof AuthenticatedDreCaixaRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
-  AuthenticatedEbitOperacionalRoute: typeof AuthenticatedEbitOperacionalRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFilaCellaRoute: typeof AuthenticatedFilaCellaRoute
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
@@ -2062,7 +2041,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
   AuthenticatedDreCaixaRoute: AuthenticatedDreCaixaRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
-  AuthenticatedEbitOperacionalRoute: AuthenticatedEbitOperacionalRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFilaCellaRoute: AuthenticatedFilaCellaRoute,
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
