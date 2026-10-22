@@ -1,7 +1,7 @@
 import { Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,29 +10,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { usePermissions } from "@/hooks/use-permissions";
 import {
   useMarcarNotificacaoLida,
   useMarcarTodasNotificacoesLidas,
   useNotificacoes,
+  useVeSino,
 } from "@/hooks/use-notificacoes";
 import type { Notificacao } from "@/lib/notificacoes.functions";
 
 export function NotificationBell() {
-  const { isAdmin } = usePermissions();
+  const veSino = useVeSino();
   const { data } = useNotificacoes();
   const marcarLida = useMarcarNotificacaoLida();
   const marcarTodas = useMarcarTodasNotificacoesLidas();
-  const navigate = useNavigate();
+  const router = useRouter();
 
-  if (!isAdmin) return null;
+  if (!veSino) return null;
 
   const notificacoes = data?.notificacoes ?? [];
   const naoLidas = data?.naoLidas ?? 0;
 
   function handleClickNotificacao(n: Notificacao) {
     if (!n.lida) marcarLida.mutate(n.id);
-    navigate({ to: "/unidades" });
+    // Aviso coletivo antigo (CAC) não tem link e sempre abriu /unidades.
+    router.navigate({ href: n.link ?? "/unidades" });
   }
 
   return (

@@ -12,33 +12,42 @@ import { usePermissions } from "@/hooks/use-permissions";
 
 const QUERY_KEY = ["notificacoes"];
 
+/** O sino aparece para o admin (avisos coletivos) e para quem tem a área Tarefas (avisos pessoais). */
+export function useVeSino() {
+  const { isAdmin, temArea } = usePermissions();
+  return isAdmin || temArea("tarefas");
+}
+
 export function useNotificacoes() {
-  const { isAdmin } = usePermissions();
+  const veSino = useVeSino();
   const fn = useServerFn(listNotificacoes);
   const qc = useQueryClient();
 
   const query = useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => fn(),
-    enabled: isAdmin,
+    enabled: veSino,
     staleTime: 30_000,
   });
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!veSino) return;
     const channel = supabase
       .channel("notificacoes-bell")
       // Realtime não herda o `db.schema` do cliente: o schema vai no filtro do
       // canal. Deixar "public" cravado aqui faria o sino parar de tocar no banco
-      // único, calado. Ver integrations/supabase/schema.ts.
-      .on("postgres_changes", { event: "INSERT", schema: SUPABASE_SCHEMA, table: "notificacoes" }, () =>
-        qc.invalidateQueries({ queryKey: QUERY_KEY }),
+      // único, calado. Ver integrations/supabase/schema.ts. Sem filtro por destinatário:
+      // o Realtime aplica a RLS de leitura, então cada um só recebe o que pode ler.
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: SUPABASE_SCHEMA, table: "notificacoes" },
+        () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAdmin, qc]);
+  }, [veSino, qc]);
 
   return query;
 }
