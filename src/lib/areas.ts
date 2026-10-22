@@ -49,6 +49,9 @@ import {
   Trophy,
   HandCoins,
   Package,
+  ListTodo,
+  SquareKanban,
+  Tags,
 } from "lucide-react";
 
 /**
@@ -767,6 +770,34 @@ export const AREAS: Area[] = [
             icon: ClipboardList,
           },
           { title: "Perguntar ao Brain", url: "/cockpit-coo/perguntar", icon: MessagesSquare },
+        ],
+      },
+    ],
+  },
+  {
+    // Quadros de tarefas próprios do Ops, sem ClickUp (22/10/2026, contrato tarefas.md). A área
+    // abre o menu; dentro dela quem decide é ser membro do quadro, pela RLS.
+    slug: "tarefas",
+    nome: "Tarefas",
+    descricao: "Quadros de tarefas do time e o que está com cada um.",
+    icone: ListTodo,
+    grupos: [
+      {
+        label: "Trabalho",
+        items: [
+          { title: "Minhas tarefas", url: "/tarefas", icon: ListTodo },
+          {
+            title: "Quadros",
+            url: "/tarefas/quadros",
+            icon: SquareKanban,
+            tambem: /^\/tarefas\/quadros\/[^/]+$/,
+          },
+        ],
+      },
+      {
+        label: "Configuração",
+        items: [
+          { title: "Departamentos", url: "/tarefas/departamentos", icon: Tags, area: "admin" },
         ],
       },
     ],

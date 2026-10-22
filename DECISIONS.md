@@ -6543,3 +6543,28 @@ os heads ficam como estão), com os contatos na ficha, todas as unidades, public
 - "Ontem" é o dia útil anterior (`diaUtilAnterior`, com os feriados de `feriados.ts`): na segunda, a sexta. A escolha é minha, porque a daily de segunda revisa a sexta.
 - "Semana" vai da segunda-feira até hoje (`segundaDaSemana`).
 - O atalho aceso compara início e fim.
+
+## [2026-10-22] Área Tarefas no Ops: quadros com convite e "Minhas tarefas" entre quadros
+
+**Contexto:** pedido de uma área para gerenciar as tarefas de quem pediu com uma pessoa do time. Já existe "Tarefas e compromissos" no Cockpit do COO, mas ela espelha o ClickUp do COO e não serve para isso.
+
+**Decisão (respostas do dono, 22/10, por múltipla escolha):**
+- Mora no **Ops atual** (`~/planning-dashboard`), não no sistema novo.
+- As tarefas vivem **em tabelas próprias do Ops**, que é a fonte de verdade. Sem ClickUp.
+- **Quadros separados**, criados por qualquer pessoa da área, que convida outras pessoas com login no Ops. Uma tela **Minhas tarefas** junta tudo o que está com a pessoa, de qualquer quadro.
+- Campos da tarefa: responsável, prazo, status em colunas, prioridade, comentários, projeto e departamento.
+
+**Proposta à espera do "contrato ok":** `docs/design/contratos/tarefas.md` (área nova `tarefas`; acesso ao quadro por ser membro, garantido por RLS; projeto por quadro e departamento como lista única; sem notificação na v1). Nada de código, migration ou deploy feito.
+
+## [2026-10-22] Área Tarefas: contrato aprovado, banco aplicado, telas prontas no local
+
+**Decisão:** o dono aprovou o contrato `docs/design/contratos/tarefas.md` com as propostas padrão (admin não vê quadro alheio; área para todos os papéis da matriz, sócio regional fora; projeto por quadro, departamento em lista única).
+
+**Feito:**
+- Migration `20261022120000_tarefas.sql` aplicada no banco único e registrada (rollback em `supabase/rollback/`). Área `tarefas` (ordem 66) para 12 papéis e 34 pessoas por concessão individual (quem já tinha alguma área e não é sócio regional). 8 tabelas `ops.tarefas*` com RLS por ser membro do quadro; criar quadro, convidar, mudar papel, remover e apagar coluna são funções `security definer`.
+- Teste de RLS numa transação desfeita, como usuário `authenticated`: quem não é membro lê 0 e não insere; não dá para se autoconvidar; o último dono não sai; quem sai deixa as tarefas sem responsável; histórico grava "A fazer > Feito"; departamento só com a área admin.
+- Telas: `/tarefas` (Minhas tarefas), `/tarefas/quadros`, `/tarefas/quadros/$quadroId` (colunas com arrastar e soltar, ficha em Sheet, Configurar quadro) e `/tarefas/departamentos`. Regras puras em `src/lib/tarefas/regras.ts` com `tests/tarefas-regras.test.mjs` (9 testes).
+
+**Fora da v1 por escolha:** "Desfazer" ao apagar tarefa; notificação; mapa de módulos do super admin (`mapa-de-modulos.tsx`) não ganhou o cartão.
+
+**Status:** publicado em 22/10/2026 a pedido do dono ("pode publicar").
