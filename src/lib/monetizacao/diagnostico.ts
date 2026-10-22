@@ -57,7 +57,7 @@ export const PESSOAS_DIAG: readonly (readonly [number, string])[] = [
 ];
 export const NOME_PESSOA_DIAG = new Map(PESSOAS_DIAG.map(([id, nome]) => [id, nome]));
 export const FONTE_DIAGNOSTICO =
-  "Pipedrive, pipeline 40 (Onboarding | Diagnóstico de Oportunidades): cards, etapas, produtos e atividades · clientes do onboarding do CS (Pipefy) que passaram do kickoff";
+  "Pipedrive, pipeline 40 (Onboarding | Diagnóstico de Oportunidades): cards, etapas, produtos e atividades · clientes que concluíram o onboarding do CS (Pipefy) há 30 dias ou mais";
 export const URL_PIPEDRIVE = "https://grupoplanning.pipedrive.com/deal/";
 
 export type Area = "consultoria" | "finance" | "teses";

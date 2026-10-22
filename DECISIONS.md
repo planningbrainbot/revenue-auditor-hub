@@ -6568,3 +6568,28 @@ os heads ficam como estão), com os contatos na ficha, todas as unidades, public
 **Fora da v1 por escolha:** "Desfazer" ao apagar tarefa; notificação; mapa de módulos do super admin (`mapa-de-modulos.tsx`) não ganhou o cartão.
 
 **Status:** publicado em 22/10/2026 a pedido do dono ("pode publicar").
+
+## [2026-10-22] Pipe 40: o cliente entra 30 dias depois de concluir o onboarding, e a Consultoria é cadastrada pela automação
+
+**Contexto:** o Pedro, em 22/10: "vamos trabalhar somente lead que saírem do onboarding há pelo menos 30 dias. Esses caras que passaram pelo onboarding demoram muito pra enviar documentos". Também pediu que o cliente caia no cadastro da Consultoria (planningtax-system.com.br/parceiro) depois de 30 dias, por automação, e que os leads saiam das mãos do Matheus. O Matheus tinha medido a mesma coisa em 21/10: antes do onboarding, o cliente só manda documento societário, porque o contábil e o fiscal só chegam quando a contabilidade antiga faz a transição.
+
+**Decisões do Pedro, por múltipla escolha:**
+- Os 30 dias contam da conclusão do onboarding: a primeira entrada em Concluído, Check-out ou Pesquisa de Esforço, no Pipefy do CS. Substitui o "passou do kickoff" de 21/10.
+- O card só entra no pipe 40 no 30º dia, já com o Matheus.
+- No mesmo dia, a automação cadastra na plataforma da Consultoria quem tem perfil de Consultoria: Lucro Real, ou Presumido de R$ 50 mi para cima. Se o CNPJ já tiver projeto de Diagnóstico Tributário, nada é cadastrado ("ja_existia"). A CS cadastra muitos no kickoff.
+- A tarefa "03 · Cadastrar o cliente na plataforma da Consultoria" não nasce quando o cadastro resolveu: criado, já existia, sem perfil ou na fila. Sem CNPJ ou com erro, ela nasce.
+- A mensagem "02 · Apresentar a Jordana" passa a começar com "Agora que a implantação do BPO terminou". Régua `diag-v2-2026-10-22`.
+- Os cards abertos foram reavaliados em 22/10:
+  - 15 ficaram, porque já tinham 30 dias ou mais da conclusão;
+  - 33 saíram como perdidos, com o motivo "Aguardando 30 dias do onboarding", e voltam à etapa 01 no 30º dia;
+  - o motivo de 21/10 ("Ainda não passou pelo onboarding") volta pela mesma regra.
+  - Log em `monetizacao/outputs/2026-10-22-pipe40-regra-30-dias.json`.
+
+**Como o cadastro é feito:**
+- Usa a mesma função do formulário "Cadastrar novo projeto": `fn_projeto_registrar_parceiro`, no Supabase da plataforma.
+- O código do projeto segue o padrão do formulário: raiz do CNPJ, um traço e um número sequencial.
+- Parceiro "Carteira BPO", canal "Máquina de Vendas Comercial BPO", serviço "Diagnóstico — Curva B e C" (o mesmo da CS), documentos "Não, ainda não".
+- O login é o técnico (planning.brain.bot@gmail.com, segredos `CONSULTORIA_PLAT_*`). Em 22/10 ele não está ligado a nenhum parceiro (`usuarios_escritorio.parceiro_id` nulo). Sem essa ligação, a plataforma recusa o cadastro.
+- A chave `MONET_DIAG_CADASTRO_CONSULTORIA=sim` liga o cadastro. Desligada, a entrada só confere se já há projeto e deixa o cliente "pendente". O pendente é cadastrado quando a chave ligar, e um erro é tentado de novo depois de 6 h.
+
+**Estado:** o ensaio com dados reais, só leitura, deu 225 clientes no onboarding, 124 concluídos, 83 dentro dos 30 dias e 0 cards a criar hoje. Entram 28 até a semana de 02/11, e 23 deles têm perfil de Consultoria.

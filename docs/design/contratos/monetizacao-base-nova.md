@@ -163,3 +163,8 @@ Os quadros de receita, horizontes, etapas e áreas continuam abaixo.
 - A visão Hoje saiu do seletor da Pré-venda nas duas bases, a pedido do Pedro. A fila do dia fica no Forecast. O padrão passa a ser o Ritmo (`visao` ausente = Ritmo). O componente da visão Hoje continua no repositório, sem rota.
 - Os atalhos de período ganham "Ontem" e "Semana". "Ontem" é o dia útil anterior: na segunda, a sexta, e na volta de feriado, o último dia útil. "Semana" vai da segunda-feira até hoje.
 - O atalho fica aceso quando o início e o fim batem com ele.
+
+## Adendo · 22/10/2026 · Entrada 30 dias depois do onboarding
+
+- O card entra no pipe 40 no 30º dia depois de o cliente concluir o onboarding do CS (Concluído, Check-out ou Pesquisa de Esforço). A prévia da entrada mostra "clientes que concluíram o onboarding há 30 dias".
+- O resumo da carga ganha `concluiram_onboarding`, `aguardando_30_dias`, `prontos` e `consultoria`, com o resultado do cadastro na plataforma da Consultoria.

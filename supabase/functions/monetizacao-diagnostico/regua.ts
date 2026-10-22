@@ -31,7 +31,9 @@ export type ItemDiagnostico = {
   cada?: number;
 };
 
-export const VERSAO_REGUA = "diag-v1-2026-10-16";
+// v2 (22/10/2026): o cliente entra 30 dias depois de concluir o onboarding, e a apresentação da Jordana deixa de falar
+// da implantação do BPO como se estivesse em curso.
+export const VERSAO_REGUA = "diag-v2-2026-10-22";
 /** Horário de toda tarefa, em São Paulo (a função converte para UTC). */
 export const HORA_TAREFA = "09:00";
 
@@ -89,7 +91,7 @@ export const REGUA: readonly ItemDiagnostico[] = [
     titulo: "Apresentar a Jordana ao cliente",
     nota:
       "Olá, [NOME]! Aqui é o Matheus, da Planning.\n\n" +
-      "Junto com a implantação do BPO, a [EMPRESA] vai receber um Diagnóstico de Oportunidades e Riscos: uma " +
+      "Agora que a implantação do BPO terminou, a [EMPRESA] vai receber um Diagnóstico de Oportunidades e Riscos: uma " +
       "análise única do que dá para recuperar, economizar ou captar.\n\n" +
       "Quem conduz é a Jordana Vieira, sócia responsável pelo diagnóstico. [FOTO E CURRÍCULO CURTO DA JORDANA]\n\n" +
       "O prazo é de [DIAS] dias a partir da documentação completa. Ainda hoje te mando a lista do que precisamos.",
