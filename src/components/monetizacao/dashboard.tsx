@@ -39,6 +39,7 @@ import { funisPorUnidade, nomesDasUnidades } from "@/lib/monetizacao/acompanhame
 import { Fechamentos } from "./fechamentos";
 import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
+import { diaUtilAnterior, segundaDaSemana } from "@/lib/monetizacao/feriados";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
 import { VisaoHoje } from "./hoje";
@@ -412,13 +413,17 @@ export function DashboardMonetizacao({
 
   const menosDias = (n: number) =>
     new Date(Date.parse(today) - n * 86400000).toISOString().slice(0, 10);
+  // Ontem e Semana entraram em 22/10/2026, a pedido do Pedro, para a daily: Ontem é o dia útil anterior.
+  const ontem = diaUtilAnterior(today);
   const presets = [
-    { nome: "Hoje", from: today },
-    { nome: "7 dias", from: menosDias(6) },
-    { nome: "30 dias", from: menosDias(29) },
-    { nome: "Mês", from: today.slice(0, 7) + "-01" },
+    { nome: "Hoje", from: today, to: today },
+    { nome: "Ontem", from: ontem, to: ontem },
+    { nome: "Semana", from: segundaDaSemana(today), to: today },
+    { nome: "7 dias", from: menosDias(6), to: today },
+    { nome: "30 dias", from: menosDias(29), to: today },
+    { nome: "Mês", from: today.slice(0, 7) + "-01", to: today },
   ];
-  const presetAtivo = filter.to === today ? presets.find((p) => p.from === filter.from) : undefined;
+  const presetAtivo = presets.find((p) => p.from === filter.from && p.to === filter.to);
 
   const barra = ehReunioes(busca) ? null : BARRA[aba];
   // Só as chaves que a barra desta aba mostra: filtro escondido não acende "Limpar".
@@ -454,7 +459,7 @@ export function DashboardMonetizacao({
                 key={p.nome}
                 type="button"
                 aria-pressed={presetAtivo?.nome === p.nome}
-                onClick={() => aplicarPeriodo(p.from, today)}
+                onClick={() => aplicarPeriodo(p.from, p.to)}
                 className={cn(
                   "h-full rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-[120ms] focus-visible:ring-2 focus-visible:ring-ring",
                   presetAtivo?.nome === p.nome
@@ -729,7 +734,6 @@ export function DashboardMonetizacao({
           mudarBusca={mudarBusca}
           periodo={{ de: filter.from, ate: filter.to, hoje: today }}
           quem={responsavel}
-          abrir={abrir}
         />
       )}
 
@@ -799,8 +803,6 @@ function descricaoDaAba(
       if (ehReunioes(v.busca))
         return `Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
       const visao = visaoDa(v.busca);
-      if (visao === "hoje")
-        return `Pipe 39 · pré-venda: ${v.responsavel} · hoje · card = dono atual, aberto; atividade = item da cadência ativa pelo vencimento; fila a 8 abordagens por dia útil`;
       if (visao === "ritmo")
         return `Pipe 39 · pré-venda: ${v.responsavel} · ${v.periodo} · abordagem = card que começou no dia; atividade = item da cadência pelo vencimento; ligação = discada pelo ramal Api4Com`;
       if (visao === "aderencia")

@@ -30,8 +30,11 @@ export const ABAS = [
 ] as const;
 export type Aba = (typeof ABAS)[number];
 
-/** Visões da Pré-venda. Hoje é o padrão desde 14/10/2026 (a daily roda nela) e não vai para a URL. */
-export const VISOES_PRE_VENDA = ["hoje", "ritmo", "aderencia", "ficha"] as const;
+/**
+ * Visões da Pré-venda. A visão Hoje saiu em 22/10/2026, a pedido do Pedro (a fila do dia fica no Forecast); o Ritmo é o
+ * padrão e não vai para a URL.
+ */
+export const VISOES_PRE_VENDA = ["ritmo", "aderencia", "ficha"] as const;
 export type VisaoPreVenda = (typeof VISOES_PRE_VENDA)[number];
 /**
  * Visões da Consultoria. O Funil é o padrão desde 16/10/2026 e não vai para a URL; o Cruzamento com a call saiu no
@@ -134,7 +137,7 @@ export type BuscaMonetizacao = {
   grafico?: string;
   /** Tela Consultoria: a visão aberta. Ausente = Funil; "fila" = Fila de cobrança; "handoff" = Handoff e repasse;
    *  "empresa" = Buscar empresa (o texto da busca vai em `q`). Tela Pré-venda: ausente = Ritmo; "aderencia"; "ficha". */
-  visao?: (typeof VISOES_CONSULTORIA)[number] | Exclude<VisaoPreVenda, "hoje">;
+  visao?: (typeof VISOES_CONSULTORIA)[number] | VisaoPreVenda;
   /** Forecast: o número que filtra a fila do dia (19/10/2026). Ausente = "Fazer hoje". */
   fila?: "semana" | "mes" | "semdata" | "consultoria";
   /** Pré-venda › Ficha: "reunioes" mostra as reuniões (a antiga Gravações); ausente = ligações. */

@@ -35,6 +35,7 @@ import {
   type BuscaMonetizacao,
 } from "../busca";
 import { Field, inputClass } from "../common";
+import { diaUtilAnterior, segundaDaSemana } from "@/lib/monetizacao/feriados";
 import { SeletorVisaoPreVenda, visaoDa } from "../pre-venda";
 import { Segmentado } from "../pre-venda-comum";
 import { SeletorBase } from "../seletor-base";
@@ -196,13 +197,17 @@ export function TelaDiagnostico({
 
   const menosDias = (k: number) =>
     new Date(Date.parse(hoje) - k * 86400000).toISOString().slice(0, 10);
+  // Ontem e Semana entraram em 22/10/2026, a pedido do Pedro, para a daily: Ontem é o dia útil anterior.
+  const ontem = diaUtilAnterior(hoje);
   const presets = [
-    { nome: "7 dias", from: menosDias(6) },
-    { nome: "30 dias", from: menosDias(29) },
-    { nome: "Mês", from: hoje.slice(0, 7) + "-01" },
-    { nome: "Desde 01/10", from: "2026-10-01" },
+    { nome: "Ontem", from: ontem, to: ontem },
+    { nome: "Semana", from: segundaDaSemana(hoje), to: hoje },
+    { nome: "7 dias", from: menosDias(6), to: hoje },
+    { nome: "30 dias", from: menosDias(29), to: hoje },
+    { nome: "Mês", from: hoje.slice(0, 7) + "-01", to: hoje },
+    { nome: "Desde 01/10", from: "2026-10-01", to: hoje },
   ];
-  const presetAtivo = to === hoje ? presets.find((p) => p.from === from) : undefined;
+  const presetAtivo = presets.find((p) => p.from === from && p.to === to);
   const aplicar = (de: string, ate: string) => mudarBusca(periodoParaBusca(de, ate));
   const temFiltro =
     !!busca.de || !!busca.ate || unidadeIds.length > 0 || !!regime || !!busca.pessoa;
@@ -235,7 +240,7 @@ export function TelaDiagnostico({
                 key={p.nome}
                 type="button"
                 aria-pressed={presetAtivo?.nome === p.nome}
-                onClick={() => aplicar(p.from, hoje)}
+                onClick={() => aplicar(p.from, p.to)}
                 className={cn(
                   "h-full rounded-md px-3 text-[13px] font-medium outline-none transition-colors duration-[120ms] focus-visible:ring-2 focus-visible:ring-ring",
                   presetAtivo?.nome === p.nome

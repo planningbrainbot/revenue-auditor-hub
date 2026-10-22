@@ -45,3 +45,19 @@ export function ehDiaUtil(dia: string): boolean {
   const semana = new Date(dia + "T12:00:00Z").getUTCDay();
   return semana !== 0 && semana !== 6 && !FERIADOS_NACIONAIS.has(dia);
 }
+
+const somarDias = (dia: string, n: number) =>
+  new Date(Date.parse(dia + "T12:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
+
+/** O dia útil antes de `dia`: o "Ontem" dos filtros de período (na segunda, a sexta; 22/10/2026). */
+export function diaUtilAnterior(dia: string): string {
+  let d = somarDias(dia, -1);
+  while (!ehDiaUtil(d)) d = somarDias(d, -1);
+  return d;
+}
+
+/** A segunda-feira da semana de `dia`: o começo do "Semana" dos filtros de período (22/10/2026). */
+export function segundaDaSemana(dia: string): string {
+  const semana = new Date(dia + "T12:00:00Z").getUTCDay();
+  return somarDias(dia, -((semana + 6) % 7));
+}
