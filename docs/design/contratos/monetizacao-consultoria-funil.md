@@ -96,7 +96,7 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
 | `origem` | inside_sales, socios, goiania, outra (vírgula) | Funil: as três primeiras; Fila: todas | o recorte |
 | `unidade` | nome da unidade | — (todas) | Funil |
 | `passo` | `1`–`8` ou `<n>-<motivo>` (inclui `3-atrasado`, `5-parado`, `6-garantido`) | — | a gaveta aberta à direita do Funil |
-| `grupo` | aceitou, atraso, 90, 30_90, recente | — | Fila |
+| `grupo` | compensou, aceitou, atraso, 90, 30_90, recente | — | Fila |
 | `empresa` | CNPJ, `deal:<id>`, `cliente:<id>` ou `card:<id>` | — | a ficha aberta por cima da gaveta (Funil, Handoff) ou sozinha (Fila) |
 
 ## Gaveta navegável (pedido do dono em 20/10/2026)
@@ -129,9 +129,29 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
   vira o motivo "Ainda em análise" no degrau 5, fica à parte na nota do cartão e sai da Fila (não há o que cobrar). Em
   20/10: de R$ 100,4 mi em 42 empresas para R$ 29,1 mi em 23, com R$ 64,9 mi em 13 ainda em análise.
 
+## Weekly de 21/10 com a Karol (decisões do dono em 22/10/2026, opções A, C e chave própria)
+- **O aceito lido pelo estoque (A).** Quem parou no degrau 6 tem um de quatro motivos, pelo estoque de crédito da
+  plataforma:
+  - compensou, sem cobrança na plataforma: já usou crédito e não há fatura do êxito;
+  - aceitou, crédito fora do estoque: disse sim e o crédito não entrou no estoque;
+  - aguardando compensar: estoque ativo, nada usado;
+  - crédito encerrado sem uso: o estoque fechou sem compensação.
+  - Antes era um motivo só, "Aceitou e não faturamos". Em 22/10 os 35 se dividiam em 9, 6, 1 e 19.
+  - "Onde agir agora" troca "Disseram sim e nada andou" por dois cartões: "Compensaram e a plataforma não tem
+    cobrança", com o honorário estimado (crédito compensado × alíquota de êxito, R$ 831 mil em 22/10), e "Disseram sim e
+    o crédito não entrou no estoque".
+  - A Fila ganha o grupo "Compensou, sem cobrança" no topo. Aguardando e encerrado saem dela, porque não há o que cobrar.
+- **Notas na gaveta (C).** A lista da gaveta mostra, embaixo de "Onde está", a nota mais recente da Consultoria: o
+  follow-up, a nota por área, a observação do projeto ou o motivo da baixa. As três mais recentes ficam na dica.
+- **Chave própria `view.consultoria`.** A tela abre com `view.monetizacao` ou `view.consultoria`. As demais telas da
+  Monetização pedem `view.monetizacao`, na lateral e no servidor. Quem só tem a chave da Consultoria abre a Consultoria
+  em qualquer link da Monetização. A primeira pessoa assim é a Karol.
+- **Lucro Real que não chegou.** O texto deixa de afirmar "furo do handoff". A Karol lembrou de casos que chegaram e
+  foram baixados sem ficar na plataforma, e nenhum dos 31 tinha rastro nela em 22/10.
+
 ## Permissões (N8)
-- **Leitura:** a mesma das outras abas, `view.monetizacao` **e** todas as unidades
-  (`ops.consultoria_porta_leitura()`).
+- **Leitura:** `view.monetizacao` **ou** `view.consultoria` (desde 22/10/2026), **e** todas as unidades
+  (`ops.consultoria_porta_leitura()`, e os painéis do Handoff e da busca).
 - **Faturado e recebido:** exigem a porta do Financeiro. Em 16/10 o Paulo ganhou todas as empresas no Financeiro (decisão
   do dono), pela tela Acessos do Financeiro.
 - **Registro de contato:** quem passa na porta de leitura; fica `registrado_por` e `autor_nome`.

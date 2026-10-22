@@ -42,6 +42,13 @@ export interface EmpresaFunil {
   aprovado: number | string;
   garantido: number | string;
   tem_estoque: boolean;
+  /**
+   * O aceito lido pelo estoque (migration 20261022160000; weekly de 21/10 com a Karol): algum crédito ainda ativo, o
+   * crédito já compensado e o honorário que isso daria pela alíquota de êxito de cada crédito.
+   */
+  estoque_ativo?: boolean;
+  estoque_utilizado?: number | string;
+  exito_estimado?: number | string;
   propostas_aceitas: number;
   /** Os seis valores do Omie da Consultoria: `null` sem a porta do Financeiro. */
   faturado: number | string | null;
@@ -62,6 +69,30 @@ export interface EmpresaFunil {
   } | null;
   /** Os outros CNPJs do mesmo cliente da plataforma, juntados nesta linha por `porCliente`. */
   filiais?: string[];
+  /** As três notas mais recentes da Consultoria sobre o cliente (follow-up, área, projeto, baixa), desde 22/10/2026. */
+  notas?: NotaConsultoria[];
+}
+
+export interface NotaConsultoria {
+  fonte: "fup" | "area" | "projeto" | "baixa";
+  /** A área da nota ("previdenciario_juridico"…) ou o produto do projeto. */
+  rotulo: string | null;
+  texto: string;
+  em: string | null;
+  autor: string | null;
+}
+
+const AREA_NOTA: Record<string, string> = {
+  impostos_diretos: "Impostos diretos",
+  impostos_indiretos: "Impostos indiretos",
+  previdenciario_juridico: "Previdenciário e jurídico",
+};
+/** De onde a nota veio, para a pessoa saber quem escreveu: "Follow-up", "Previdenciário e jurídico"… */
+export function rotuloNota(n: NotaConsultoria): string {
+  if (n.fonte === "fup") return n.autor ? `Follow-up de ${n.autor}` : "Follow-up";
+  if (n.fonte === "area") return AREA_NOTA[n.rotulo ?? ""] ?? "Nota da área";
+  if (n.fonte === "baixa") return "Motivo da baixa";
+  return "Observação do projeto";
 }
 
 export interface FunilBruto {
@@ -191,7 +222,8 @@ export const MOTIVOS: Record<number, Motivo[]> = {
   2: [M("sem_cnpj", "Sem CNPJ", "Nem o contrato, nem o Pipedrive, nem a Base têm o CNPJ. Não dá para acompanhar.", "atencao")],
   3: [
     M("recente", "Venda recente", "Vendida há menos de 30 dias; ainda dá tempo de chegar.", "neutro"),
-    M("real", "Lucro Real", "É o perfil da Consultoria e não chegou: furo do handoff.", "perigo"),
+    // Karol, 21/10/2026 (14:11): alguns chegaram e foram baixados sem ficar na plataforma (Big Store, Frut Polpas).
+    M("real", "Lucro Real", "É o perfil da Consultoria e não aparece na plataforma: furo do handoff ou baixado fora dela.", "perigo"),
     M("presumido", "Lucro Presumido", "Só entra acima de R$ 50 mi de faturamento.", "atencao"),
     M("simples", "Simples Nacional", "Fora do perfil da Consultoria.", "neutro"),
     M("pequena", "Empresa pequena", "Porte ME ou EPP pela Receita: fora do perfil.", "neutro"),
@@ -211,7 +243,19 @@ export const MOTIVOS: Record<number, Motivo[]> = {
     M("mais_90", "Entregue há mais de 90 dias", "Dinheiro parado: ninguém fechou.", "perigo"),
     M("sem_data", "Sem data de entrega", "A plataforma não tem a data da entrega.", "atencao"),
   ],
-  7: [M("aceitou", "Aceitou e não faturamos", "O cliente disse sim e o honorário não saiu.", "perigo")],
+  // O aceito pelo estoque (22/10/2026, weekly de 21/10): o honorário sai conforme o cliente compensa ou a Receita
+  // restitui. Antes era um motivo só, "Aceitou e não faturamos", e 19 dos 35 eram crédito encerrado sem uso.
+  7: [
+    M(
+      "compensou",
+      "Compensou, sem cobrança na plataforma",
+      "O cliente já usou o crédito e a plataforma não tem fatura do êxito. Confirme se a cobrança saiu por fora antes de cobrar.",
+      "perigo",
+    ),
+    M("sem_estoque", "Aceitou, crédito fora do estoque", "Disse sim e o crédito ainda não foi aprovado nem entrou no estoque.", "atencao"),
+    M("aguardando", "Aguardando compensar", "Crédito aprovado no estoque; o honorário sai conforme o cliente compensa ou a Receita restitui.", "info"),
+    M("encerrado", "Crédito encerrado sem uso", "O estoque fechou sem nenhuma compensação: não há honorário a cobrar.", "neutro"),
+  ],
   8: [
     M("em_atraso", "Faturado e em atraso", "Cobrar o pagamento.", "perigo"),
     M("a_vencer", "Faturado, a vencer", "Ainda no prazo.", "neutro"),
@@ -245,7 +289,12 @@ export function motivoDe(e: EmpresaFunil, hoje: string): string {
     if (d === null) return "sem_data";
     return d > 90 ? "mais_90" : d >= 30 ? "30_90" : "ate_30";
   }
-  if (n === 6) return "aceitou";
+  if (n === 6) {
+    if (num(e.estoque_utilizado) > 0) return "compensou";
+    if (e.estoque_ativo) return "aguardando";
+    if (e.tem_estoque) return "encerrado";
+    return "sem_estoque";
+  }
   if (n === 7) return num(e.em_atraso) > 0 ? "em_atraso" : "a_vencer";
   return "recebido";
 }
@@ -320,8 +369,8 @@ export function empresasDoPasso(empresas: EmpresaFunil[], passo: string, hoje: s
 /** O grupo da Fila de cobrança que corresponde a um clique no funil, quando há um: a gaveta oferece "cobrar na fila". */
 export function grupoDoPasso(passo: string): GrupoFila | null {
   const mapa: Record<string, GrupoFila> = {
-    "6-aceitou": "aceitou",
-    "6-parado": "aceitou",
+    "6-compensou": "compensou",
+    "6-sem_estoque": "aceitou",
     "7-em_atraso": "atraso",
     "5-mais_90": "90",
     "5-30_90": "30_90",
@@ -387,20 +436,30 @@ export interface Acao {
 
 export function ondeAgir(empresas: EmpresaFunil[], hoje: string): Acao[] {
   const com = (n: number, m: string) => empresas.filter((e) => nivelDe(e) === n && motivoDe(e, hoje) === m);
-  const aceitou = empresas.filter((e) => nivelDe(e) === 6);
+  const compensou = com(6, "compensou");
+  const semEstoque = com(6, "sem_estoque");
   const parado90 = com(5, "mais_90");
   const atrasados = empresas.filter((e) => nivelDe(e) === 3 && (e.dias_alem ?? 0) > 0);
   const real = com(2, "real");
   const semCnpj = empresas.filter((e) => nivelDe(e) === 1);
   const acoes: Acao[] = [
     {
-      id: "aceitou",
-      titulo: "Disseram sim e nada andou",
-      empresas: aceitou.length,
-      valor: aceitou.reduce((s, e) => s + num(e.aceito), 0),
-      leitura: "Aceitaram teses e o honorário não foi faturado. É o dinheiro mais perto do caixa.",
+      id: "compensou",
+      titulo: "Compensaram e a plataforma não tem cobrança",
+      empresas: compensou.length,
+      valor: compensou.reduce((s, e) => s + num(e.exito_estimado), 0),
+      leitura: "Já usaram o crédito; o valor é o honorário estimado pela alíquota de êxito. Confirme se a cobrança saiu por fora.",
       tom: "perigo",
-      passo: "6-aceitou",
+      passo: "6-compensou",
+    },
+    {
+      id: "sem_estoque",
+      titulo: "Disseram sim e o crédito não entrou no estoque",
+      empresas: semEstoque.length,
+      valor: semEstoque.reduce((s, e) => s + num(e.aceito), 0),
+      leitura: "Aceitaram teses e o crédito ainda não foi aprovado: sem estoque, não há o que compensar.",
+      tom: "atencao",
+      passo: "6-sem_estoque",
     },
     {
       id: "parado90",
@@ -425,7 +484,7 @@ export function ondeAgir(empresas: EmpresaFunil[], hoje: string): Acao[] {
       titulo: "Lucro Real que não chegou à Consultoria",
       empresas: real.length,
       valor: null,
-      leitura: "Têm o perfil e não foram cadastradas: furo do handoff.",
+      leitura: "Têm o perfil e não aparecem na plataforma. Alguns chegaram e foram baixados fora dela: confirme com a Consultoria.",
       tom: "atencao",
       passo: "2-real",
     },
@@ -444,10 +503,11 @@ export function ondeAgir(empresas: EmpresaFunil[], hoje: string): Acao[] {
 
 // ─── Fila de cobrança ────────────────────────────────────────────────────────────────────────────
 
-export const GRUPOS_FILA = ["aceitou", "atraso", "90", "30_90", "recente"] as const;
+export const GRUPOS_FILA = ["compensou", "aceitou", "atraso", "90", "30_90", "recente"] as const;
 export type GrupoFila = (typeof GRUPOS_FILA)[number];
 export const ROTULO_GRUPO: Record<GrupoFila, { titulo: string; tom: TomMotivo }> = {
-  aceitou: { titulo: "Disse sim, não faturamos", tom: "perigo" },
+  compensou: { titulo: "Compensou, sem cobrança", tom: "perigo" },
+  aceitou: { titulo: "Disse sim, crédito fora do estoque", tom: "perigo" },
   atraso: { titulo: "Faturado em atraso", tom: "perigo" },
   "90": { titulo: "Dinheiro parado há mais de 90 dias", tom: "perigo" },
   "30_90": { titulo: "Dinheiro parado há 30 a 90 dias", tom: "atencao" },
@@ -467,7 +527,7 @@ export const ROTULO_RESULTADO: Record<Resultado, { rotulo: string; tom: TomMotiv
 export interface ItemFila {
   e: EmpresaFunil;
   grupo: GrupoFila;
-  /** O dinheiro em jogo: aceito (disse sim), em atraso (faturado) ou identificado (parado). */
+  /** O dinheiro em jogo: êxito estimado (compensou), aceito (disse sim), em atraso (faturado) ou identificado (parado). */
   valor: number;
   diasDesdeEntrega: number | null;
   /** O último contato: o registro no Brain ou o follow-up escrito na plataforma, o mais recente. */
@@ -475,7 +535,10 @@ export interface ItemFila {
   diasSemContato: number | null;
 }
 
-/** Quem a Jordana cobra, na ordem: disse sim; faturado em atraso; dinheiro parado, do mais antigo; maior valor primeiro. */
+/**
+ * Quem a Jordana cobra, na ordem: compensou sem cobrança; disse sim sem estoque; faturado em atraso; dinheiro parado, do
+ * mais antigo; maior valor primeiro. Aguardando compensar e crédito encerrado sem uso não entram: não há o que cobrar.
+ */
 export function montarFila(empresas: EmpresaFunil[], hoje: string): ItemFila[] {
   const ordem = new Map(GRUPOS_FILA.map((g, i) => [g, i]));
   const itens: ItemFila[] = [];
@@ -486,8 +549,14 @@ export function montarFila(empresas: EmpresaFunil[], hoje: string): ItemFila[] {
     let grupo: GrupoFila | null = null;
     let valor = 0;
     if (n === 6) {
-      grupo = "aceitou";
-      valor = num(e.aceito) || num(e.garantido);
+      const m = motivoDe(e, hoje);
+      if (m === "compensou") {
+        grupo = "compensou";
+        valor = num(e.exito_estimado);
+      } else if (m === "sem_estoque") {
+        grupo = "aceitou";
+        valor = num(e.aceito) || num(e.garantido);
+      } else continue;
     } else if (atraso > 0) {
       grupo = "atraso";
       valor = atraso;

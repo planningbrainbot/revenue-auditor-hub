@@ -24,6 +24,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Monetização",
   },
   {
+    key: "view.consultoria",
+    label: "Monetização: tela Consultoria",
+    description:
+      "Funil, Fila de cobrança, Buscar empresa e Handoff da Consultoria. Sem view.monetizacao, a pessoa com a área vê só esta tela (a Karol, closer da Consultoria, desde 22/10/2026).",
+    group: "Monetização",
+  },
+  {
     key: "manage.aquario",
     label: "Gerir listas e planos",
     description: "Preparar listas, registrar validações, metas e desenvolvimento.",

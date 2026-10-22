@@ -151,7 +151,7 @@ export function HandoffConsultoria({
         {!erro ? (
           <Carregando variante="kpis" />
         ) : /^Seu acesso não inclui/.test(erro.message) ? (
-          <EstadoSemAcesso oQueFalta="view.monetizacao" />
+          <EstadoSemAcesso oQueFalta="view.monetizacao ou view.consultoria" />
         ) : (
           <EstadoErro
             detalhe={`Fonte: onboarding, plataforma da Consultoria e PAT. ${erro.message}`}
