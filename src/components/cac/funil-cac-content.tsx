@@ -46,6 +46,8 @@ import {
 } from "@/lib/planning/grafico";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { cn } from "@/lib/utils";
+import { FechamentoCacMes } from "@/components/cac/fechamento-cac-mes";
+import type { VendaCac } from "@/lib/cac-fechamento";
 
 type Linha = {
   unidade_id: number;
@@ -199,6 +201,8 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
   // Na tela da unidade a view já devolve uma unidade só; o filtro não existe.
   const unidade = daRede ? unidadeNaUrl : "todas";
   const [etapaFiltro, setEtapaFiltro] = useFiltroNaUrl("etapa", "todas");
+  // Aba: "fechamento" (o mês, no formato do demonstrativo) ou "funil" (acumulado desde fev/26).
+  const [visao, setVisao] = useFiltroNaUrl("visao", "fechamento");
   const [soChurn, setSoChurn] = useFiltroNaUrl("churn", false);
   const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa", "churn"]);
   // Período da análise mês a mês. Vazio = do começo da régua até o mês atual.
@@ -421,8 +425,63 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
   const base = funil[0]?.n || 1;
   const temFiltro = unidade !== "todas" || etapaFiltro !== "todas" || soChurn;
 
+  const abas = (
+    <div className="flex gap-1 border-b" role="tablist" aria-label="Visão do funil de CAC">
+      {(
+        [
+          ["fechamento", "Fechamento do mês"],
+          ["funil", "Funil desde fev/26"],
+        ] as const
+      ).map(([v, r]) => (
+        <button
+          key={v}
+          type="button"
+          role="tab"
+          aria-selected={visao === v}
+          onClick={() => setVisao(v)}
+          className={cn(
+            "-mb-px border-b-2 px-3 py-2 text-sm",
+            visao === v ? "border-primary font-medium" : "border-transparent text-muted-foreground",
+          )}
+        >
+          {r}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (visao === "fechamento") {
+    // Na rede o fechamento é de uma unidade; na tela do sócio a view já devolve só a dele.
+    const nomeUn = daRede ? (unidade === "todas" ? null : unidade) : (linhas[0]?.unidade ?? null);
+    const idUn = nomeUn ? (linhas.find((r) => r.unidade === nomeUn)?.unidade_id ?? null) : null;
+    return (
+      <div className="space-y-6 px-4 py-6 md:px-6">
+        {abas}
+        {daRede && (
+          <BarraFiltros>
+            <Select value={unidade} onValueChange={setUnidade}>
+              <SelectTrigger className="w-[220px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Escolha a unidade</SelectItem>
+                {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </BarraFiltros>
+        )}
+        <FechamentoCacMes
+          key={idUn ?? "nenhuma"}
+          escopo={escopo}
+          unidadeId={idUn}
+          unidadeNome={nomeUn}
+          vendas={linhas.filter((r) => r.unidade_id === idUn) as unknown as VendaCac[]}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 px-4 py-6 md:px-6">
+      {abas}
       <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
         {daRede && (
           <Select value={unidade} onValueChange={setUnidade}>

@@ -6681,3 +6681,12 @@ Removidos `components/receita/financeiro-semanal.tsx` e `lib/reporte-ceo.functio
 Function `reporte-ceo` continua gravando a tabela; ninguém no Ops lê mais.
 **Status:** implementado e publicado em 22/10/2026.
 **Próximos passos:** atualização automática do retrato pelo workflow `saidas-omie.yml` (repo de scripts).
+
+## [2026-10-22] Funil de CAC ganha a aba "Fechamento do mês", e o número dela é sempre o da apuração
+
+**Contexto:** a reunião mensal de apuração de CAC com o sócio segue o demonstrativo (por mês e por parcela), e o Funil de CAC mostrava saldo acumulado por venda; o de-para não fechava. PRD `wiki/prds/2026-10-minha-unidade-fechamento-de-cac.md` (repo de wiki), validado em tela local pelo dono.
+
+**Decisão:** aba nova, aberta por padrão em `/meu-funil-cac` e `/unidades/funil-cac`, com o CAC do mês por parcela e uma conferência "pelo gatilho" (1ª na assinatura do cliente pela Central de Contratos, 2ª no 1º honorário pago). **O número principal é sempre `royalties_apuracao.cac_valor`** (regra do dono): a nota em `royalties_faturas` fica fora porque não acompanha cancelamento nem pagamento avulso no Omie (Maceió 08/2026: boleto 278 cancelado e o total da apuração pago avulso em 16/10). O sócio só vê mês confirmado. Leitura pela função `ops.cac_fechamento_dados(p_unidade_id)` (`SECURITY DEFINER`, escopo igual à `v_cac_funil`, sem `execute` para `public`/`anon`), migration `20261021210000`.
+
+**Exceção ao guia do sistema novo:** construída no Ops atual por decisão do dono (21/10/2026), não no módulo Minha Unidade do `app.`; migra junto com o Funil de CAC na fase 3 daquele módulo.
+

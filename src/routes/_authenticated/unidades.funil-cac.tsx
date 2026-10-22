@@ -4,7 +4,7 @@ import { GuardaUnidades } from "@/components/unidades/guarda-unidades";
 import { FunilCacContent } from "@/components/cac/funil-cac-content";
 import { MolduraReceita } from "@/components/receita/moldura";
 
-type BuscaFunilCac = { unidade?: string; etapa?: string; churn?: boolean; de?: string; ate?: string; vendas?: string };
+type BuscaFunilCac = { unidade?: string; etapa?: string; churn?: boolean; de?: string; ate?: string; vendas?: string; visao?: string; mes?: string; sit?: string };
 
 const MES = /^\d{4}-\d{2}$/;
 
@@ -21,6 +21,10 @@ export const Route = createFileRoute("/_authenticated/unidades/funil-cac")({
     if (typeof search.ate === "string" && MES.test(search.ate)) out.ate = search.ate;
     // Seção mês a mês: "totais" (todas as vendas, MRR) ou "cac" (só as que geram CAC).
     if (search.vendas === "cac" || search.vendas === "totais") out.vendas = search.vendas;
+    // Aba e mês do fechamento (PRD fechamento de CAC) e filtro de situação.
+    if (search.visao === "fechamento" || search.visao === "funil") out.visao = search.visao;
+    if (typeof search.mes === "string" && MES.test(search.mes)) out.mes = search.mes;
+    if (typeof search.sit === "string" && search.sit) out.sit = search.sit;
     return out;
   },
   head: () => ({

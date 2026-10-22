@@ -10,7 +10,7 @@ import { MolduraReceita } from "@/components/receita/moldura";
 // `v_cac_funil`, que para a chave `view.meu_funil_cac` só devolve a unidade do
 // usuário e só se ela paga CAC (migration 20261005120000). Unidade sem CAC não
 // vê o item no menu nem linha nenhuma na tela.
-type BuscaMeuFunilCac = { etapa?: string; churn?: boolean; de?: string; ate?: string; vendas?: string };
+type BuscaMeuFunilCac = { etapa?: string; churn?: boolean; de?: string; ate?: string; vendas?: string; visao?: string; mes?: string; sit?: string };
 
 const MES = /^\d{4}-\d{2}$/;
 
@@ -23,6 +23,10 @@ export const Route = createFileRoute("/_authenticated/meu-funil-cac")({
     if (typeof search.ate === "string" && MES.test(search.ate)) out.ate = search.ate;
     // Seção mês a mês: "totais" (todas as vendas, MRR) ou "cac" (só as que geram CAC).
     if (search.vendas === "cac" || search.vendas === "totais") out.vendas = search.vendas;
+    // Aba e mês do fechamento (PRD fechamento de CAC) e filtro de situação.
+    if (search.visao === "fechamento" || search.visao === "funil") out.visao = search.visao;
+    if (typeof search.mes === "string" && MES.test(search.mes)) out.mes = search.mes;
+    if (typeof search.sit === "string" && search.sit) out.sit = search.sit;
     return out;
   },
   head: () => ({
