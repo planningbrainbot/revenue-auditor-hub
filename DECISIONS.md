@@ -6647,8 +6647,7 @@ de antes (CAC: admin lê e marca, diretor lê). Destinatário cheio = só a pess
 outros (mesma regra do quadro). Eventos, sempre para quem não fez a ação: tarefa atribuída (criada com você ou passada
 para você), comentário em tarefa sua (responsável ou autor) e "vence hoje" às 08:00 de São Paulo (pg_cron
 `tarefas-prazo-hoje`). O sino aparece para admin e para quem tem a área Tarefas; o clique abre a ficha da tarefa.
-**Status:** implementado na branch `feat/tarefas-notificacoes-20261022`, migration 20261022190000 não aplicada.
-**Próximos passos:** aplicar no banco único e publicar.
+**Status:** implementado e publicado em 22/10/2026 (commit e270a03; migration 20261022190000 aplicada no banco único pelo SQL Editor; deploy CLI ops-brain).
 
 ## [2026-10-22] Tarefas: prazo de entrega e responsável obrigatórios; "Nova tarefa" no topo da coluna
 
@@ -6659,7 +6658,7 @@ nenhuma edição apaga prazo ou tira responsável. Única exceção: responsáve
 responsável (contrato v1), à espera de alguém assumir. Não é NOT NULL por causa dessa exceção. As 5 tarefas que
 existiam já tinham os dois. Na tela, criar na coluna pede título, prazo e responsável (padrão: você), e o formulário
 fica no topo da coluna, com a tarefa nova entrando em primeiro.
-**Status:** implementado na mesma branch, migration 20261022193000 não aplicada.
+**Status:** implementado e publicado em 22/10/2026 (commit 383fed0, migration 20261022193000 aplicada).
 
 ## [2026-10-22] Tarefas: anexos na ficha
 
@@ -6667,4 +6666,4 @@ fica no topo da coluna, com a tarefa nova entrando em primeiro.
 **Decisão:** bucket privado `tarefas-anexos`, caminho `<quadro>/<tarefa>/<id>-<nome>`; a policy do Storage confere a
 primeira pasta (membro do quadro sobe, baixa e vê). Lista em `ops.tarefas_anexos`. Apaga quem anexou ou o dono do
 quadro. 25 MB por arquivo, qualquer tipo. Baixar é por link assinado de 1 minuto. Anexar e remover entram no histórico.
-**Status:** implementado na mesma branch, migration 20261022200000 não aplicada.
+**Status:** implementado e publicado em 22/10/2026 (commit 383fed0, migration 20261022200000 aplicada).
