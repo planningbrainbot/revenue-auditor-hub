@@ -176,11 +176,17 @@ export function ClientesBase() {
   const search = useSearch({ from: "/_authenticated/clientes" }),
     navigate = useNavigate({ from: "/clientes" });
   const legado = LEGADO[search.view];
-  const view = legado
+  const pedida = legado
     ? legado.view
     : views.some(([v]) => v === search.view) || search.view === "unidades"
       ? search.view
       : "clientes";
+  // Confiança, Painel e Contratos e churn pedem a chave view.clientes_painel (Pedro, 22/10/2026: o time de vendas vê
+  // "somente a tela de clientes"). Sem ela, qualquer link da Base abre a tela Clientes.
+  const verTudo = !perms.loading && perms.can("view.clientes_painel");
+  const view = verTudo ? pedida : "clientes";
+  // Enquanto as permissões chegam, a tela pedida não desenha: Clientes no lugar dela piscaria para quem pode ver.
+  const aguardandoPermissao = perms.loading && pedida !== "clientes";
   const sub = legado?.sub ?? search.sub ?? "";
   // Produtos e Listas têm página própria na Base (15/10): o link antigo abre lá, com os mesmos filtros.
   const paraMonetizacao =
@@ -451,7 +457,7 @@ export function ClientesBase() {
   const pendentes = filtered.filter(precisaValidar).length;
   // As três telas estão na lateral da área Base de clientes. Quem chega por outra área (o sócio, por Minha Unidade)
   // não tem essa lateral: para ele as três aparecem aqui em cima.
-  const navNaPagina = !perms.loading && !perms.temArea("clientes");
+  const navNaPagina = !perms.loading && !perms.temArea("clientes") && verTudo;
   const nav = navNaPagina ? (
     <nav aria-label="Telas da Base" className="flex gap-1 overflow-x-auto border-b">
       {views.map(([key, label]) => (
@@ -477,6 +483,13 @@ export function ClientesBase() {
   ) : null;
   // A visão Contratos e churn lê as próprias fontes (empresas, Central de Tratativas): não espera
   // a carga da Monetização, e uma falha dela não tranca esta visão.
+  if (aguardandoPermissao)
+    return (
+      <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
+        <Carregando variante="kpis" />
+        <Carregando variante="tabela" />
+      </main>
+    );
   if (view === "unidades") {
     // Contratos filtra UMA unidade, por nome. A chave da URL só vira nome quando a carga chega;
     // antes disso (ou se ela falhar) ContratosClientes usa o valor cru da URL quando ele já é o

@@ -139,3 +139,10 @@ Pedido do Pedro (21/10): "filtros muito bonitos na primeira tela: especialmente 
 - **N2:** o número da barra é o tamanho da lista que ela abre ("Outros" conta cada empresa uma vez).
 - **Não entra:** o recorte na Confiança e em Contratos e churn; UF da unidade no banco (fica numa tabela fixa no código até a unidade ter UF no cadastro).
 - **Recorte recolhível (21/10, segundo pedido):** "coloca só em toggle essa aba aqui pra não ficar poluído". O recorte abre fechado: uma linha com "Região, porte e segmento" (com quantas opções estão marcadas), o total do recorte e os filtros aplicados em etiquetas removíveis. Abrir ou fechar fica guardado no navegador de quem usa.
+
+## Adendo 22/10/2026 · O time de vendas vê só a tela Clientes
+
+Pedido do Pedro (22/10): "todos do time de vendas tenham acesso à base de clientes, mas somente à tela de clientes. Não ao resto." Vale como "contrato ok".
+- Confiança, Painel e Contratos e churn pedem a chave `view.clientes_painel` (lateral e página). Sem ela, a lateral da Base mostra só Clientes, as três telas não aparecem no topo para quem chega por outra área, e `?view=confianca|painel|unidades` (e os links antigos) abrem a tela Clientes. Enquanto as permissões carregam, a tela pedida espera em vez de piscar a Clientes.
+- A tela Clientes não muda para o vendedor: busca, recorte, lista, Inativos e a ficha com contatos.
+- Quem recebe o quê está em `DECISIONS.md` (22/10).
