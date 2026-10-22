@@ -17,8 +17,9 @@
 // 7. MONET_DIAG_CADASTRO_CONSULTORIA=sim (22/10/2026): no dia em que o cliente entra no pipe 40, quem tem perfil de
 //    Consultoria e ainda não tem projeto com o CNPJ é cadastrado na plataforma da Consultoria, pela mesma função do
 //    formulário do parceiro (fn_projeto_registrar_parceiro), como Carteira BPO, canal Máquina de Vendas Comercial BPO,
-//    Diagnóstico Curva B e C. Usa o login técnico (CONSULTORIA_PLAT_*), que precisa estar ligado a um parceiro na
-//    plataforma. Desligada: confere se já há projeto e deixa o cadastro "pendente", que sai quando ligar.
+//    Diagnóstico Curva B e C. Entra com o usuário do Pedro (CONSULTORIA_CADASTRO_EMAIL e _SENHA, decisão dele em
+//    22/10/2026; a senha ele grava no Supabase); sem o par, usa o login técnico (CONSULTORIA_PLAT_*), que é só de leitura
+//    e alimenta o espelho da plataforma. Desligada: confere se já há projeto e deixa o cadastro "pendente".
 // 6. MONET_DIAG_UNIDADES_PAUSADAS (lista separada por vírgula, ex.: "Belém"): o card dessas unidades nasce com a nota
 //    fixada "Pausado em", sem tarefa, até o sócio liberar a lista.
 // Usa PIPEDRIVE_TOKEN e MONETIZACAO_SYNC_SECRET, os mesmos das outras funções da Monetização.
@@ -45,8 +46,13 @@ const UNIDADES_PAUSADAS = (Deno.env.get("MONET_DIAG_UNIDADES_PAUSADAS") || "")
 const CADASTRO_CONSULTORIA = Deno.env.get("MONET_DIAG_CADASTRO_CONSULTORIA") === "sim";
 const PLAT_URL = Deno.env.get("CONSULTORIA_PLAT_URL");
 const PLAT_ANON = Deno.env.get("CONSULTORIA_PLAT_ANON");
-const PLAT_EMAIL = Deno.env.get("CONSULTORIA_PLAT_EMAIL");
-const PLAT_SENHA = Deno.env.get("CONSULTORIA_PLAT_SENHA");
+// O cadastro entra com o usuário do Pedro quando o par está completo; senão, com o login técnico de leitura.
+const CADASTRO_EMAIL = Deno.env.get("CONSULTORIA_CADASTRO_EMAIL");
+const CADASTRO_SENHA = Deno.env.get("CONSULTORIA_CADASTRO_SENHA");
+const PLAT_EMAIL =
+  CADASTRO_EMAIL && CADASTRO_SENHA ? CADASTRO_EMAIL : Deno.env.get("CONSULTORIA_PLAT_EMAIL");
+const PLAT_SENHA =
+  CADASTRO_EMAIL && CADASTRO_SENHA ? CADASTRO_SENHA : Deno.env.get("CONSULTORIA_PLAT_SENHA");
 /** Parceiro "Carteira BPO" e canal "Máquina de Vendas Comercial BPO" do catálogo da plataforma (22/10/2026). */
 const PLAT_PARCEIRO =
   Deno.env.get("MONET_DIAG_CONSULTORIA_PARCEIRO_ID") || "39bc9f08-9a9d-4ecd-b574-c552824af930";
