@@ -465,8 +465,8 @@ export const AREAS: Area[] = [
       {
         label: "Caixa",
         items: [
-          // O reporte semanal do CEO (06/10/2026), lido de `ops.reporte_ceo`.
-          { title: "Caixa da semana", url: "/financeiro-semanal", icon: Wallet },
+          // Previsibilidade de caixa: saídas pelo vencimento, lidas de `ops.saidas_omie` (22/10/2026; antes era o reporte do CEO).
+          { title: "Previsibilidade de caixa", url: "/financeiro-semanal", icon: Wallet },
           { title: "Fôlego", url: "/bi-financeiro?aba=folego", icon: Gauge },
           { title: "Competência × Caixa", url: "/bi-financeiro?aba=ponte", icon: Scale },
           { title: "Entradas e saídas", url: "/bi-financeiro?aba=caixa", icon: Landmark },

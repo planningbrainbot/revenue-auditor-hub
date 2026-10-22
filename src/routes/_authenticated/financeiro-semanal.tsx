@@ -2,29 +2,30 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
-import { FinanceiroSemanal } from "@/components/receita/financeiro-semanal";
+import { Saidas } from "@/components/receita/saidas";
 import { Carregando } from "@/components/planning";
 import { AREA_BI_FINANCEIRO } from "@/lib/bi-financeiro-acesso";
 
 export const Route = createFileRoute("/_authenticated/financeiro-semanal")({
   head: () => ({
     meta: [
-      { title: "Financeiro semanal – Planning" },
+      { title: "Previsibilidade de caixa – Planning" },
       {
         name: "description",
         content:
-          "Caixa da Planning Partners na semana e no mês, vencido a receber, resultado mês a mês e despesas por categoria.",
+          "O que a Planning Partners tem a pagar nos próximos 7, 15 ou 30 dias, dia a dia, e se o saldo em conta cobre.",
       },
     ],
   }),
-  component: FinanceiroSemanalPage,
+  component: SaidasPage,
 });
 
 /**
- * O reporte financeiro semanal do CEO, que até 06/10/2026 só existia como artifact no claude.ai
- * lendo um Google Doc. O portão vem antes da consulta, como no resto da área.
+ * Saídas da Planning Partners pelo vencimento. Substituiu o "Caixa da semana" (reporte do CEO) em
+ * 22/10/2026, trazendo para cá o artifact "Saídas Planning Partners". O portão vem antes da
+ * consulta, como no resto da área.
  */
-function FinanceiroSemanalPage() {
+function SaidasPage() {
   useAuth();
   const { temArea, loading } = usePermissions();
 
@@ -36,5 +37,5 @@ function FinanceiroSemanalPage() {
     );
   if (!temArea(AREA_BI_FINANCEIRO)) return <SemAcessoArea area="BI Financeiro" />;
 
-  return <FinanceiroSemanal />;
+  return <Saidas />;
 }

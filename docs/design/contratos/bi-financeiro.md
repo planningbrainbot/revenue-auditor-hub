@@ -24,7 +24,7 @@ Lateral (cada item é um assunto; as abas que o `/dre-caixa` tinha viram itens, 
 | | DRE | `?aba=dre` | existe |
 | | Aquisição × Retenção | `?aba=aquisicao-retencao` | **nova** (DRE Aquisição, DRE Retenção) |
 | | Variação | `?aba=variacao` | existe |
-| Caixa | Caixa da semana | `/financeiro-semanal` | existe (só muda de área e de nome) |
+| Caixa | Previsibilidade de caixa | `/financeiro-semanal` | existe; desde 22/10/2026 é o painel de saídas (a pagar pelo vencimento, lido de `ops.saidas_omie`), no lugar do Caixa da semana |
 | | Fôlego | `?aba=folego` | **nova** (Burn Rate + agenda de CAC) |
 | | Competência × Caixa | `?aba=ponte` | existe, ganhou o "deveria × recebeu × ficou para trás" |
 | | Entradas e saídas | `?aba=caixa` | existe |
@@ -115,7 +115,7 @@ Nada de tabela linha a linha nem abas nesta tela (ARQUETIPOS, Visão geral).
 Nenhuma. A tela só lê.
 
 ## Dados e frescor (pré-requisito para "todo dia")
-- Tudo vem de dois retratos: `ops.dre_caixa` (planilha + Omie + apuração, gerado por `tools/dre_caixa_payload.py`) e `ops.reporte_ceo` (Edge Function `reporte-ceo`).
+- Tudo vem de dois retratos: `ops.dre_caixa` (planilha + Omie + apuração, gerado por `tools/dre_caixa_payload.py`) e `ops.saidas_omie` (`tools/saidas_omie.py`, títulos a pagar do Omie da Partners pelo vencimento; até 22/10/2026 esta tela lia `ops.reporte_ceo`).
 - O retrato do BI passa a carregar, na chave `bi` (`tools/bi_financeiro_payload.py`, chamado por `dre_caixa_payload.py`), **Forecast Oficial**, **Forecast x Realizado**, **DRE Aquisição**, **DRE Retenção**, **Burn Rate**, **Competência × Caixa** e **CAC Agenda**.
 - **Forecast × Realizado é calculado no retrato, não lido da aba.** A aba "Forecast x Realizado" da planilha parou em 02/10: o `forecast_vs_realizado.py` lê os rótulos da DRE anterior a 15/10 e, rodado hoje, zera royalties, CSC, CAC e mídia. O de-para novo está em `bi_financeiro_payload.py` e a soma fecha com o EBIT da DRE em todos os meses.
 - **Retrato velho avisa:** com mais de 26 horas, faixa "Desatualizado" no topo de todas as visões.
@@ -129,7 +129,7 @@ Nenhuma. A tela só lê.
 ## O que NÃO entra, e por quê
 - Edição de premissa ou de forecast pela tela: o forecast é da planilha.
 - Projeções com premissa digitada (crescimento ao mês, chance de termo virar contrato): ficam na planilha até virarem regra aprovada.
-- Ritmo dia a dia como no Growth: a DRE é por mês; o ritmo diário só existe para caixa (Caixa da semana).
+- Ritmo dia a dia como no Growth: a DRE é por mês; o ritmo diário só existe para caixa (Previsibilidade de caixa, dia a dia pelo vencimento).
 - Outras empresas do grupo e unidades: a área é da Partners.
 - Salário por pessoa.
 

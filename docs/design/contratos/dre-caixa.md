@@ -114,7 +114,7 @@ A regra está hoje em `tools/dre_sheets.py`. Para a tela, o mesmo cálculo grava
 ## Para onde manda (tela dona)
 - Apuração de uma unidade: `/unidades/royalties?mes=`.
 - Cobrança das unidades: `/receita-overview`.
-- Caixa da semana: `/financeiro-semanal`.
+- Previsibilidade de caixa (a pagar pelo vencimento): `/financeiro-semanal`.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

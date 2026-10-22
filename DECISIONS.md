@@ -6667,3 +6667,17 @@ fica no topo da coluna, com a tarefa nova entrando em primeiro.
 primeira pasta (membro do quadro sobe, baixa e vê). Lista em `ops.tarefas_anexos`. Apaga quem anexou ou o dono do
 quadro. 25 MB por arquivo, qualquer tipo. Baixar é por link assinado de 1 minuto. Anexar e remover entram no histórico.
 **Status:** implementado e publicado em 22/10/2026 (commit 383fed0, migration 20261022200000 aplicada).
+
+## [2026-10-22] /financeiro-semanal vira a Previsibilidade de caixa
+
+**Contexto:** pedido do dono: o artifact "Saídas Planning Partners" (claude.ai) passa a ser uma página do Brain, no
+lugar do "Caixa da semana" (reporte do CEO, `ops.reporte_ceo`).
+**Decisão:** mesma URL, item do menu e título renomeados para "Previsibilidade de caixa" (nome dado pelo dono) (área BI Financeiro, grupo Caixa). A página lê
+`ops.saidas_omie` (uma linha, gravada por `tools/saidas_omie.py` no repo de scripts) pelo service_role, depois de
+conferir a área `bi_financeiro`. Lógica igual à do artifact: janela 7/15/30 dias, saldo digitado (localStorage,
+vale para o dia da leitura; o saldo do Omie não serve), atrasados e recebimentos opcionais, corte de ±30 dias nos
+títulos em aberto. Status relativo ao dia da leitura do Omie; se o retrato não é de hoje, a página avisa.
+Removidos `components/receita/financeiro-semanal.tsx` e `lib/reporte-ceo.functions.ts` (só a tela usava). A Edge
+Function `reporte-ceo` continua gravando a tabela; ninguém no Ops lê mais.
+**Status:** implementado e publicado em 22/10/2026.
+**Próximos passos:** atualização automática do retrato pelo workflow `saidas-omie.yml` (repo de scripts).
