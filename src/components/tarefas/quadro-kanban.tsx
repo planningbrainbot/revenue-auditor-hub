@@ -3,7 +3,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { MessageSquare, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   criarTarefa,
@@ -126,6 +134,13 @@ export function QuadroKanban({
                   {filtrando && doCol.length !== total ? `${doCol.length} de ${total}` : total}
                 </span>
               </header>
+              {/* No topo, para criar sem rolar a coluna inteira; a tarefa nasce em primeiro. */}
+              <NovaNaColuna
+                dados={dados}
+                colunaId={col.id}
+                eu={eu}
+                primeiraOrdem={primeiraOrdem(dados.tarefas, col.id)}
+              />
               <ol className="flex min-h-16 flex-col gap-2 p-2">
                 {doCol.map((t) => (
                   <li
@@ -167,18 +182,18 @@ export function QuadroKanban({
                   </li>
                 ))}
               </ol>
-              <NovaNaColuna
-                dados={dados}
-                colunaId={col.id}
-                eu={eu}
-                ultimaOrdem={doCol.at(-1)?.ordem ?? null}
-              />
             </section>
           );
         })}
       </div>
     </div>
   );
+}
+
+/** Menor ordem da coluna contando todas as tarefas (não só as que o filtro mostra). */
+function primeiraOrdem(tarefas: Tarefa[], colunaId: string): number | null {
+  const ordens = tarefas.filter((t) => t.colunaId === colunaId).map((t) => t.ordem);
+  return ordens.length ? Math.min(...ordens) : null;
 }
 
 function Cartao({
@@ -230,20 +245,29 @@ function Cartao({
   );
 }
 
+/** Criar na coluna: título, prazo de entrega e responsável, os três obrigatórios (DECISIONS 22/10). */
 function NovaNaColuna({
   dados,
   colunaId,
   eu,
-  ultimaOrdem,
+  primeiraOrdem,
 }: {
   dados: QuadroCompleto;
   colunaId: string;
   eu: string;
-  ultimaOrdem: number | null;
+  primeiraOrdem: number | null;
 }) {
   const client = useQueryClient();
   const [abrindo, setAbrindo] = useState(false);
   const [titulo, setTitulo] = useState("");
+  const [prazo, setPrazo] = useState("");
+  const [responsavelId, setResponsavelId] = useState(eu);
+  const fechar = () => {
+    setAbrindo(false);
+    setTitulo("");
+    setPrazo("");
+    setResponsavelId(eu);
+  };
   const criarFn = useServerFn(criarTarefa);
   const criar = useMutation({
     mutationFn: () =>
@@ -252,22 +276,25 @@ function NovaNaColuna({
           quadroId: dados.quadro.id,
           colunaId,
           titulo,
-          responsavelId: eu,
-          ordem: ordemEntre(ultimaOrdem, null),
+          prazo,
+          responsavelId,
+          ordem: ordemEntre(null, primeiraOrdem),
         },
       }),
     onSuccess: () => {
       setTitulo("");
+      setPrazo("");
       client.invalidateQueries({ queryKey: CHAVE });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const pronto = !!titulo.trim() && !!prazo && !!responsavelId;
   if (!abrindo)
     return (
       <button
         type="button"
         onClick={() => setAbrindo(true)}
-        className="m-2 mt-0 flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="mx-2 mt-1 flex w-[calc(100%-1rem)] items-center gap-1 rounded-md border border-dashed px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
       >
         <Plus className="size-4" aria-hidden />
         Nova tarefa
@@ -275,23 +302,51 @@ function NovaNaColuna({
     );
   return (
     <form
-      className="m-2 mt-0"
+      className="mx-2 mt-1 space-y-2 rounded-lg border bg-card p-2"
       onSubmit={(e) => {
         e.preventDefault();
-        if (titulo.trim()) criar.mutate();
+        if (pronto) criar.mutate();
+        else toast.error("Preencha título, prazo de entrega e responsável.");
       }}
+      onKeyDown={(e) => e.key === "Escape" && fechar()}
     >
       <Input
         autoFocus
         value={titulo}
         onChange={(e) => setTitulo(e.target.value)}
-        onBlur={() => !titulo.trim() && setAbrindo(false)}
-        onKeyDown={(e) => e.key === "Escape" && setAbrindo(false)}
-        placeholder="Título e Enter"
+        placeholder="Título"
         aria-label="Título da nova tarefa"
         maxLength={200}
         disabled={criar.isPending}
       />
+      <Input
+        type="date"
+        value={prazo}
+        onChange={(e) => setPrazo(e.target.value)}
+        aria-label="Prazo de entrega"
+        required
+        disabled={criar.isPending}
+      />
+      <Select value={responsavelId} onValueChange={setResponsavelId} disabled={criar.isPending}>
+        <SelectTrigger aria-label="Responsável">
+          <SelectValue placeholder="Responsável" />
+        </SelectTrigger>
+        <SelectContent>
+          {dados.membros.map((m) => (
+            <SelectItem key={m.userId} value={m.userId}>
+              {m.userId === eu ? `${m.nome} (você)` : m.nome}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={fechar}>
+          Cancelar
+        </Button>
+        <Button type="submit" size="sm" disabled={!pronto || criar.isPending}>
+          {criar.isPending ? "Criando…" : "Criar"}
+        </Button>
+      </div>
     </form>
   );
 }

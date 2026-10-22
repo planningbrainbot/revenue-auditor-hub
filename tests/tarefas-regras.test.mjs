@@ -3,9 +3,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  caminhoDoAnexo,
   contar,
   domingoDaSemana,
   filtrar,
+  formatarTamanho,
   hojeSaoPaulo,
   lerBuscaTarefas,
   ordemEntre,
@@ -110,4 +112,16 @@ test("ordem entre vizinhos", () => {
   assert.equal(ordemEntre(1000, 2000), 1500);
   assert.equal(ordemEntre(null, 1000), 0);
   assert.equal(ordemEntre(1000, null), 2000);
+});
+
+test("anexo: caminho começa pelo quadro e pela tarefa, nome sem acento nem barra", () => {
+  const c = caminhoDoAnexo(Q, EU, "abc", "Nota fiscal de São Paulo/ação.pdf");
+  assert.equal(c, `${Q}/${EU}/abc-Nota-fiscal-de-Sao-Paulo-acao.pdf`);
+  assert.equal(caminhoDoAnexo(Q, EU, "x", "///"), `${Q}/${EU}/x-arquivo`);
+});
+
+test("anexo: tamanho legível", () => {
+  assert.equal(formatarTamanho(512), "512 B");
+  assert.equal(formatarTamanho(2048), "2 KB");
+  assert.equal(formatarTamanho(3.5 * 1024 * 1024), "3,5 MB");
 });

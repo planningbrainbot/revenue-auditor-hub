@@ -6636,3 +6636,35 @@ O acompanhamento vai para uma aba Cella no Forecast; a tela depende do contrato 
 
 **Medido na 1ª rodada (22/10):** 37 negócios lidos, 21 ligados (19 contratos, 2 extras), 1 com valor, 8 datas de
 assinatura gravadas.
+
+## [2026-10-22] Tarefas v2: notificação no sino, por pessoa
+
+**Contexto:** pedido do dono depois da v1 ("quando uma tarefa é criada, chegar uma notificação para o usuário e ficar
+na telinha de notificações"). O sino existia só para admin, e `ops.notificacoes` era um mural coletivo (marcar como
+lida sumia para todos).
+**Decisão:** `ops.notificacoes` ganha `destinatario_id`, `ator_id`, `link` e `chave`. Destinatário nulo = aviso coletivo
+de antes (CAC: admin lê e marca, diretor lê). Destinatário cheio = só a pessoa lê e marca; nem o super admin vê a dos
+outros (mesma regra do quadro). Eventos, sempre para quem não fez a ação: tarefa atribuída (criada com você ou passada
+para você), comentário em tarefa sua (responsável ou autor) e "vence hoje" às 08:00 de São Paulo (pg_cron
+`tarefas-prazo-hoje`). O sino aparece para admin e para quem tem a área Tarefas; o clique abre a ficha da tarefa.
+**Status:** implementado na branch `feat/tarefas-notificacoes-20261022`, migration 20261022190000 não aplicada.
+**Próximos passos:** aplicar no banco único e publicar.
+
+## [2026-10-22] Tarefas: prazo de entrega e responsável obrigatórios; "Nova tarefa" no topo da coluna
+
+**Contexto:** pedido do dono: não deixar criar tarefa sem prazo e sem responsável; e com muitas tarefas o botão no pé
+da coluna obrigava a rolar.
+**Decisão:** a regra vale no banco (gatilho `ops.tarefas_exigir_prazo_responsavel`): nenhuma tarefa nasce sem os dois e
+nenhuma edição apaga prazo ou tira responsável. Única exceção: responsável que sai do quadro deixa a tarefa sem
+responsável (contrato v1), à espera de alguém assumir. Não é NOT NULL por causa dessa exceção. As 5 tarefas que
+existiam já tinham os dois. Na tela, criar na coluna pede título, prazo e responsável (padrão: você), e o formulário
+fica no topo da coluna, com a tarefa nova entrando em primeiro.
+**Status:** implementado na mesma branch, migration 20261022193000 não aplicada.
+
+## [2026-10-22] Tarefas: anexos na ficha
+
+**Contexto:** pedido do dono ("crie opção de anexar arquivos").
+**Decisão:** bucket privado `tarefas-anexos`, caminho `<quadro>/<tarefa>/<id>-<nome>`; a policy do Storage confere a
+primeira pasta (membro do quadro sobe, baixa e vê). Lista em `ops.tarefas_anexos`. Apaga quem anexou ou o dono do
+quadro. 25 MB por arquivo, qualquer tipo. Baixar é por link assinado de 1 minuto. Anexar e remover entram no histórico.
+**Status:** implementado na mesma branch, migration 20261022200000 não aplicada.

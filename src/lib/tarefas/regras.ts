@@ -195,3 +195,37 @@ export function formatarPrazo(prazo: string, hoje: string): string {
   const [a, m, d] = prazo.split("-");
   return a === hoje.slice(0, 4) ? `${d}/${m}` : `${d}/${m}/${a}`;
 }
+
+// ------------------------------------------------------------------ anexos
+
+export const BUCKET_ANEXOS = "tarefas-anexos";
+/** 25 MB, o mesmo limite do bucket (migration 20261022200000). */
+export const LIMITE_ANEXO = 25 * 1024 * 1024;
+
+/**
+ * Caminho do arquivo no bucket: <quadro>/<tarefa>/<id>-<nome>. A primeira pasta é o quadro
+ * (é o que a policy do Storage confere). O nome perde acento e o que o Storage recusa; o
+ * nome original fica na linha de ops.tarefas_anexos.
+ */
+export function caminhoDoAnexo(
+  quadroId: string,
+  tarefaId: string,
+  id: string,
+  nome: string,
+): string {
+  const limpo =
+    nome
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(-120) || "arquivo";
+  return `${quadroId}/${tarefaId}/${id}-${limpo}`;
+}
+
+export function formatarTamanho(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}

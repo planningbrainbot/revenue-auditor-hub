@@ -111,11 +111,19 @@ Os quatro cartões aparecem no topo das duas telas. Tarefa vencendo hoje **não*
 
 **Convite:** só para quem já tem login no Ops, escolhendo a pessoa numa busca por nome ou e-mail. Quem ainda não tem login entra pelo `/cadastro` e é liberado como hoje; depois o dono convida. Convite por e-mail para quem não tem conta não entra na v1.
 
+## v2 (22/10/2026, pedidos do dono)
+
+- **Notificação no sino**, por pessoa: tarefa atribuída a você, comentário em tarefa sua, vence hoje (08:00). Quem fez
+  a ação não recebe. Clique abre a ficha. Nada por e-mail ou WhatsApp ainda.
+- **Prazo de entrega e responsável obrigatórios**, também no banco. Exceção: responsável que sai do quadro.
+- **"Nova tarefa" no topo de cada coluna**, pedindo título, prazo e responsável; a tarefa entra em primeiro.
+- **Anexos** na ficha: até 25 MB, qualquer tipo, só membro do quadro vê; apaga quem anexou ou o dono.
+
 ## O que NÃO entra, e por quê
 
 - **ClickUp.** Escolha do dono: o Ops é a fonte. Nada é espelhado nem escrito lá.
-- **Notificação por e-mail ou WhatsApp** (tarefa atribuída, prazo chegando). Fica para a v2, depois de ver o uso; a v1 tem a tela `/tarefas` como caixa de entrada.
-- **Subtarefas, checklist, anexos, tarefa recorrente, mais de um responsável, horas.** Cabem depois; cada um complica o cartão e nenhum foi pedido.
+- **Notificação por e-mail ou WhatsApp** (tarefa atribuída, prazo chegando). A v2 tem o sino; e-mail e WhatsApp seguem fora.
+- **Subtarefas, checklist, tarefa recorrente, mais de um responsável, horas.** Cabem depois; cada um complica o cartão e nenhum foi pedido.
 - **Ligação com OKR, IDU ou compromissos do COO.** São outra régua e outra tela.
 - **Sócio regional e equipe das unidades.** A v1 é para a matriz. Abrir para a rede é decisão do dono depois.
 - **Gantt, calendário, relatório de produtividade por pessoa.** A tela não mede gente; mostra trabalho.

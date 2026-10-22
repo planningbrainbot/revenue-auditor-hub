@@ -1,6 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { hojeSaoPaulo, PRIORIDADES, type Prioridade, type TarefaBase } from "./regras";
+import {
+  BUCKET_ANEXOS,
+  hojeSaoPaulo,
+  LIMITE_ANEXO,
+  PRIORIDADES,
+  type Prioridade,
+  type TarefaBase,
+} from "./regras";
 
 // A área Tarefas (contrato docs/design/contratos/tarefas.md).
 //
@@ -673,17 +680,21 @@ type EntradaTarefa = {
   ordem?: number;
 };
 
+// Prazo e responsável são obrigatórios (DECISIONS 22/10): não nascem vazios e não se apagam.
+// O banco confere o mesmo (migration 20261022193000); aqui é só para a mensagem chegar antes.
 function patchDaTarefa(input: EntradaTarefa): Record<string, unknown> {
   const p: Record<string, unknown> = {};
   if (input.titulo !== undefined) p.titulo = texto(input.titulo, "Título", 200);
   if (input.descricao !== undefined)
     p.descricao = texto(input.descricao, "Descrição", 10000, false);
-  if (input.responsavelId !== undefined)
-    p.responsavel_id = uuidOuNulo(input.responsavelId, "Responsável");
+  if (input.responsavelId !== undefined) {
+    if (!input.responsavelId) throw new Error("Toda tarefa precisa de responsável.");
+    p.responsavel_id = uuid(input.responsavelId, "Responsável");
+  }
   if (input.prazo !== undefined) {
-    if (input.prazo !== null && input.prazo !== "" && !DATA_RE.test(input.prazo))
-      throw new Error("Prazo inválido.");
-    p.prazo = input.prazo || null;
+    if (!input.prazo) throw new Error("Toda tarefa precisa de prazo de entrega.");
+    if (!DATA_RE.test(input.prazo)) throw new Error("Prazo inválido.");
+    p.prazo = input.prazo;
   }
   if (input.prioridade !== undefined) {
     if (!PRIORIDADES.includes(input.prioridade as Prioridade))
@@ -706,7 +717,12 @@ export const criarTarefa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: EntradaTarefa & { quadroId: string }) => ({
     quadroId: uuid(input?.quadroId, "Quadro"),
-    patch: patchDaTarefa({ ...input, titulo: input?.titulo ?? "" }),
+    patch: patchDaTarefa({
+      ...input,
+      titulo: input?.titulo ?? "",
+      prazo: input?.prazo ?? "",
+      responsavelId: input?.responsavelId ?? "",
+    }),
   }))
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     if (!data.patch.coluna_id) throw new Error("Coluna é obrigatória.");
@@ -784,5 +800,131 @@ export const editarComentario = createServerFn({ method: "POST" })
       .select("id");
     falhou(error, "Não foi possível salvar o comentário.");
     if (!linhas?.length) throw new Error("Só quem escreveu edita ou apaga o comentário.");
+    return { ok: true };
+  });
+
+// ------------------------------------------------------------------ anexos
+//
+// O navegador sobe o arquivo direto no bucket `tarefas-anexos` (a policy do Storage confere se é
+// membro do quadro, pela primeira pasta do caminho) e depois registra a linha aqui. Baixar é por
+// link assinado de 1 minuto, gerado com o cliente de quem está logado.
+
+export type Anexo = {
+  id: string;
+  nome: string;
+  tamanho: number;
+  tipo: string | null;
+  enviadoPor: Pessoa | null;
+  criadoEm: string;
+  meu: boolean;
+};
+
+export const listarAnexos = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tarefaId: string }) => ({ tarefaId: uuid(input?.tarefaId, "Tarefa") }))
+  .handler(async ({ data, context }): Promise<Anexo[]> => {
+    const { data: linhas, error } = await (context.supabase as Cliente)
+      .from("tarefas_anexos")
+      .select("id, nome, tamanho, tipo, enviado_por, criado_em")
+      .eq("tarefa_id", data.tarefaId)
+      .order("criado_em");
+    falhou(error, "Não foi possível ler os anexos.");
+    const as = (linhas ?? []) as {
+      id: string;
+      nome: string;
+      tamanho: number;
+      tipo: string | null;
+      enviado_por: string;
+      criado_em: string;
+    }[];
+    const pessoas = await nomes(as.map((a) => a.enviado_por));
+    return as.map((a) => ({
+      id: a.id,
+      nome: a.nome,
+      tamanho: Number(a.tamanho),
+      tipo: a.tipo,
+      enviadoPor: pessoas.get(a.enviado_por) ?? null,
+      criadoEm: a.criado_em,
+      meu: a.enviado_por === context.userId,
+    }));
+  });
+
+export const registrarAnexo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      tarefaId: string;
+      quadroId: string;
+      caminho: string;
+      nome: string;
+      tamanho: number;
+      tipo?: string | null;
+    }) => {
+      const tarefaId = uuid(input?.tarefaId, "Tarefa");
+      const quadroId = uuid(input?.quadroId, "Quadro");
+      const caminho = texto(input?.caminho, "Caminho", 1024) as string;
+      if (!caminho.startsWith(`${quadroId}/${tarefaId}/`))
+        throw new Error("Caminho do anexo inválido.");
+      const tamanho = Number(input?.tamanho);
+      if (!Number.isFinite(tamanho) || tamanho < 0 || tamanho > LIMITE_ANEXO)
+        throw new Error("O arquivo passa de 25 MB.");
+      return {
+        tarefaId,
+        quadroId,
+        caminho,
+        nome: texto(input?.nome, "Nome do arquivo", 255) as string,
+        tamanho,
+        tipo: texto(input?.tipo, "Tipo", 255, false),
+      };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as Cliente).from("tarefas_anexos").insert({
+      tarefa_id: data.tarefaId,
+      quadro_id: data.quadroId,
+      caminho: data.caminho,
+      nome: data.nome,
+      tamanho: data.tamanho,
+      tipo: data.tipo,
+      enviado_por: context.userId,
+    });
+    falhou(error, "Não foi possível registrar o anexo.");
+    return { ok: true };
+  });
+
+export const linkAnexo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => ({ id: uuid(input?.id, "Anexo") }))
+  .handler(async ({ data, context }): Promise<{ url: string }> => {
+    const db = context.supabase as Cliente;
+    const { data: a, error } = await db
+      .from("tarefas_anexos")
+      .select("caminho, nome")
+      .eq("id", data.id)
+      .maybeSingle();
+    falhou(error, "Não foi possível abrir o anexo.");
+    if (!a) throw new Error("Anexo não encontrado.");
+    const { data: assinado, error: sErr } = await db.storage
+      .from(BUCKET_ANEXOS)
+      .createSignedUrl(a.caminho, 60, { download: a.nome });
+    if (sErr || !assinado?.signedUrl)
+      throw new Error(sErr?.message ?? "Não foi possível abrir o anexo.");
+    return { url: assinado.signedUrl };
+  });
+
+export const apagarAnexo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => ({ id: uuid(input?.id, "Anexo") }))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as Cliente;
+    const { data: linhas, error } = await db
+      .from("tarefas_anexos")
+      .delete()
+      .eq("id", data.id)
+      .select("caminho");
+    falhou(error, "Não foi possível apagar o anexo.");
+    if (!linhas?.length) throw new Error("Só quem anexou ou o dono do quadro apaga o anexo.");
+    // A linha já saiu; se o arquivo não sair, sobra só o objeto no bucket (sem link para ninguém).
+    await db.storage.from(BUCKET_ANEXOS).remove([linhas[0].caminho]);
     return { ok: true };
   });

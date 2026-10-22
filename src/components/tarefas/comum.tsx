@@ -231,7 +231,8 @@ export function FiltrosTarefas({
 
 /**
  * Nova tarefa a partir de Minhas tarefas: escolhe o quadro, a tarefa nasce na primeira coluna
- * e comigo de responsável. O resto se completa na ficha.
+ * e comigo de responsável. Prazo de entrega é obrigatório (DECISIONS 22/10). O resto se
+ * completa na ficha.
  */
 export function DialogoNovaTarefa({
   aberto,
@@ -263,7 +264,7 @@ export function DialogoNovaTarefa({
           quadroId,
           colunaId,
           titulo,
-          prazo: prazo || null,
+          prazo,
           prioridade,
           responsavelId: eu,
           ordem: Date.now() / 1000,
@@ -292,7 +293,7 @@ export function DialogoNovaTarefa({
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (titulo.trim() && quadroId) criar.mutate();
+            if (titulo.trim() && quadroId && prazo) criar.mutate();
           }}
         >
           <div className="space-y-1.5">
@@ -322,12 +323,13 @@ export function DialogoNovaTarefa({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="nt-prazo">Prazo</Label>
+              <Label htmlFor="nt-prazo">Prazo de entrega</Label>
               <Input
                 id="nt-prazo"
                 type="date"
                 value={prazo}
                 onChange={(e) => setPrazo(e.target.value)}
+                required
               />
             </div>
             <div className="space-y-1.5">
@@ -350,7 +352,10 @@ export function DialogoNovaTarefa({
             <Button type="button" variant="ghost" onClick={aoFechar}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!titulo.trim() || !quadroId || criar.isPending}>
+            <Button
+              type="submit"
+              disabled={!titulo.trim() || !quadroId || !prazo || criar.isPending}
+            >
               {criar.isPending ? "Criando…" : "Criar tarefa"}
             </Button>
           </DialogFooter>

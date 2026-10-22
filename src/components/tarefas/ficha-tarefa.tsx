@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
-import { MessageSquare, SquareKanban, Trash2 } from "lucide-react";
+import { MessageSquare, Paperclip, SquareKanban, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Carregando, EstadoErro, formatarQuando } from "@/components/planning";
 import {
@@ -33,19 +33,33 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
 import {
+  apagarAnexo,
   apagarTarefa,
   carregarConversa,
   carregarQuadro,
   comentar,
   editarComentario,
   editarTarefa,
+  linkAnexo,
+  listarAnexos,
+  registrarAnexo,
+  type Anexo,
   type Comentario,
   type Evento,
   type QuadroCompleto,
   type Tarefa,
 } from "@/lib/tarefas/tarefas.functions";
-import { PRIORIDADES, ROTULO_PRIORIDADE, type Prioridade } from "@/lib/tarefas/regras";
+import {
+  BUCKET_ANEXOS,
+  caminhoDoAnexo,
+  formatarTamanho,
+  LIMITE_ANEXO,
+  PRIORIDADES,
+  ROTULO_PRIORIDADE,
+  type Prioridade,
+} from "@/lib/tarefas/regras";
 import { CHAVE, NENHUM } from "./comum";
 
 // A ficha de uma tarefa (arquétipo Ficha, em Sheet). O id fica na URL (`tarefa`), então o
@@ -204,14 +218,14 @@ function Conteudo({
         </Campo>
         <Campo rotulo="Responsável" id="f-resp">
           <Select
-            value={tarefa.responsavelId ?? NENHUM}
-            onValueChange={(v) => editar.mutate({ responsavelId: v === NENHUM ? null : v })}
+            value={tarefa.responsavelId ?? undefined}
+            onValueChange={(v) => editar.mutate({ responsavelId: v })}
           >
+            {/* Sem responsável só acontece quando ele saiu do quadro: a tarefa espera alguém assumir. */}
             <SelectTrigger id="f-resp">
-              <SelectValue />
+              <SelectValue placeholder="Escolha quem assume" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NENHUM}>Ninguém</SelectItem>
               {quadro.membros.map((m) => (
                 <SelectItem key={m.userId} value={m.userId}>
                   {m.userId === eu ? `${m.nome} (você)` : m.nome}
@@ -220,14 +234,20 @@ function Conteudo({
             </SelectContent>
           </Select>
         </Campo>
-        <Campo rotulo="Prazo" id="f-prazo">
+        <Campo rotulo="Prazo de entrega" id="f-prazo">
           <Input
             id="f-prazo"
             type="date"
             defaultValue={tarefa.prazo ?? ""}
             key={tarefa.prazo ?? ""}
+            required
             onBlur={(e) => {
-              const v = e.target.value || null;
+              const v = e.target.value;
+              if (!v) {
+                e.target.value = tarefa.prazo ?? "";
+                toast.error("O prazo de entrega não pode ficar vazio.");
+                return;
+              }
               if (v !== tarefa.prazo) editar.mutate({ prazo: v });
             }}
           />
@@ -308,6 +328,8 @@ function Conteudo({
         />
       </Campo>
 
+      <Anexos tarefa={tarefa} souDono={souDono} />
+
       <Conversa tarefaId={tarefa.id} />
 
       <div className="flex items-center justify-between border-t pt-4 text-xs text-muted-foreground">
@@ -369,9 +391,183 @@ const ROTULO_CAMPO: Record<string, string> = {
 
 function textoEvento(e: Evento): string {
   if (e.campo === "criada") return "criou a tarefa";
+  if (e.campo === "anexo") return e.para ? `anexou ${e.para}` : `removeu o anexo ${e.de}`;
   const valor = (v: string | null) =>
     v == null ? "vazio" : e.campo === "prioridade" ? (ROTULO_PRIORIDADE[v as Prioridade] ?? v) : v;
   return `mudou ${ROTULO_CAMPO[e.campo] ?? e.campo} de ${valor(e.de)} para ${valor(e.para)}`;
+}
+
+/**
+ * Anexos da tarefa. O arquivo sobe do navegador direto para o bucket (a policy do Storage
+ * confere se é membro do quadro) e só depois vira linha; se o registro falhar, o arquivo
+ * subido é apagado para não sobrar órfão.
+ */
+function Anexos({ tarefa, souDono }: { tarefa: Tarefa; souDono: boolean }) {
+  const client = useQueryClient();
+  const entrada = useRef<HTMLInputElement>(null);
+  const chave = [...CHAVE, "anexos", tarefa.id];
+  const listarFn = useServerFn(listarAnexos);
+  const anexos = useQuery({
+    queryKey: chave,
+    queryFn: () => listarFn({ data: { tarefaId: tarefa.id } }),
+    retry: false,
+  });
+  const registrarFn = useServerFn(registrarAnexo);
+  const linkFn = useServerFn(linkAnexo);
+  const apagarFn = useServerFn(apagarAnexo);
+  const [enviando, setEnviando] = useState(0);
+  const [apagando, setApagando] = useState<Anexo | null>(null);
+
+  async function enviar(arquivo: File) {
+    if (arquivo.size > LIMITE_ANEXO) {
+      toast.error(`${arquivo.name} passa de 25 MB.`);
+      return;
+    }
+    const caminho = caminhoDoAnexo(tarefa.quadroId, tarefa.id, crypto.randomUUID(), arquivo.name);
+    const { error } = await supabase.storage.from(BUCKET_ANEXOS).upload(caminho, arquivo, {
+      contentType: arquivo.type || undefined,
+    });
+    if (error) {
+      toast.error(`Não foi possível anexar ${arquivo.name}: ${error.message}`);
+      return;
+    }
+    try {
+      await registrarFn({
+        data: {
+          tarefaId: tarefa.id,
+          quadroId: tarefa.quadroId,
+          caminho,
+          nome: arquivo.name,
+          tamanho: arquivo.size,
+          tipo: arquivo.type || null,
+        },
+      });
+    } catch (e) {
+      await supabase.storage.from(BUCKET_ANEXOS).remove([caminho]);
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function escolher(arquivos: FileList | null) {
+    const lista = Array.from(arquivos ?? []);
+    if (!lista.length) return;
+    setEnviando(lista.length);
+    for (const a of lista) await enviar(a);
+    setEnviando(0);
+    if (entrada.current) entrada.current.value = "";
+    client.invalidateQueries({ queryKey: CHAVE });
+  }
+
+  // A aba abre no clique (senão o navegador barra como pop-up) e recebe o link assinado depois.
+  async function abrir(id: string) {
+    const aba = window.open("", "_blank");
+    try {
+      const { url } = await linkFn({ data: { id } });
+      if (aba) aba.location.href = url;
+      else window.location.assign(url);
+    } catch (e) {
+      aba?.close();
+      toast.error((e as Error).message);
+    }
+  }
+  const apagar = useMutation({
+    mutationFn: (id: string) => apagarFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Anexo removido.");
+      client.invalidateQueries({ queryKey: CHAVE });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <section className="space-y-3" aria-labelledby="anexos-titulo">
+      <div className="flex items-center justify-between gap-2">
+        <h3 id="anexos-titulo" className="flex items-center gap-1.5 text-sm font-semibold">
+          <Paperclip className="size-4" aria-hidden />
+          Anexos
+        </h3>
+        <input
+          ref={entrada}
+          type="file"
+          multiple
+          className="sr-only"
+          id="f-anexo"
+          onChange={(e) => escolher(e.target.files)}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={enviando > 0}
+          onClick={() => entrada.current?.click()}
+        >
+          {enviando > 0
+            ? `Enviando ${enviando} arquivo${enviando > 1 ? "s" : ""}…`
+            : "Anexar arquivo"}
+        </Button>
+      </div>
+      {anexos.isLoading ? (
+        <Carregando variante="tabela" linhas={2} />
+      ) : anexos.isError ? (
+        <EstadoErro
+          detalhe={(anexos.error as Error).message}
+          tentarNovamente={() => anexos.refetch()}
+        />
+      ) : !anexos.data?.length ? (
+        <p className="text-xs text-muted-foreground">
+          Nenhum arquivo. Até 25 MB cada, qualquer tipo.
+        </p>
+      ) : (
+        <ul className="divide-y rounded-lg border">
+          {anexos.data.map((a) => (
+            <li key={a.id} className="flex items-center gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  className="block max-w-full truncate text-left text-sm font-medium underline-offset-4 hover:underline"
+                  onClick={() => abrir(a.id)}
+                  title={a.nome}
+                >
+                  {a.nome}
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  {formatarTamanho(a.tamanho)} · {a.enviadoPor?.nome ?? "Alguém"} ·{" "}
+                  {formatarQuando(a.criadoEm)}
+                </p>
+              </div>
+              {(a.meu || souDono) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-danger"
+                  aria-label={`Remover ${a.nome}`}
+                  onClick={() => setApagando(a)}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <AlertDialog open={!!apagando} onOpenChange={(v) => !v && setApagando(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover “{apagando?.nome}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O arquivo sai da tarefa para todos do quadro. Não dá para desfazer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => apagando && apagar.mutate(apagando.id)}>
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  );
 }
 
 /** Comentários e histórico numa linha do tempo só, do mais antigo para o mais novo. */
