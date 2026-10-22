@@ -771,14 +771,19 @@ export type OpcoesDiagnostico = {
   orcamentoMs?: number;
 };
 
-/** Cadastro na Consultoria que não pede a tarefa "03 · Cadastrar o cliente na plataforma" (decisão de 22/10/2026). */
-const SEM_TAREFA_PLATAFORMA: ReadonlySet<string> = new Set(["criado", "ja_existia", "sem_fit", "pendente"]);
+/**
+ * Cadastro na Consultoria que não pede a tarefa "03 · Cadastrar o cliente na plataforma" (decisão de 22/10/2026). O
+ * pendente pede: enquanto o cadastro automático estiver desligado, o Matheus cadastra, e a automação depois acha o
+ * projeto e não duplica.
+ */
+const SEM_TAREFA_PLATAFORMA: ReadonlySet<string> = new Set(["criado", "ja_existia", "sem_fit"]);
 const NOTA_CONSULTORIA: Readonly<Record<string, string>> = {
   criado: "Consultoria: cadastrado na plataforma hoje, como Carteira BPO (Diagnóstico — Curva B e C).",
   ja_existia: "Consultoria: o CNPJ já tem projeto na plataforma; nada foi cadastrado.",
   sem_fit: "Consultoria: fora do perfil (Lucro Real, ou Presumido de R$ 50 mi para cima); nada foi cadastrado.",
   sem_cnpj: "Consultoria: a venda não tem CNPJ; cadastre o cliente na plataforma pela tarefa da etapa 03.",
-  pendente: "Consultoria: o cadastro automático na plataforma está desligado; o cliente fica na fila para cadastro.",
+  pendente:
+    "Consultoria: o cadastro automático na plataforma ainda não está ligado; cadastre o cliente pela tarefa da etapa 03.",
   erro: "Consultoria: o cadastro automático falhou; cadastre o cliente na plataforma pela tarefa da etapa 03.",
 };
 
@@ -1127,7 +1132,7 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
           content: notaHtml(NOTA_CONSULTORIA[String(cadastro.consultoria)]),
         });
     }
-  /** Cards cujo cadastro na Consultoria dispensa a tarefa da etapa 03 (feito, já existia, sem fit ou na fila). */
+  /** Cards cujo cadastro na Consultoria dispensa a tarefa da etapa 03 (feito, já existia ou sem fit). */
   const semTarefaPlataforma = new Set(
     entradas
       .filter((e) => e.deal_id && SEM_TAREFA_PLATAFORMA.has(String(e.consultoria)))
