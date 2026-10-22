@@ -6619,3 +6619,24 @@ contrato em `monetizacao/outputs/2026-10-20-cella-integracao/contrato-v2.md`.
 **Alternativas descartadas:** automação ou webhook do Pipedrive da Planning (manda o card inteiro, com outros produtos;
 a conta está acima do limite de automações); n8n (a regra de etapas e o espelho moram no Brain); Zapier ou Apps Script
 do lado deles (mais uma peça para manter, e o Pipedrive deles aceita a API direto).
+
+## [2026-10-22] Carga do faturamento apurado no SPED (API do Silas), desligada
+
+**Contexto:** na call "ECD's e AWS" (21/10), o faturamento do cliente para o Brain Operacional passou a vir do SPED, por uma API do Silas sobre o banco do robô (6 mil CNPJs com procuração). A API saiu em 22/10 (`smartflow-office.planning.com.br/api_faturamento`, `POST /receita`, 100 empresas por página, senha do dia: parte fixa + (dia + 1) + (mês − 1)). Teste de aceite em 22/10: 6.582 CNPJs em 66 páginas (~9 min), fórmula batendo em 100% dos meses, mas 93% dos meses só com Contribuições vêm com faturamento zero (serviço faltando, em apuração com o Silas). Análise em https://claude.ai/artifact/7eZQ3b6VqgicZws3QTdrS5 e em `PM Work/execution/call-ecd-aws-20261021/` (README, seções 7 e 8).
+
+**Decisões (Pedro, 22/10):**
+- Construir a carga agora e deixar desligada até o Silas corrigir os serviços.
+- Sem SPED de 2025 (fora da base do Silas por combinado), o sinal "Cliente cresceu" compara 2026 com a receita de 2025 da ECF.
+- Nenhuma tela lê a tabela por enquanto: o dado é sensível. A Base só ganha o faturamento apurado depois da correção, com a matriz de acesso do Cadastro Único (vendedor vê porte ou sinal, nunca o valor).
+
+**Feito:**
+- Migration `20261022190000_faturamento_sped.sql`, aplicada e registrada (rollback em `supabase/rollback/`): `ops.faturamento_sped_mensal` (CNPJ × competência; só `ok` e o `aguardando_entrega` do mês mais recente; mês sem arquivo não tem linha) e `ops.faturamento_sped_cargas` (uma carga por dia de São Paulo, retomada pela página). RLS ligada e sem grant para `anon` e `authenticated`: só o service role lê e grava.
+- Edge Function `faturamento-sped` (lógica pura em `logica.ts`, `tests/faturamento-sped.test.mjs` com 4 testes). Cada chamada puxa páginas por até ~110 s; a carga fecha em ~7 chamadas e registra em `ops.sync_log` (fonte `faturamento-sped`).
+- Cron `faturamento-sped-diario` (`*/10 6-8 * * *`, 3h às 5h50 de Brasília) criado **inativo**. Segredo `SPED_API_SENHA_BASE` nos secrets do projeto; `FATURAMENTO_SPED_ATIVO` não definido. Desligada, a função responde "desligada"; só roda com `{"manual": true}` e o segredo do cron.
+- Teste manual (1 e 2 páginas) gravou e conferiu; os dados de teste foram apagados.
+
+**Pegadinhas:**
+- O servidor da API manda só o certificado final, emitido pela intermediária YR1 da Let's Encrypt (raiz "Root YR", de 2025), que o ambiente da função não traz: "invalid peer certificate: UnknownIssuer". A função confia na YR1 (pública) só nas chamadas à API. O certo é o servidor mandar a cadeia completa.
+- Em 22/10 à tarde a API passou a marcar meses antigos sem arquivo como `aguardando_entrega` (de manhã eram `sped_fora_base_motivo_diverso`). A carga só guarda `aguardando_entrega` da última competência.
+
+**Como ligar (só com o "pode ativar" do Pedro):** `supabase secrets set FATURAMENTO_SPED_ATIVO=sim` e `select cron.alter_job(jobid, active := true) from cron.job where jobname = 'faturamento-sped-diario';`.
