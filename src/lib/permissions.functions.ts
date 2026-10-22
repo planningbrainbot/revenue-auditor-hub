@@ -54,6 +54,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.clientes_painel",
+    label: "Base de clientes: Confiança, Painel e Contratos",
+    description:
+      "As telas Confiança, Painel e Contratos e churn da Base de clientes. Sem ela, a pessoa com a Base vê só a tela Clientes (o time de vendas, desde 22/10/2026).",
+    group: "Clientes",
+  },
+  {
     key: "view.auditoria",
     label: "Acessar Auditoria",
     description: "Módulo de auditoria de recebimentos.",

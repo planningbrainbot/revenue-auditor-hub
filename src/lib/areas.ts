@@ -331,10 +331,21 @@ export const AREAS: Area[] = [
         label: "Carteira",
         // A Base em três telas (Pedro, 15/10/2026): Clientes, Confiança e Painel na lateral. "Base de Contatos" saiu
         // do menu (a rota continua). Produtos e Listas, a construção de listas, só para quem tem a área Monetização.
+        // Confiança e Painel têm chave própria (22/10/2026): o time de vendas tem a área com a chave de Clientes só.
         items: [
           { title: "Clientes", url: "/clientes", icon: Building2 },
-          { title: "Confiança", url: "/clientes?view=confianca", icon: ShieldCheck },
-          { title: "Painel", url: "/clientes?view=painel", icon: BarChart3 },
+          {
+            title: "Confiança",
+            url: "/clientes?view=confianca",
+            icon: ShieldCheck,
+            chave: "view.clientes_painel",
+          },
+          {
+            title: "Painel",
+            url: "/clientes?view=painel",
+            icon: BarChart3,
+            chave: "view.clientes_painel",
+          },
           { title: "Produtos", url: "/clientes/produtos", icon: Package, area: "monetizacao" },
           { title: "Listas", url: "/clientes/listas", icon: ListChecks, area: "monetizacao" },
         ],
@@ -473,7 +484,9 @@ export const AREAS: Area[] = [
       },
       {
         label: "Fechamento",
-        items: [{ title: "Conferências", url: "/bi-financeiro?aba=conferencias", icon: ClipboardCheck }],
+        items: [
+          { title: "Conferências", url: "/bi-financeiro?aba=conferencias", icon: ClipboardCheck },
+        ],
       },
     ],
   },

@@ -6511,3 +6511,22 @@ quem usa (preferência de tela, não estado de dado): sem acesso ao storage, abr
 **Limite conhecido:** cliente do onboarding sem venda ligada no espelho do Handoff (36 hoje) não entra sozinho. O conserto é o CS ligar o card do contrato.
 
 **Ligar a entrada:** só com o "pode ativar" do Pedro (`MONET_DIAG_ENTRADA_ATIVA=sim`).
+
+## [2026-10-22] Base de clientes: o time de vendas vê só a tela Clientes
+
+Pedido do dono: "Preciso que todos do time de vendas tenham acesso à base de clientes, mas somente à tela de clientes.
+Não ao resto." Respostas dele por opções: os 17 do Inside Sales do Pipedrive (SDRs e closers da matriz; a Monetização e
+os heads ficam como estão), com os contatos na ficha, todas as unidades, publicar direto.
+- **Chave nova `view.clientes_painel`** para Confiança, Painel e Contratos e churn. Entra nas áreas `clientes` e
+  `minha_unidade` e foi dada pessoa a pessoa a todo mundo que tinha `view.clientes`, menos o time de vendas. Sem ela, a
+  lateral não mostra Confiança e Painel e qualquer link da Base abre a tela Clientes.
+- **Por pessoa, não por papel.** Papel que não é de sistema lê contratos, empresas e tratativas inteiros pela RLS
+  (`ops.is_custom_role`): um papel "Vendas" daria o MRR ao vendedor.
+- **O vendedor fica com** a porta do Brain, a área Base de clientes e as chaves `view.clientes`, `view.contatos` e
+  `view.aquario` (o aquário traz os negócios para a ficha), todas as unidades. Sai `view.base_contatos`, que abria a
+  tela /base-contatos. Amanda Lourenço e Lucas Cintra ganharam o Brain agora; Ana Nasareth e Fleuri Ferreira não têm
+  conta e entram quando forem convidados, com a Base e só a página Clientes.
+- **Ensaio em produção** (transação desfeita): 15 pessoas veem a Base sem Confiança e Painel, todas do time de vendas;
+  ninguém de fora perde nada; os 30 sócios regionais continuam com as três telas.
+- **Fica aberto:** a RLS de contratos, empresas e tratativas aceita `view.clientes`, então o vendedor ainda consegue ler
+  essas tabelas pela API, sem tela. Fechar isso é trocar a chave das policies, que outras telas usam.
