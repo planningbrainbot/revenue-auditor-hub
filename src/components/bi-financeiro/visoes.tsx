@@ -99,16 +99,17 @@ function fechadosAte(D: DreCaixa, ate: string) {
   return D.meses.filter((m) => m <= ate && !(D.situacao[m] ?? "").includes("andamento"));
 }
 
-/** Queima média sem o investidor (competência) dos últimos 3 meses fechados e os meses de caixa. */
+/** Queima média sem o investidor (competência) dos últimos 3 meses fechados. */
 function folego(D: DreCaixa, mes: string) {
   const bi = D.bi;
   const fech = fechadosAte(D, mes).slice(-3);
   const queima = serieAba(bi?.burn, "(=) QUEIMA DO MÊS SEM O INVESTIDOR", fech).map((v) => v ?? 0);
   const media = queima.length ? queima.reduce((a, b) => a + b, 0) / queima.length : 0;
-  const saldo = serieAba(bi?.competencia_caixa, "(=) Saldo em conta no fim do mês", [mes])[0];
-  const meses = saldo !== null && media < 0 ? saldo / -media : null;
-  return { fech, media, saldo, meses };
+  return { fech, media };
 }
+
+// Saldo em conta vem do extrato do Omie, que não fica conciliado com o banco: não aparece no BI.
+const semSaldoEmConta = (k: string) => !k.toLowerCase().includes("saldo em conta");
 
 // ---------------------------------------------------------------- visão executiva
 
@@ -125,8 +126,6 @@ export function VisaoExecutiva({ D }: { D: DreCaixa }) {
   const receita = linhaF(D, "(=) Receita bruta");
   const ebit = linhaF(D, "(=) EBIT");
   const queima = serieAba(bi.burn, "(=) QUEIMA DO MÊS SEM O INVESTIDOR", [mes])[0];
-  const f = folego(D, mes);
-  const saldoSemInv = serieAba(bi.competencia_caixa, "(=) Saldo em conta sem o investidor", [mes])[0];
   const devendo = (D.inadimplencia?.unidades_partners ?? []).reduce((a, u) => a + u.total, 0);
   const trilha = (prefixo: string, aba: AbaMensal) => serieAba(aba, prefixo, fMeses);
 
@@ -156,7 +155,6 @@ export function VisaoExecutiva({ D }: { D: DreCaixa }) {
     .sort((a, b) => Math.abs(b.d) - Math.abs(a.d))
     .slice(0, 3);
 
-  const saldos = trilha("(=) Saldo em conta no fim do mês", bi.competencia_caixa);
   const historico = fMeses.map((m, i) => ({
     r: rot(m),
     m,
@@ -164,7 +162,6 @@ export function VisaoExecutiva({ D }: { D: DreCaixa }) {
     receitaV: Math.round(receita?.v?.[i] ?? 0),
     ebitP: Math.round(ebit?.p?.[i] ?? 0),
     ebitV: Math.round(ebit?.v?.[i] ?? 0),
-    saldo: saldos[i],
   }));
 
   return (
@@ -206,24 +203,6 @@ export function VisaoExecutiva({ D }: { D: DreCaixa }) {
           nota="EBIT + não operacional, sem o aporte (competência)"
           tom={queima === null ? undefined : queima >= 0 ? "sucesso" : "perigo"}
           tendencia={{ valores: trilha("(=) QUEIMA DO MÊS SEM O INVESTIDOR", bi.burn).slice(0, j + 1), rotulo: "por mês" }}
-          abrir={{ href: "/bi-financeiro?aba=folego", rotulo: "Ver o fôlego" }}
-        />
-        <KpiCard
-          rotulo="Saldo em conta"
-          valor={brlOuTraco(f.saldo)}
-          nota={`fim de ${rot(mes)} pelo extrato · sem o investidor ${brlOuTraco(saldoSemInv)}`}
-          tendencia={{ valores: saldos.slice(0, j + 1), rotulo: "fim de cada mês" }}
-          abrir={{ href: "/bi-financeiro?aba=ponte", rotulo: "Ver Competência × Caixa" }}
-        />
-        <KpiCard
-          rotulo="Meses de caixa sem o investidor"
-          valor={f.meses === null ? "—" : f.meses.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-          nota={
-            f.meses === null
-              ? "sem queima nos últimos meses fechados"
-              : `saldo ÷ queima média de ${f.fech.map(rot).join(", ")} (${brlOuTraco(-f.media)}/mês)`
-          }
-          tom={f.meses === null ? undefined : f.meses < 3 ? "perigo" : f.meses < 6 ? "atencao" : "sucesso"}
           abrir={{ href: "/bi-financeiro?aba=folego", rotulo: "Ver o fôlego" }}
         />
         <KpiCard
@@ -310,8 +289,7 @@ export function VisaoExecutiva({ D }: { D: DreCaixa }) {
                 <th className="py-2 pr-3 text-right font-medium">Receita</th>
                 <th className="py-2 pr-3 text-right font-medium">EBIT</th>
                 <th className="py-2 pr-3 text-right font-medium">Margem</th>
-                <th className="py-2 pr-3 text-right font-medium">EBIT contra o forecast</th>
-                <th className="py-2 text-right font-medium">Saldo em conta</th>
+                <th className="py-2 text-right font-medium">EBIT contra o forecast</th>
               </tr>
             </thead>
             <tbody>
@@ -326,13 +304,12 @@ export function VisaoExecutiva({ D }: { D: DreCaixa }) {
                   <td className="py-2 pr-3 text-right">{pct(h.receitaV ? h.ebitV / h.receitaV : null)}</td>
                   <td
                     className={cn(
-                      "py-2 pr-3 text-right",
+                      "py-2 text-right",
                       h.ebitV - h.ebitP >= 0 ? "text-success" : "text-danger",
                     )}
                   >
                     {sinal(h.ebitV - h.ebitP)}
                   </td>
-                  <td className="py-2 text-right">{brlOuTraco(h.saldo)}</td>
                 </tr>
               ))}
             </tbody>
@@ -446,7 +423,8 @@ export function ForecastRealizado({ D, idx }: { D: DreCaixa; idx: number[] }) {
 function TabelaAba({ aba, meses, destaque }: { aba: AbaMensal; meses: string[]; destaque?: (k: string) => boolean }) {
   const cols = meses.map((m) => aba.meses.indexOf(m)).filter((j) => j >= 0);
   const linhas = aba.linhas.filter(
-    (l) => l.titulo || l.nivel === 0 || cols.some((j) => Math.abs(l.v?.[j] ?? 0) >= 1),
+    (l) =>
+      semSaldoEmConta(l.k) && (l.titulo || l.nivel === 0 || cols.some((j) => Math.abs(l.v?.[j] ?? 0) >= 1)),
   );
   const ehPct = (k: string) => k.includes("(%)") || k.toLowerCase().includes("inadimplência acumulada");
   return (
@@ -555,7 +533,7 @@ function TabelaProjecao({
           </tr>
         </thead>
         <tbody>
-          {linhas.map((l, i) => (
+          {linhas.filter((l) => semSaldoEmConta(l.k)).map((l, i) => (
             <tr
               key={i}
               className={cn("border-b last:border-0", l.nivel === 0 && "font-semibold", destaque?.(l.k) && "bg-muted/50")}
@@ -794,33 +772,12 @@ export function Folego({ D, idx }: { D: DreCaixa; idx: number[] }) {
 
   return (
     <>
-      <KpiGrade colunas={4}>
-        <KpiCard
-          rotulo="Meses de caixa sem o investidor"
-          valor={
-            f.meses === null ? "—" : f.meses.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
-          }
-          nota={`saldo de ${rot(ultimo)} ÷ queima média de ${f.fech.map(rot).join(", ")}`}
-          tom={
-            f.meses === null
-              ? undefined
-              : f.meses < 3
-                ? "perigo"
-                : f.meses < 6
-                  ? "atencao"
-                  : "sucesso"
-          }
-        />
+      <KpiGrade colunas={2}>
         <KpiCard
           rotulo="Queima média sem o investidor"
           valor={brlOuTraco(f.media)}
-          nota="por mês, competência, últimos 3 meses fechados"
+          nota={`por mês, competência, ${f.fech.map(rot).join(", ")}`}
           tom={f.media >= 0 ? "sucesso" : "perigo"}
-        />
-        <KpiCard
-          rotulo="Saldo em conta"
-          valor={brlOuTraco(f.saldo)}
-          nota={`fim de ${rot(ultimo)}, extrato do Omie`}
         />
         <KpiCard
           rotulo="CAC atrasado"
@@ -917,9 +874,7 @@ export function Folego({ D, idx }: { D: DreCaixa; idx: number[] }) {
           <TabelaProjecao
             meses={bi.burn_proj.meses}
             linhas={bi.burn_proj.linhas}
-            destaque={(k) =>
-              k.startsWith("(=) QUEIMA") || k.startsWith("(=) Saldo em conta no fim")
-            }
+            destaque={(k) => k.startsWith("(=) QUEIMA")}
           />
         </Secao>
       )}

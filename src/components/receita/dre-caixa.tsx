@@ -85,7 +85,7 @@ const ASSUNTOS: Record<string, { titulo: string; pergunta: string }> = {
     pergunta: "A máquina de vender se paga, e a carteira cobre a estrutura?",
   },
   variacao: { titulo: "Variação", pergunta: "O que mudou contra o período anterior?" },
-  folego: { titulo: "Fôlego", pergunta: "Quanto queimamos sem o investidor, e até quando o caixa aguenta?" },
+  folego: { titulo: "Fôlego", pergunta: "Quanto queimamos sem o investidor?" },
   ponte: { titulo: "Competência × Caixa", pergunta: "Por que o resultado é diferente do caixa?" },
   caixa: { titulo: "Entradas e saídas", pergunta: "O que entrou e o que saiu da conta?" },
   inadimplencia: { titulo: "Inadimplência", pergunta: "Quem deve à Partners e às unidades?" },
@@ -369,7 +369,6 @@ function VisaoGeral({ D, idx, idxAnt }: { D: DreCaixa; idx: number[]; idxAnt: nu
   };
   const margem = t(S.liquida) ? (t(S.ebit) / t(S.liquida)) * 100 : 0;
   const saldoMidia = t(S.midia) + t(S.cac) + t(S.reembUnid) + t(S.reembOutras);
-  const ultimo = idx[idx.length - 1];
 
   const mensal = idx.map((i) => ({
     r: rot(D.meses[i]),
@@ -411,11 +410,6 @@ function VisaoGeral({ D, idx, idxAnt }: { D: DreCaixa; idx: number[]; idxAnt: nu
           valor={brlOuTraco(t(S.caixa))}
           nota={`sem o investidor ${brlOuTraco(t(S.caixaSemInv))}`}
           tom={t(S.caixa) >= 0 ? "sucesso" : "perigo"}
-        />
-        <KpiCard
-          rotulo="Saldo em conta no fim do período"
-          valor={brlOuTraco(S.saldo[ultimo])}
-          nota={rot(D.meses[ultimo])}
         />
         <KpiCard
           rotulo="Saldo da mídia"
@@ -1896,12 +1890,10 @@ function Caixa({ D, idx }: { D: DreCaixa; idx: number[] }) {
   const S = useSeries(D);
   const jIdx = idx.map((i) => D.fcx.meses.indexOf(D.meses[i])).filter((j) => j >= 0);
   const tot = (v: number[]) => jIdx.reduce((s, j) => s + (v[j] ?? 0), 0);
-  const ultimo = idx[idx.length - 1];
   const grafico = idx.map((i) => ({
     r: rot(D.meses[i]),
     entradas: Math.round(S.entradas[i]),
     saidas: Math.round(-S.saidas[i]),
-    saldo: Math.round(S.saldo[i]),
   }));
   const bloco = (titulo: string, linhas: { k: string; v: number[] }[], sinal: number) => {
     const ord = linhas
@@ -1943,7 +1935,7 @@ function Caixa({ D, idx }: { D: DreCaixa; idx: number[] }) {
   };
   return (
     <>
-      <KpiGrade colunas={4}>
+      <KpiGrade colunas={3}>
         <KpiCard rotulo="Entradas" valor={brlOuTraco(somaIdx(S.entradas, idx))} />
         <KpiCard rotulo="Saídas" valor={brlOuTraco(somaIdx(S.saidas, idx))} />
         <KpiCard
@@ -1952,9 +1944,8 @@ function Caixa({ D, idx }: { D: DreCaixa; idx: number[] }) {
           nota={`sem o investidor ${brlOuTraco(somaIdx(S.caixaSemInv, idx))}`}
           tom={somaIdx(S.caixa, idx) >= 0 ? "sucesso" : "perigo"}
         />
-        <KpiCard rotulo="Saldo em conta no fim" valor={brlOuTraco(S.saldo[ultimo])} nota={rot(D.meses[ultimo])} />
       </KpiGrade>
-      <Secao titulo="Entradas, saídas e saldo por mês" sub="Extrato de conta corrente; transferências entre contas próprias e lançamentos previstos fora.">
+      <Secao titulo="Entradas e saídas por mês" sub="Extrato de conta corrente; transferências entre contas próprias e lançamentos previstos fora.">
         <div className="h-72">
           <ResponsiveContainer>
             <ComposedChart data={grafico} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
@@ -1965,7 +1956,6 @@ function Caixa({ D, idx }: { D: DreCaixa; idx: number[] }) {
               <Legend {...legendaProps} />
               <Bar dataKey="entradas" name="Entradas" fill={CORES_SERIE[0]} radius={3} isAnimationActive={false} />
               <Bar dataKey="saidas" name="Saídas" fill={CORES_SERIE[3]} radius={3} isAnimationActive={false} />
-              <Line dataKey="saldo" name="Saldo em conta" stroke={CORES_SERIE[2]} strokeWidth={2} dot isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
