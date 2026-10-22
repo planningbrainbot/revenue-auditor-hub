@@ -6619,3 +6619,20 @@ contrato em `monetizacao/outputs/2026-10-20-cella-integracao/contrato-v2.md`.
 **Alternativas descartadas:** automação ou webhook do Pipedrive da Planning (manda o card inteiro, com outros produtos;
 a conta está acima do limite de automações); n8n (a regra de etapas e o espelho moram no Brain); Zapier ou Apps Script
 do lado deles (mais uma peça para manter, e o Pipedrive deles aceita a API direto).
+
+## [2026-10-22] Volta da Cella: o Brain lê o funil 9 deles, e a data do contrato vira a nossa data de assinatura
+
+**Contexto:** a pauta da reunião com a Diehl & Cella pedia "o valor possível de cada tese, por negócio". Em 22/10 a
+Cella passou ao Matheus, por WhatsApp, estimativas de 3 clientes (Alves e Freitas R$ 174,0 mil, Ô De Casa R$ 73,9 mil,
+Tech Med R$ 44,8 mil), que não estavam em nenhum dos dois Pipedrives. O negócio deles tem "Data do Contrato
+(Fechamento)" preenchida nos 8 contratos, e a nossa "Caixa · Data de assinatura" estava vazia em todos.
+
+**Decisão (Pedro, 22/10):** acompanhar lendo o Pipedrive deles, não por lançamento manual do Matheus. A mesma função
+`monetizacao-cella-envio` lê, a cada rodada, o funil 9 inteiro para `ops.monetizacao_cella_negocios`. O contrato fica
+ligado ao card pelo vínculo do envio; os outros negócios do mesmo cliente (um por tese, como a "LC224" da Matrocar)
+ficam ligados pela organização. A data do contrato de um principal ganho é gravada na "Caixa · Data de assinatura" do
+card só quando ela está vazia. A Cella precisa cadastrar cada tese como negócio, com o crédito estimado no Valor.
+O acompanhamento vai para uma aba Cella no Forecast; a tela depende do contrato de tela aprovado.
+
+**Medido na 1ª rodada (22/10):** 37 negócios lidos, 21 ligados (19 contratos, 2 extras), 1 com valor, 8 datas de
+assinatura gravadas.

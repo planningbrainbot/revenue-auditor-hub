@@ -271,3 +271,52 @@ test("espelho dos pipes 39 e 40", () => {
     false,
   );
 });
+
+test("volta: contrato pelo vínculo, teses pela organização, assinatura só do contrato ganho", async () => {
+  const { lerVolta, CELLA_NEGOCIO } =
+    await import("../supabase/functions/monetizacao-cella-envio/logica.ts");
+  const deals = [
+    {
+      id: 2121,
+      title: "Radar Tributário",
+      status: "won",
+      stage_id: 36,
+      value: 0,
+      org_id: 731,
+      custom_fields: {
+        [CELLA_NEGOCIO.dataContrato]: "2026-09-25",
+        [CELLA_NEGOCIO.classificacao]: [244],
+      },
+    },
+    {
+      id: 2122,
+      title: "LC224 - Adicional de 10%",
+      status: "open",
+      stage_id: 36,
+      value: 52000,
+      currency: "BRL",
+      org_id: 731,
+      custom_fields: { [CELLA_NEGOCIO.tipoContrato]: 299 },
+    },
+    {
+      id: 2134,
+      title: "Radar Tributário 09/09",
+      status: "lost",
+      stage_id: 35,
+      value: 0,
+      org_id: 742,
+      custom_fields: {},
+    },
+  ];
+  const { linhas, assinaturas } = lerVolta(deals, [{ deal_id: 94348, cella_deal_id: 2121 }]);
+  const [contrato, tese, solto] = linhas;
+  assert.equal(contrato.principal, true);
+  assert.equal(contrato.deal_id, 94348);
+  assert.deepEqual(contrato.classificacao, ["Parceiro"]);
+  assert.equal(tese.principal, false);
+  assert.equal(tese.deal_id, 94348);
+  assert.equal(tese.valor, 52000);
+  assert.equal(tese.tipo_contrato, "Processos Judiciais - Teses");
+  assert.equal(solto.deal_id, null);
+  assert.deepEqual(assinaturas, [{ deal_id: 94348, data: "2026-09-25" }]);
+});
