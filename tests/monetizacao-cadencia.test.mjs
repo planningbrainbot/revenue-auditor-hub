@@ -1131,7 +1131,7 @@ const entrada = (id, extra = {}) => ({
 });
 const doTipo = (pd, metodo) => pd.chamadas.filter(([m]) => m === metodo);
 
-test("contatosDoCard: e-mail, WhatsApp, reunião e ligação atendida contam; ligação sem resposta e WhatsApp aos sócios, não", () => {
+test("contatosDoCard: e-mail, WhatsApp, reunião e ligação atendida contam; ligação sem resposta, WhatsApp aos sócios e aviso automático, não", () => {
   const atividades = [
     {
       done: true,
@@ -1212,6 +1212,29 @@ test("contatosDoCard: e-mail, WhatsApp, reunião e ligação atendida contam; li
         draft_flag: 1,
         message_time: "2026-10-16T11:00:00.000Z",
         from: [{ name: "Heloá" }],
+      },
+    },
+    // Aviso de entrega do Outlook da Planning e resposta automática não são o cliente.
+    {
+      object: "mailMessage",
+      data: {
+        sent_flag: 0,
+        draft_flag: 0,
+        message_time: "2026-10-17T19:45:00.000Z",
+        subject: "Não é possível entregar: Oportunidades financeiras para a Cinc",
+        from: [
+          { name: "Microsoft Outlook", email_address: "microsoftexchange329e@planning.com.br" },
+        ],
+      },
+    },
+    {
+      object: "mailMessage",
+      data: {
+        sent_flag: 0,
+        draft_flag: 0,
+        message_time: "2026-10-18T10:00:00.000Z",
+        subject: "Resposta automática: Oportunidades financeiras para a Cinc",
+        from: [{ name: "Fulano", email_address: "fulano@cinc.com.br" }],
       },
     },
   ];
