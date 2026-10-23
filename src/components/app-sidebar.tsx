@@ -33,6 +33,7 @@ import {
   Rocket,
   Landmark,
   Store,
+  LifeBuoy,
 } from "lucide-react";
 import {
   Sidebar,
@@ -73,6 +74,7 @@ import { corDaArea } from "@/lib/planning/cores-area";
 // e o botão "voltar" do navegador funciona como a pessoa espera.
 const GROWTH_URL = "/growth";
 const FINANCEIRO_URL = "/financeiro";
+const AJUDA_URL = "https://ajuda.planningbrain.com.br/";
 
 // A Administração não divide o seletor com as áreas de trabalho.
 //
@@ -396,50 +398,60 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter className="border-t p-2">
-        {mostrarEquipe || areaAdmin ? (
-          <SidebarMenu>
-            {/* Quem administra uma área (admin ou sócio) cuida da equipe aqui.
-                O super admin faz isso pela Administração, logo abaixo. */}
-            {mostrarEquipe && (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  size="sm"
-                  isActive={pathname === "/equipe"}
-                  tooltip="Minha equipe"
+        <SidebarMenu>
+          {/* A central de ajuda vale para todo papel, inclusive o sócio de
+              unidade, então fica fixa no rodapé e não dentro de uma área.
+              Outro site: <a> em aba nova, para não perder a tela em uso. */}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="sm" tooltip="Central de ajuda">
+              <a
+                href={AJUDA_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-muted-foreground"
+              >
+                <LifeBuoy className="h-4 w-4 shrink-0" />
+                <span>Central de ajuda</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {/* Quem administra uma área (admin ou sócio) cuida da equipe aqui.
+              O super admin faz isso pela Administração, logo abaixo. */}
+          {mostrarEquipe && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                size="sm"
+                isActive={pathname === "/equipe"}
+                tooltip="Minha equipe"
+              >
+                <Link to="/equipe" className="flex items-center gap-2 text-muted-foreground">
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span>Minha equipe</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {areaAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                size="sm"
+                isActive={areaAtual?.slug === AREA_RODAPE}
+                tooltip={areaAdmin.nome}
+              >
+                <Link
+                  to={areaAdmin.grupos[0].items[0].url}
+                  onClick={() => setAreaEscolhida(areaAdmin.slug)}
+                  className="flex items-center gap-2 text-muted-foreground"
                 >
-                  <Link to="/equipe" className="flex items-center gap-2 text-muted-foreground">
-                    <Users className="h-4 w-4 shrink-0" />
-                    <span>Minha equipe</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-            {areaAdmin && (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  size="sm"
-                  isActive={areaAtual?.slug === AREA_RODAPE}
-                  tooltip={areaAdmin.nome}
-                >
-                  <Link
-                    to={areaAdmin.grupos[0].items[0].url}
-                    onClick={() => setAreaEscolhida(areaAdmin.slug)}
-                    className="flex items-center gap-2 text-muted-foreground"
-                  >
-                    <areaAdmin.icone className="h-4 w-4 shrink-0" />
-                    <span>{areaAdmin.nome}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-          </SidebarMenu>
-        ) : (
-          <div className="truncate px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-            {areaAtual?.nome ?? "Planning Brain"}
-          </div>
-        )}
+                  <areaAdmin.icone className="h-4 w-4 shrink-0" />
+                  <span>{areaAdmin.nome}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+        </SidebarMenu>
       </SidebarFooter>
       </div>
     </Sidebar>
