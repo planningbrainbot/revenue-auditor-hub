@@ -6812,3 +6812,15 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - 9 cards que esperavam os 30 dias foram antecipados por decisão do Pedro; 2 são de Belém e seguem pausados.
 - Os 4 perdidos como "contato esgotado" foram reabertos com uma tarefa de ligação.
 - O Matheus vai para o pipe 39 só com a carga de novembro.
+
+## [2026-10-23] Brain Jurídico: quarta aplicação, montada em /juridico
+
+**Contexto:** o Mikael (Marketing) abriu a vertical Brain Jurídico (discovery-09 no repo `marketing-planning`, a partir do PRD da Julianna Grossi de 22/10): a porta de pedidos ao Jurídico, o contrato que nasce do ganho no Pipedrive e segue espelhado no Pipefy até o handoff ao CS, e o Contencioso. O banco fica no schema `juridico` do Planning Brain.
+
+**Decisão:** aplicação própria, no molde de "três produtos, três aplicações" (14/09): repo `planningbrainbot/brain-juridico` (Next.js 16, `basePath: /juridico`), projeto `brain-juridico` da Vercel no time `planning17`. Este repo só entra com a rota: duas regras de `rewrites` no `vercel.json`, iguais às do `/growth` e do `/financeiro`. Sem subdomínio próprio, por decisão do Mikael em 23/10.
+
+**Como:**
+- A sessão é a mesma do Ops e do Growth, pelo cookie de `.planningbrain.com.br`. Quem só faz pedido ao Jurídico e não tem conta no Planning Brain entra com um código do próprio app e não ganha conta: as funções `security definer` do `ops` aceitam qualquer conta logada (achado da discovery-09).
+- A porta do produto é `public.produto_acesso` com `juridico`. O perfil dentro do app (Jurídico, Administrador, Contencioso) fica em `juridico.membros`.
+- Fica para depois, quando o app tiver tela para mostrar: a casca (lateral, trocador de produto, tema) e o card em `/inicio`.
+- Para publicar só a rota, o deploy sai do commit que já estava no ar com esta mudança por cima. O que estiver mergeado e ainda não publicado na `main` fica para quem é dono daquilo.
