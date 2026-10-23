@@ -364,5 +364,3 @@ def test_porta_ops_so_para_quem_deve(com):
                               has_table_privilege('authenticated', 'comissoes.linhas', 'select'),
                               has_schema_privilege('authenticated', 'comissoes', 'usage')""")
     assert com.cur.fetchone() == (True, False, False, True, False, False, False)
-    com.cur.execute("select count(*) from ops.area_chaves where area = 'receita' and permission_key = 'view.comissoes'")
-    assert com.cur.fetchone()[0] == 0

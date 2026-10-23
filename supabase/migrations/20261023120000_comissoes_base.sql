@@ -8,7 +8,8 @@
 -- O Ops é lido só de dentro das funções: ops.contratos, ops.unidades, ops.royalties_apuracao e
 -- ops.royalties_itens. Fatia 2 (baixas no Omie, trava, estornos) fica de fora.
 --
--- Substitui a tela Apuração de comissões (D-05): a chave view.comissoes deixa a área `receita`.
+-- Substitui a tela Apuração de comissões (D-05): a chave view.comissoes deixa a área `receita` na migration
+-- 20261023120100, aplicada junto com o deploy (até lá a tela antiga continua aberta para a Receita).
 -- Reversão: supabase/rollback/20261023120000_comissoes_base.sql
 
 do $$ begin
@@ -32,8 +33,6 @@ insert into ops.areas (slug, nome, descricao, escopo, ordem, ativa) values
   ('comissoes_revisao', 'Comissões: revisão', 'Revisar e liberar o pagamento de comissão do mês (líderes comerciais).', 'nenhum', 91, true),
   ('comissoes_fechamento', 'Comissões: fechamento', 'Fechar, pagar e exportar o mês de comissões (financeiro).', 'nenhum', 92, true)
 on conflict (slug) do nothing;
-
-delete from ops.area_chaves where area = 'receita' and permission_key = 'view.comissoes';
 
 insert into ops.area_chaves (area, permission_key) values
   ('comissoes', 'view.comissoes'),
