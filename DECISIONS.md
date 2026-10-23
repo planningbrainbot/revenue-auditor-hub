@@ -6777,3 +6777,18 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 ## [2026-10-23] Comissões e Receita são acessos separados
 
 **Decisão (dono):** quem tem a área Receita não ganha Comissões, e vice-versa. Migration `20261023120100` aplicada: `view.comissoes` saiu da área `receita`. As 3 concessões individuais de `view.comissoes` dependiam da Receita e deixaram de valer; quem precisar entra pela área `comissoes`. Também aplicada a `20261023130000` (planilha para o DP no formato da de set/26; pagamento sempre no dia 20, o dia útil é do fluxo do DP e do financeiro).
+
+## [2026-10-23] Pipe 39: card que já teve contato não recomeça a cadência
+
+**Contexto:** a Heloá abordou a Cinc em 21/10, e o cliente reclamou que já tinha falado com o Matheus. O card nunca foi perdido antes. A pausa de Belém (19/10) devolveu o card para a 274, e a volta à 276 recomeçou a cadência do D0: o mesmo e-mail "Oportunidades financeiras para a Cinc" chegou duas vezes, do Matheus em 15/10 e da Heloá em 21/10. Em 21 e 22/10, 28 cards que o Matheus já tinha começado foram recomeçados do zero pela Heloá. Em 4 deles o cliente já tinha atendido ligação do Matheus (Cinc, Da Fazenda, TS Empreendimentos e Marinho), e em outros 7 tinha recebido e-mail ou WhatsApp. Duas coisas recomeçam do zero na volta à 276: a cadência da `monetizacao-cadencia` e o e-mail do D0, que sai da automação do Pipedrive na mudança 274→276.
+
+**Decisão do Pedro:** "Sem cadência nova". O card que volta à 276 depois de contato não ganha cadência nem e-mail de apresentação. Ganha uma tarefa para o dono: "Caixa · Retomar a conversa (contato desde DD/MM)", com os contatos registrados na nota. Nas cadências repetidas que estavam rodando, só as 3 com conversa foram paradas (Da Fazenda, TS e Marinho); as outras 7 seguem.
+
+**Como:**
+- Contato é o que chegou ao cliente ou veio dele: atividade feita de e-mail, WhatsApp ou reunião, ligação atendida (Api4Com, "atendida às") e e-mail do card, enviado ou recebido. Não contam ligação sem resposta, o WhatsApp aos sócios da unidade nem tarefa interna.
+- A linha do card em `ops.monetizacao_cadencia` fica `ignorada`, com o motivo "já abordado: contato desde DD/MM". Ela não volta nas rodadas seguintes, e as telas não a contam.
+- O Brain grava "Caixa · Data 1ª abordagem" (deal field 318, que estava vazio em todos os cards) em três momentos: quando o e-mail do D0 sai, quando o card sai da 276 depois de contato e quando vira "já abordado".
+- A automação do e-mail do D0 no Pipedrive precisa da condição "Caixa · Data 1ª abordagem está vazio". Ela não é legível nem editável pela API, então a condição é colocada à mão.
+- Tudo fica atrás de `MONET_CADENCIA_NAO_REPETIR=sim`. Sem a chave, a função faz o que fazia.
+
+**Lacuna conhecida:** se o card sai e volta à 276 em menos de 5 minutos, antes de a rodada gravar a data, a automação do Pipedrive ainda manda o e-mail. A cadência, porém, não recomeça.

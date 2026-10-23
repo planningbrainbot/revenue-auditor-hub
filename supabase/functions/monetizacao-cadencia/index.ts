@@ -41,6 +41,9 @@ const ATIVA = Deno.env.get("MONET_CADENCIA_ATIVA") === "sim";
 const INICIO = Deno.env.get("MONET_CADENCIA_INICIO") || null;
 // MONET_CADENCIA_EMAIL_D0_AUTO=sim quando a automação do Pipedrive manda o e-mail do D0 (13/10/2026): ele nasce feito.
 const EMAIL_D0_AUTO = Deno.env.get("MONET_CADENCIA_EMAIL_D0_AUTO") === "sim";
+// MONET_CADENCIA_NAO_REPETIR=sim (23/10/2026): card que volta à 276 depois de contato ganha a tarefa de retomar, não a
+// cadência, e o Brain grava "Caixa · Data 1ª abordagem" (a automação do D0 passa a exigir o campo vazio).
+const NAO_REPETIR = Deno.env.get("MONET_CADENCIA_NAO_REPETIR") === "sim";
 const TABELA = "monetizacao_cadencia";
 
 const { pd, pages } = pipedriveApi(PD);
@@ -60,6 +63,7 @@ const pipedrive: PipedriveCadencia = {
   get: (path, params = {}) => pd(path, params),
   pages: (path, params = {}) => pages(path, params),
   post: (path, payload) => pd(path, {}, payload),
+  put: (path, payload) => pd(path, {}, payload, "PUT"),
   del: apagar,
 };
 
@@ -139,6 +143,7 @@ Deno.serve(async (req) => {
       regua: REGUA,
       versao: VERSAO_REGUA,
       emailD0Automatico: EMAIL_D0_AUTO,
+      naoRepetir: NAO_REPETIR,
     });
     // O cron espera 150 s: a conferência das feitas usa o que sobrou até 125 s.
     const feitas = await marcarFeitas({
@@ -154,6 +159,9 @@ Deno.serve(async (req) => {
       feitas,
       automacao: ATIVA ? "ligada" : "desligada (MONET_CADENCIA_ATIVA diferente de sim)",
       email_d0: EMAIL_D0_AUTO ? "automático (nasce feito)" : "manual",
+      nao_repetir: NAO_REPETIR
+        ? "ligada (card já abordado ganha tarefa de retomar)"
+        : "desligada (MONET_CADENCIA_NAO_REPETIR diferente de sim)",
     });
   } catch (e) {
     return json({ status: "erro", error: (e as Error).message }, 500);

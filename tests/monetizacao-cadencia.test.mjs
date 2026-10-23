@@ -8,6 +8,7 @@ import {
   assunto,
   camposDoCard,
   chavesDaRegua,
+  contatosDoCard,
   empresaParaMensagem,
   diaUtilApos,
   diaZero,
@@ -19,9 +20,11 @@ import {
   planejar,
   preencher,
   primeiroNome,
+  proximoHorario,
   rodarCadencia,
   rotulosDosCampos,
   socioDoCampo,
+  tarefaJaAbordado,
   vencimentoUtc,
 } from "../supabase/functions/monetizacao-cadencia/logica.ts";
 import { HORARIO, REGUA, VERSAO_REGUA } from "../supabase/functions/monetizacao-cadencia/regua.ts";
@@ -62,8 +65,15 @@ const deal = (id, stageChange, extra = {}) => ({
   ...extra,
 });
 
-/** Pipedrive em memória: deals abertos da 276, histórico, deals por id e atividades. */
-function fakePipedrive({ abertos = [], flows = {}, deals = {}, tipos = TIPOS, falharPost } = {}) {
+/** Pipedrive em memória: deals abertos da 276, histórico, deals por id, atividades e contatos de cada card. */
+function fakePipedrive({
+  abertos = [],
+  flows = {},
+  deals = {},
+  contatos = {},
+  tipos = TIPOS,
+  falharPost,
+} = {}) {
   const chamadas = [];
   const atividades = new Map();
   let proximo = 5000;
@@ -71,7 +81,7 @@ function fakePipedrive({ abertos = [], flows = {}, deals = {}, tipos = TIPOS, fa
   return {
     chamadas,
     atividades,
-    escritas: () => chamadas.filter(([m]) => m === "POST" || m === "DELETE"),
+    escritas: () => chamadas.filter(([m]) => m === "POST" || m === "DELETE" || m === "PUT"),
     async get(path) {
       chamadas.push(["GET", path]);
       if (path === "activityTypes") return { data: tipos };
@@ -95,6 +105,11 @@ function fakePipedrive({ abertos = [], flows = {}, deals = {}, tipos = TIPOS, fa
         assert.deepEqual(params, { stage_id: "276", status: "open" });
         return copia(abertos);
       }
+      const c = /^deals\/(\d+)\/(activities|mailMessages)$/.exec(path);
+      if (c) {
+        const doCard = contatos[c[1]] || {};
+        return copia((c[2] === "activities" ? doCard.atividades : doCard.emails) || []);
+      }
       const m = /^deals\/(\d+)\/flow$/.exec(path);
       if (m) return copia(flows[m[1]] || []);
       throw new Error(`pages inesperado: ${path}`);
@@ -107,6 +122,10 @@ function fakePipedrive({ abertos = [], flows = {}, deals = {}, tipos = TIPOS, fa
       const id = proximo++;
       atividades.set(id, { id, ...payload, done: false });
       return { data: { id } };
+    },
+    async put(path, payload) {
+      chamadas.push(["PUT", path, payload]);
+      return { data: { id: Number(path.split("/")[1]) } };
     },
     async del(path) {
       chamadas.push(["DELETE", path]);
@@ -1089,4 +1108,295 @@ test("camposDoCard: nome da Heloá com acento; Consultoria sem regime usa a rég
     plano.find((p) => p.dia === 3 && p.tipo === "whatsapp").note,
     /da \[EMPRESA\], desde 09\/10/,
   );
+});
+
+// ---------------------------------------------------------------------------- card já abordado (23/10/2026)
+
+const CAMPO_1A = "f77498351abaaf2200ea4ed0d754b51e755f5c61";
+const CONTATO_ANTERIOR = {
+  atividades: [
+    {
+      done: true,
+      type: "email",
+      subject: "Caixa · D0 · E-mail de apresentação · manhã",
+      owner_name: "Matheus Carvalho",
+      marked_as_done_time: "2026-10-02 12:00:00",
+    },
+  ],
+  emails: [],
+};
+const entrada = (id, extra = {}) => ({
+  abertos: [deal(id, "2026-10-09 15:00:00", { ...COM_SOCIO, ...extra })],
+  flows: { [id]: [mudanca(274, 276, "2026-10-09 15:00:00")] },
+});
+const doTipo = (pd, metodo) => pd.chamadas.filter(([m]) => m === metodo);
+
+test("contatosDoCard: e-mail, WhatsApp, reunião e ligação atendida contam; ligação sem resposta e WhatsApp aos sócios, não", () => {
+  const atividades = [
+    {
+      done: true,
+      type: "email",
+      subject: "Caixa · D0 · E-mail de apresentação · manhã",
+      owner_name: "Matheus Carvalho",
+      marked_as_done_time: "2026-10-15 12:00:00",
+    },
+    {
+      done: true,
+      type: "call",
+      subject: "Ligação para (61) 98151-3833 atendida às 16/10/2026 10:33:49",
+      owner_name: "Matheus Carvalho",
+      marked_as_done_time: "2026-10-16 13:33:00",
+    },
+    {
+      done: true,
+      type: "call",
+      subject: "Ligação para (61) 98151-3833 não foi atendida pelo seguinte motivo: Caixa postal",
+      marked_as_done_time: "2026-10-16 14:00:00",
+    },
+    {
+      done: true,
+      type: "call",
+      subject: "Caixa · D1 · Ligação · manhã",
+      marked_as_done_time: "2026-10-16 12:00:00",
+    },
+    {
+      done: true,
+      type: "whatsapp",
+      subject: "Caixa · D3 · WhatsApp aos sócios da unidade · manhã",
+      marked_as_done_time: "2026-10-17 12:00:00",
+    },
+    {
+      done: false,
+      type: "whatsapp",
+      subject: "Caixa · D1 · WhatsApp mensagem-base · manhã",
+      due_date: "2026-10-16",
+      due_time: "12:00",
+    },
+    {
+      done: true,
+      type: "task",
+      subject: "Caixa · Conseguir o contato com o Lando",
+      marked_as_done_time: "2026-10-17 12:00:00",
+    },
+    {
+      done: true,
+      type: "whatsapp",
+      subject: "Caixa · D2 · WhatsApp retomada · tarde",
+      owner_name: "Heloa Jesus",
+      marked_as_done_time: "2026-10-22 17:00:00",
+    },
+  ];
+  const emails = [
+    {
+      object: "mailMessage",
+      data: {
+        sent_flag: 1,
+        draft_flag: 0,
+        message_time: "2026-10-15T18:30:28.000Z",
+        from: [{ name: "Matheus Carvalho" }],
+      },
+    },
+    {
+      object: "mailMessage",
+      data: {
+        sent_flag: 0,
+        draft_flag: 0,
+        message_time: "2026-10-16T10:00:00.000Z",
+        from: [{ name: "Cinc" }],
+      },
+    },
+    {
+      object: "mailMessage",
+      data: {
+        sent_flag: 0,
+        draft_flag: 1,
+        message_time: "2026-10-16T11:00:00.000Z",
+        from: [{ name: "Heloá" }],
+      },
+    },
+  ];
+  const c = contatosDoCard(atividades, emails, instante("2026-10-21 16:18:00"));
+  assert.deepEqual(
+    c.map((x) => [x.em.slice(0, 16), x.quem, x.como]),
+    [
+      ["2026-10-15T12:00", "Matheus Carvalho", "e-mail"],
+      ["2026-10-15T18:30", "Matheus Carvalho", "e-mail"],
+      ["2026-10-16T10:00", "Cinc", "e-mail recebido do cliente"],
+      ["2026-10-16T13:33", "Matheus Carvalho", "ligação atendida"],
+    ],
+  );
+  // Sem limite, o WhatsApp de 22/10 também entra.
+  assert.equal(contatosDoCard(atividades, emails).length, 5);
+  assert.deepEqual(contatosDoCard([], []), []);
+});
+
+test("tarefaJaAbordado: vence no próximo horário útil e lista os contatos sem repetir a linha", () => {
+  const contatos = [
+    { em: "2026-10-15T12:00:00.000Z", quem: "Matheus Carvalho", como: "e-mail" },
+    { em: "2026-10-15T18:30:00.000Z", quem: "Matheus Carvalho", como: "e-mail" },
+    { em: "2026-10-16T13:33:00.000Z", quem: "Matheus Carvalho", como: "ligação atendida" },
+  ];
+  // Sexta 09/10, 15h em São Paulo: já passou das 14h; 12/10 é feriado, então 13/10 às 09:00.
+  const t = tarefaJaAbordado(contatos, AGORA);
+  assert.equal(t.subject, "Caixa · Retomar a conversa (contato desde 15/10)");
+  assert.deepEqual([t.due_date, t.due_time, t.turno], ["2026-10-13", "12:00", "manha"]);
+  assert.ok(
+    t.note.includes(
+      "• 15/10 · Matheus Carvalho · e-mail<br>• 16/10 · Matheus Carvalho · ligação atendida",
+    ),
+  );
+  assert.equal(t.note.split("• 15/10").length, 2);
+  assert.deepEqual(proximoHorario(new Date("2026-10-13T11:00:00Z")), {
+    dia: "2026-10-13",
+    turno: "manha",
+  });
+  assert.deepEqual(proximoHorario(new Date("2026-10-13T13:00:00Z")), {
+    dia: "2026-10-13",
+    turno: "tarde",
+  });
+  assert.deepEqual(proximoHorario(new Date("2026-10-17T13:00:00Z")), {
+    dia: "2026-10-19",
+    turno: "manha",
+  });
+});
+
+test("não repetir: card que volta à 276 depois de contato ganha a tarefa de retomar, não a cadência", async () => {
+  const pd = fakePipedrive({ ...entrada(501), contatos: { 501: CONTATO_ANTERIOR } });
+  const store = fakeStore([
+    {
+      deal_id: 501,
+      entrou_em: "2026-10-02T12:00:00Z",
+      dono: 7001,
+      versao_regua: VERSAO,
+      atividades: [],
+      status: "encerrada",
+      motivo_encerramento: "saiu para a etapa 274",
+    },
+  ]);
+  const r = await rodar(pd, store, { naoRepetir: true, emailD0Automatico: true });
+  assert.equal(r.status, "ok");
+  assert.deepEqual(r.criados, []);
+  assert.equal(r.ja_abordados.length, 1);
+  assert.equal(r.ja_abordados[0].deal, 501);
+  assert.equal(r.ja_abordados[0].primeira_abordagem, "2026-10-02");
+  const posts = doTipo(pd, "POST").map(([, , p]) => p);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].subject, "Caixa · Retomar a conversa (contato desde 02/10)");
+  assert.deepEqual(
+    [posts[0].type, posts[0].user_id, posts[0].done, posts[0].deal_id],
+    ["task", 7001, 0, 501],
+  );
+  // Só o contato de antes da entrada conta, e só atividade feita.
+  assert.ok(
+    pd.chamadas.some(
+      ([m, p, q]) => m === "PAGES" && p === "deals/501/activities" && q.done === "1",
+    ),
+  );
+  const nova = store.linhas.find(
+    (l) => Date.parse(l.entrou_em) === Date.parse("2026-10-09T15:00:00Z"),
+  );
+  assert.equal(nova.status, "ignorada");
+  assert.equal(nova.motivo_encerramento, "já abordado: contato desde 02/10");
+  assert.deepEqual(
+    nova.atividades.map((a) => [a.chave, a.tipo]),
+    [["ja-abordado", "task"]],
+  );
+  assert.deepEqual(doTipo(pd, "PUT"), [["PUT", "deals/501", { [CAMPO_1A]: "2026-10-02" }]]);
+  // A rodada seguinte não cria nada nem relê os contatos.
+  const antes = pd.chamadas.length;
+  const r2 = await rodar(pd, store, { naoRepetir: true, emailD0Automatico: true });
+  assert.deepEqual([r2.criados, r2.ja_abordados], [[], []]);
+  assert.ok(!pd.chamadas.slice(antes).some(([m]) => m === "POST" || m === "PUT"));
+});
+
+test("não repetir: sem contato anterior a cadência nasce como sempre, e o e-mail do D0 grava a 1ª abordagem", async () => {
+  const semResposta = {
+    atividades: [
+      {
+        done: true,
+        type: "call",
+        subject: "Ligação para (11) 99999-0000 não foi atendida pelo seguinte motivo: Caixa postal",
+        marked_as_done_time: "2026-10-05 12:00:00",
+      },
+    ],
+  };
+  const pd = fakePipedrive({ ...entrada(502), contatos: { 502: semResposta } });
+  const r = await rodar(pd, fakeStore(), { naoRepetir: true, emailD0Automatico: true });
+  assert.equal(r.criados.length, 1);
+  assert.deepEqual(r.ja_abordados, []);
+  const posts = doTipo(pd, "POST").map(([, , p]) => p);
+  assert.equal(posts.length, 3);
+  assert.equal(posts[0].done, 1);
+  assert.deepEqual(doTipo(pd, "PUT"), [["PUT", "deals/502", { [CAMPO_1A]: "2026-10-09" }]]);
+  // Com a data já preenchida, a automação do D0 não manda: o D0 nasce a fazer e nada é regravado.
+  const pd2 = fakePipedrive({ ...entrada(503, { [CAMPO_1A]: "2026-10-01" }) });
+  await rodar(pd2, fakeStore(), { naoRepetir: true, emailD0Automatico: true });
+  assert.deepEqual(
+    doTipo(pd2, "POST").map(([, , p]) => p.done),
+    [0, 0, 0],
+  );
+  assert.deepEqual(doTipo(pd2, "PUT"), []);
+});
+
+test("não repetir desligado: o card já abordado recomeça a cadência, sem ler os contatos nem gravar a data", async () => {
+  const pd = fakePipedrive({ ...entrada(504), contatos: { 504: CONTATO_ANTERIOR } });
+  const r = await rodar(pd, fakeStore(), { emailD0Automatico: true });
+  assert.equal(r.criados.length, 1);
+  assert.deepEqual(r.ja_abordados, []);
+  assert.ok(
+    !pd.chamadas.some(([, p]) => /^deals\/\d+\/(activities|mailMessages)$/.test(String(p))),
+  );
+  assert.deepEqual(doTipo(pd, "PUT"), []);
+});
+
+test("não repetir no dry-run: diz quem seria retomado, sem escrever nada", async () => {
+  const pd = fakePipedrive({ ...entrada(506), contatos: { 506: CONTATO_ANTERIOR } });
+  const store = fakeStore();
+  const r = await rodar(pd, store, { naoRepetir: true, ativo: false });
+  assert.deepEqual(r.ja_abordados, [
+    {
+      deal: 506,
+      contatos: 1,
+      primeiro_contato: "2026-10-02T12:00:00.000Z",
+      tarefa: null,
+      primeira_abordagem: null,
+    },
+  ]);
+  assert.deepEqual(pd.escritas(), []);
+  assert.deepEqual(store.escritas(), []);
+});
+
+test("não repetir: card que sai da 276 depois de contato leva a data da 1ª abordagem", async () => {
+  const linha = {
+    deal_id: 505,
+    entrou_em: "2026-10-02T12:00:00Z",
+    dono: 7001,
+    versao_regua: VERSAO,
+    atividades: [],
+    status: "ativa",
+  };
+  const pd = fakePipedrive({
+    deals: { 505: { id: 505, stage_id: 274, status: "open" } },
+    contatos: { 505: CONTATO_ANTERIOR },
+  });
+  const r = await rodar(pd, fakeStore([copia(linha)]), { naoRepetir: true });
+  assert.deepEqual(r.encerrados, [
+    {
+      deal: 505,
+      motivo: "saiu para a etapa 274",
+      apagadas: 0,
+      mantidas: 0,
+      ja_nao_existiam: 0,
+      primeira_abordagem: "2026-10-02",
+    },
+  ]);
+  assert.deepEqual(doTipo(pd, "PUT"), [["PUT", "deals/505", { [CAMPO_1A]: "2026-10-02" }]]);
+  // Sem a chave, o encerramento é o de sempre.
+  const pd2 = fakePipedrive({
+    deals: { 505: { id: 505, stage_id: 274, status: "open" } },
+    contatos: { 505: CONTATO_ANTERIOR },
+  });
+  const r2 = await rodar(pd2, fakeStore([copia(linha)]));
+  assert.equal(r2.encerrados[0].primeira_abordagem, undefined);
+  assert.deepEqual(doTipo(pd2, "PUT"), []);
 });

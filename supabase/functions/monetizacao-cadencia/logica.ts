@@ -476,6 +476,7 @@ export type PipedriveCadencia = {
   get(path: string, params?: Record<string, string>): Promise<any>;
   pages(path: string, params?: Record<string, string>): Promise<any[]>;
   post(path: string, payload: Record<string, unknown>): Promise<any>;
+  put(path: string, payload: Record<string, unknown>): Promise<any>;
   del(path: string): Promise<unknown>;
 };
 
@@ -492,9 +493,23 @@ export type ResumoCadencia = {
     apagadas: number;
     mantidas: number;
     ja_nao_existiam: number;
+    /** Dia gravado em "Caixa · Data 1ª abordagem" no encerramento (só com `naoRepetir`). */
+    primeira_abordagem?: string;
   }[];
   ignorados: { deal: number; motivo: string }[];
-  erros: { deal: number; etapa: "criar" | "retomar" | "encerrar" | "ler"; erro: string }[];
+  /** Cards que voltaram à 276 depois de já terem tido contato: ganharam a tarefa de retomar, não a cadência. */
+  ja_abordados: {
+    deal: number;
+    contatos: number;
+    primeiro_contato: string;
+    tarefa: number | null;
+    primeira_abordagem: string | null;
+  }[];
+  erros: {
+    deal: number;
+    etapa: "criar" | "retomar" | "encerrar" | "ler" | "ja_abordado";
+    erro: string;
+  }[];
   tipos_substituidos: { tipo: string; usado: string }[];
   /** Cards na 276 que entraram antes de MONET_CADENCIA_INICIO: não recebem cadência. */
   anteriores_ao_inicio: number;
@@ -521,6 +536,12 @@ export type OpcoesCadencia = {
    * onde conferir, para o pré-vendedor não mandar de novo.
    */
   emailD0Automatico?: boolean;
+  /**
+   * MONET_CADENCIA_NAO_REPETIR=sim (regra do Pedro, 23/10/2026): card que volta à 276 depois de já ter tido contato
+   * com o cliente não recomeça a cadência; ganha uma tarefa de retomar a conversa. E o Brain grava "Caixa · Data 1ª
+   * abordagem", que a automação do e-mail do D0 exige vazio.
+   */
+  naoRepetir?: boolean;
 };
 
 export const NOTA_EMAIL_D0_AUTOMATICO =
@@ -542,6 +563,142 @@ export function emailD0SaiPelaAutomacao(deal: any): boolean {
   const pessoa = deal?.person_id && typeof deal.person_id === "object" ? deal.person_id : null;
   const emails = Array.isArray(pessoa?.email) ? pessoa.email : [];
   return socio !== "" && emails.some((e: any) => String(e?.value ?? "").includes("@"));
+}
+
+// ---------------------------------------------------------------------------- card já abordado (23/10/2026)
+
+/**
+ * Campo "Caixa · Data 1ª abordagem" do negócio (id 318): o dia do primeiro contato que chegou ao cliente. A automação
+ * do e-mail do D0 no Pipedrive passa a exigir este campo vazio: card que já teve contato não recebe a apresentação de
+ * novo quando volta para a 276 (caso Cinc, 23/10/2026).
+ */
+export const CAMPO_PRIMEIRA_ABORDAGEM = "f77498351abaaf2200ea4ed0d754b51e755f5c61";
+
+/** Um contato que chegou ao cliente (ou veio dele). `em` em UTC (ISO). */
+export type Contato = { em: string; quem: string; como: string };
+
+const COMO_POR_TIPO: Readonly<Record<string, string>> = {
+  email: "e-mail",
+  whatsapp: "WhatsApp",
+  meeting: "reunião",
+};
+
+/**
+ * Os contatos com o cliente antes de `ate`, do mais antigo ao mais recente: atividades feitas de e-mail, WhatsApp e
+ * reunião, ligação atendida (a Api4Com registra "Ligação para ... atendida às ...") e e-mails do card, enviados ou
+ * recebidos. Ligação sem resposta não conta, nem o WhatsApp aos sócios da unidade (vai para o sócio, não ao cliente).
+ */
+export function contatosDoCard(
+  atividades: readonly any[],
+  emails: readonly any[],
+  ate?: Date | null,
+): Contato[] {
+  const limite = ate?.getTime() ?? Number.POSITIVE_INFINITY;
+  const r: Contato[] = [];
+  for (const a of atividades || []) {
+    if (!feita(a?.done)) continue;
+    const texto = String(a?.subject ?? "");
+    if (/aos sócios/i.test(texto)) continue;
+    const atendida = /atendida às/i.test(texto) && !/não foi atendida/i.test(texto);
+    const como = atendida ? "ligação atendida" : COMO_POR_TIPO[String(a?.type ?? "")];
+    if (!como) continue;
+    const em =
+      instante(a?.marked_as_done_time) ?? instante(`${a?.due_date} ${a?.due_time || "00:00"}`);
+    if (!em || em.getTime() >= limite) continue;
+    r.push({ em: em.toISOString(), quem: String(a?.owner_name ?? "").trim(), como });
+  }
+  for (const item of emails || []) {
+    const m = item?.data ?? item;
+    if (feita(m?.draft_flag)) continue;
+    const em = instante(m?.message_time) ?? instante(m?.add_time);
+    if (!em || em.getTime() >= limite) continue;
+    const de = Array.isArray(m?.from) ? m.from[0] : null;
+    const enviado = feita(m?.sent_flag);
+    r.push({
+      em: em.toISOString(),
+      quem: String(de?.name ?? "").trim(),
+      como: enviado ? "e-mail" : "e-mail recebido do cliente",
+    });
+  }
+  return r.sort((x, y) => x.em.localeCompare(y.em));
+}
+
+/** Os contatos do card no Pipedrive antes de `ate`: atividades feitas e e-mails, dois GET por card. */
+export async function contatosAnteriores(
+  pd: Pick<PipedriveCadencia, "pages">,
+  deal: number,
+  ate?: Date | null,
+): Promise<Contato[]> {
+  const [atividades, emails] = await Promise.all([
+    pd.pages(`deals/${deal}/activities`, { done: "1" }),
+    pd.pages(`deals/${deal}/mailMessages`, {}),
+  ]);
+  return contatosDoCard(atividades, emails, ate);
+}
+
+/** "15/10", na data de São Paulo. */
+const diaMes = (iso: string) => {
+  const d = dataSP(new Date(iso));
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+};
+
+/** O primeiro horário da régua (09:00 ou 14:00, em dia útil) que ainda não passou. */
+export function proximoHorario(
+  agora: Date,
+  horario: Readonly<Record<Turno, string>> = HORARIO,
+): { dia: string; turno: Turno } {
+  const hoje = dataSP(agora);
+  if (ehDiaUtil(hoje))
+    for (const turno of ["manha", "tarde"] as const)
+      if (instanteSP(hoje, horario[turno]).getTime() >= agora.getTime())
+        return { dia: hoje, turno };
+  return { dia: ehDiaUtil(hoje) ? diaUtilApos(hoje, 1) : diaZero(agora), turno: "manha" };
+}
+
+/** Quantos contatos (os mais recentes) a nota da tarefa lista. */
+const CONTATOS_NA_NOTA = 6;
+
+/** A tarefa que substitui a cadência no card já abordado: assunto, nota em HTML e vencimento em UTC. */
+export function tarefaJaAbordado(
+  contatos: readonly Contato[],
+  agora: Date,
+  horario: Readonly<Record<Turno, string>> = HORARIO,
+): { subject: string; note: string; turno: Turno; due_date: string; due_time: string } {
+  const linhas: string[] = [];
+  for (const c of contatos) {
+    const l = [diaMes(c.em), c.quem, c.como].filter(Boolean).join(" · ");
+    if (linhas[linhas.length - 1] !== l) linhas.push(l);
+  }
+  const { dia, turno } = proximoHorario(agora, horario);
+  return {
+    subject: `Caixa · Retomar a conversa (contato desde ${diaMes(contatos[0].em)})`,
+    note: notaHtml(
+      "Este card já teve contato com o cliente. A cadência não recomeçou, para o cliente não receber a " +
+        "apresentação de novo (regra de 23/10/2026).\n\nContatos registrados:\n" +
+        linhas
+          .slice(-CONTATOS_NA_NOTA)
+          .map((l) => `• ${l}`)
+          .join("\n") +
+        "\n\nAntes de falar com o cliente, leia o histórico do card (e-mails, WhatsApp, ligações e notas) e retome de " +
+        "onde a conversa parou, sem se apresentar como num primeiro contato. Se o cliente já disse que não tem " +
+        "interesse ou que não é mais cliente da Planning, marque o card como perdido com esse motivo.",
+    ),
+    turno,
+    ...vencimentoUtc(dia, horario[turno]),
+  };
+}
+
+/** Grava o dia (São Paulo) do primeiro contato em "Caixa · Data 1ª abordagem" se o campo estiver vazio. */
+export async function marcarPrimeiraAbordagem(
+  pd: Pick<PipedriveCadencia, "put">,
+  id: number,
+  deal: any,
+  em: string,
+): Promise<string | null> {
+  if (String(deal?.[CAMPO_PRIMEIRA_ABORDAGEM] ?? "").trim()) return null;
+  const dia = dataSP(new Date(em));
+  await pd.put(`deals/${id}`, { [CAMPO_PRIMEIRA_ABORDAGEM]: dia });
+  return dia;
 }
 
 // ---------------------------------------------------------------------------- rodada
@@ -619,7 +776,93 @@ async function encerrar(
       encerrado_em: agora.toISOString(),
       motivo_encerramento: motivo,
     });
-  return { deal, motivo, apagadas, mantidas, ja_nao_existiam };
+  // Card que sai da 276 depois de contato leva a data da 1ª abordagem: se voltar, a automação do D0 não reenvia.
+  let primeira: string | null = null;
+  if (ativo && op.naoRepetir)
+    try {
+      const d = (await pd.get(`deals/${deal}`))?.data;
+      if (d && !String(d[CAMPO_PRIMEIRA_ABORDAGEM] ?? "").trim()) {
+        const contatos = await contatosAnteriores(pd, deal);
+        if (contatos.length) primeira = await marcarPrimeiraAbordagem(pd, deal, d, contatos[0].em);
+      }
+    } catch {
+      // Fica sem a data: na volta à 276, a regra do card já abordado lê os contatos de novo.
+    }
+  return {
+    deal,
+    motivo,
+    apagadas,
+    mantidas,
+    ja_nao_existiam,
+    ...(primeira ? { primeira_abordagem: primeira } : {}),
+  };
+}
+
+/**
+ * Card que voltou à 276 depois de já ter tido contato (regra de 23/10/2026): em vez da cadência, uma tarefa de
+ * retomar a conversa para o dono, e a linha fica `ignorada` com o motivo (não volta nas rodadas seguintes). A linha
+ * vem antes da tarefa: se outra rodada já gravou, ela é a dona da criação.
+ */
+async function jaAbordado(
+  op: OpcoesCadencia,
+  deal: any,
+  id: number,
+  entrouEm: string,
+  dono: number | null,
+  contatos: Contato[],
+  horario: Readonly<Record<Turno, string>>,
+): Promise<ResumoCadencia["ja_abordados"][number] | null> {
+  const { pd, store, ativo, agora, versao } = op;
+  const r: ResumoCadencia["ja_abordados"][number] = {
+    deal: id,
+    contatos: contatos.length,
+    primeiro_contato: contatos[0].em,
+    tarefa: null,
+    primeira_abordagem: null,
+  };
+  if (!ativo) return r;
+  const inseriu = await store.inserir({
+    deal_id: id,
+    entrou_em: entrouEm,
+    dono,
+    versao_regua: versao,
+    atividades: [],
+    status: "ignorada",
+    motivo_encerramento: `já abordado: contato desde ${diaMes(contatos[0].em)}`,
+  });
+  if (!inseriu) return null;
+  const t = tarefaJaAbordado(contatos, agora, horario);
+  const criada = await pd.post("activities", {
+    subject: t.subject,
+    type: "task",
+    due_date: t.due_date,
+    due_time: t.due_time,
+    duration: DURACAO_ATIVIDADE,
+    deal_id: id,
+    ...(dono ? { user_id: dono } : {}),
+    note: t.note,
+    done: 0,
+  });
+  const tarefa = Number(criada?.data?.id) || null;
+  if (tarefa) {
+    r.tarefa = tarefa;
+    await store.atualizar(id, entrouEm, {
+      atividades: [
+        {
+          id: tarefa,
+          chave: "ja-abordado",
+          dia: 0,
+          canal: "Retomar a conversa",
+          tipo: "task",
+          turno: t.turno,
+          due_date: t.due_date,
+          due_time: t.due_time,
+        },
+      ],
+    });
+  }
+  r.primeira_abordagem = await marcarPrimeiraAbordagem(pd, id, deal, contatos[0].em);
+  return r;
 }
 
 /**
@@ -702,6 +945,7 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
     criados: [],
     encerrados: [],
     ignorados: [],
+    ja_abordados: [],
     erros: [],
     tipos_substituidos: [],
     anteriores_ao_inicio: 0,
@@ -802,6 +1046,18 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
               });
             continue;
           }
+          if (op.naoRepetir) {
+            const contatos = await contatosAnteriores(pd, id, entrou);
+            if (contatos.length) {
+              try {
+                const r = await jaAbordado(op, deal, id, entrouEm, dono, contatos, horario);
+                if (r) resumo.ja_abordados.push(r);
+              } catch (e) {
+                resumo.erros.push({ deal: id, etapa: "ja_abordado", erro: mensagem(e) });
+              }
+              continue;
+            }
+          }
           alvo = {
             deal_id: id,
             entrou_em: entrouEm,
@@ -813,14 +1069,22 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
           // A linha vem antes da atividade: se outra rodada já gravou, ela é a dona da criação.
           if (ativo && !(await store.inserir(alvo))) continue;
         }
+        // Com a regra de 23/10, a automação do D0 também exige "Caixa · Data 1ª abordagem" vazia.
+        const emailD0 =
+          !!op.emailD0Automatico &&
+          emailD0SaiPelaAutomacao(deal) &&
+          !(op.naoRepetir && String(deal?.[CAMPO_PRIMEIRA_ABORDAGEM] ?? "").trim());
         const n = await criarAtividades(
           op,
           alvo,
           planejar(entrou, regua, horario, camposDoCard(deal, await lerRotulos())),
           dono ?? alvo.dono ?? null,
           tipos.usar,
-          !!op.emailD0Automatico && emailD0SaiPelaAutomacao(deal),
+          emailD0,
         );
+        // O e-mail do D0 chegou ao cliente: a data da 1ª abordagem é a da entrada.
+        if (ativo && op.naoRepetir && !linha && emailD0)
+          await marcarPrimeiraAbordagem(pd, id, deal, entrouEm).catch(() => null);
         resumo.criados.push({
           deal: id,
           entrou_em: entrouEm,
