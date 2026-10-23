@@ -144,6 +144,14 @@ const store: StoreDiagnostico = {
       prefer: "resolution=ignore-duplicates,return=minimal",
     });
   },
+  // Venda achada pelo CNPJ ou pelo nome quando o Handoff não liga o card do onboarding a uma venda (23/10/2026).
+  vinculos: () => rest("monetizacao_diagnostico_vinculos?select=*&limit=10000"),
+  gravarVinculo: async (v) => {
+    await rest("monetizacao_diagnostico_vinculos?on_conflict=pipefy_card_id", {
+      body: v,
+      prefer: "resolution=merge-duplicates,return=minimal",
+    });
+  },
   // O espelho do Handoff da Consultoria liga o card do onboarding à venda; as fases vêm do espelho do onboarding do CS.
   onboarding: async () => {
     const [handoff, cs] = await Promise.all([
@@ -198,7 +206,10 @@ const store: StoreDiagnostico = {
 // ---------------------------------------------------------------------------- plataforma da Consultoria
 
 let sessaoPlataforma: { token: string; expira: number } | null = null;
-async function plataforma(path: string, init: { method?: string; body?: unknown } = {}): Promise<any> {
+async function plataforma(
+  path: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<any> {
   if (!PLAT_URL || !PLAT_ANON || !PLAT_EMAIL || !PLAT_SENHA)
     throw new Error("login técnico da plataforma não configurado");
   if (!sessaoPlataforma || sessaoPlataforma.expira < Date.now() + 60_000) {
@@ -210,7 +221,10 @@ async function plataforma(path: string, init: { method?: string; body?: unknown 
     });
     const body = await res.json().catch(() => null);
     if (!res.ok || !body?.access_token) throw new Error(`login na plataforma: HTTP ${res.status}`);
-    sessaoPlataforma = { token: body.access_token, expira: Date.now() + Number(body.expires_in ?? 3600) * 1000 };
+    sessaoPlataforma = {
+      token: body.access_token,
+      expira: Date.now() + Number(body.expires_in ?? 3600) * 1000,
+    };
   }
   const res = await fetch(`${PLAT_URL}/rest/v1/${path}`, {
     method: init.method || (init.body === undefined ? "GET" : "POST"),
