@@ -357,6 +357,7 @@ create table if not exists ops.contratos (
   sdr text,
   entrada_contrato_assinado_em date
 );
+alter table ops.contratos add column if not exists produto text;
 
 create table if not exists ops.royalties_apuracao (
   id integer primary key,

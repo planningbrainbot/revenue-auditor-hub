@@ -1,6 +1,7 @@
 // Chamadas às funções ops.comissoes_* (migration 20261023120000_comissoes_base). Cada função tira o
 // ator de auth.uid() e confere a chave por conta própria; aqui só se chama e se devolve o erro do banco.
 import { supabase } from "@/integrations/supabase/client";
+import type { Exportacao } from "./planilha";
 import type { Minhas, Perfil, Revisao } from "./tipos";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- funções fora dos tipos gerados
@@ -56,7 +57,7 @@ export const comissoes = {
   marcarPago: (mes: string) => chamar("comissoes_marcar_pago", { p_mes: diaDoMes(mes) }),
   reabrir: (mes: string, motivo: string) =>
     chamar("comissoes_reabrir_mes", { p_mes: diaDoMes(mes), p_motivo: motivo }),
-  exportar: (mes: string) => chamar<Revisao>("comissoes_exportar_mes", { p_mes: diaDoMes(mes) }),
+  exportar: (mes: string) => chamar<Exportacao>("comissoes_exportar_mes", { p_mes: diaDoMes(mes) }),
 };
 
 export const CHAVE_COMISSOES = ["comissoes"] as const;

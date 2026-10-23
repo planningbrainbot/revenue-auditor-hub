@@ -52,6 +52,10 @@ def rede():
           create table if not exists ops.areas (slug text primary key, nome text, descricao text, escopo text, ordem int, ativa boolean);
           create table if not exists ops.area_chaves (area text, permission_key text, primary key (area, permission_key));
         """)
-        cur.execute((RAIZ / "supabase/migrations/20261023120000_comissoes_base.sql").read_text())
+        for m in sorted((RAIZ / "supabase/migrations").glob("2026102312*_comissoes_*.sql")) + sorted(
+            (RAIZ / "supabase/migrations").glob("2026102313*_comissoes_*.sql")
+        ):
+            if "tira_chave_da_receita" not in m.name:
+                cur.execute(m.read_text())
         yield Rede(cur)
         conn.rollback()

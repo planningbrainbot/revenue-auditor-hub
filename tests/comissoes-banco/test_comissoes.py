@@ -176,7 +176,8 @@ def test_prazo_e_pagamento_voltam_para_o_dia_util_anterior(com):
         "select comissoes.prazo('2027-01-01'), comissoes.prazo('2026-11-01'), comissoes.envio_dp_em('2027-09-01'),"
         " comissoes.pagamento_em('2026-11-01'), comissoes.pagamento_em('2026-12-01'), comissoes.pagamento_em('2027-05-01')"
     )
-    assert [str(d) for d in com.cur.fetchone()] == ["2027-01-08", "2026-11-10", "2027-09-13", "2026-11-19", "2026-12-18", "2027-05-20"]
+    # O pagamento é sempre o dia 20: o dia útil em feriado é do fluxo do DP (23/10/2026).
+    assert [str(d) for d in com.cur.fetchone()] == ["2027-01-08", "2026-11-10", "2027-09-13", "2026-11-20", "2026-12-20", "2027-05-20"]
 
 
 def test_ca07_ajuste_do_lider_grava_linha_e_evento_e_para_no_prazo(com):
@@ -364,3 +365,15 @@ def test_porta_ops_so_para_quem_deve(com):
                               has_table_privilege('authenticated', 'comissoes.linhas', 'select'),
                               has_schema_privilege('authenticated', 'comissoes', 'usage')""")
     assert com.cur.fetchone() == (True, False, False, True, False, False, False)
+
+
+def test_exportacao_para_o_dp_traz_servico_e_pendentes(com):
+    c = com.contrato("Maceió", 6400, "2026-10-03", closer="Closer Plan", sdr="SDR Plan")
+    com.cur.execute("update ops.contratos set produto = 'BPO Contábil' where id = %s", (c,))
+    outro = com.contrato("Maceió", 3000, "2026-10-05", closer="Closer Plan", sdr="SDR Plan")
+    com.item(com.apuracao("Maceió", "2026-10-01"), c, 1)
+    com.previa()
+    r = com.chamar("select comissoes.exportar_mes(%s, '2026-11-01')", (com.financeiro,))
+    assert {x["servico"] for x in r["linhas"]} == {"BPO Contábil"}
+    pend = {(x["pessoa"], x["contrato_id"], x["metade"], x["iniciado"]) for x in r["pendentes"]}
+    assert ("Closer Plan", c, 2, True) in pend and ("Closer Plan", outro, 1, False) in pend
