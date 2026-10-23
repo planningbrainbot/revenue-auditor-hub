@@ -87,8 +87,20 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "view.comissoes",
-    label: "Acessar Apuração de Comissões",
-    description: "Vendas × 1º pagamento por Closer/SDR, para apuração de comissão.",
+    label: "Ver as próprias comissões",
+    description: "Área Comissões: o próximo pagamento e o que fica para depois, de cada closer e SDR.",
+    group: "Acesso",
+  },
+  {
+    key: "manage.comissoes_revisao",
+    label: "Revisar e liberar comissões",
+    description: "Líder comercial: ajustar, lançar bônus e liberar o pagamento do mês até o dia 10.",
+    group: "Acesso",
+  },
+  {
+    key: "manage.comissoes_fechamento",
+    label: "Fechar e pagar comissões",
+    description: "Financeiro: registrar datas, enviar ao DP, marcar o mês como pago.",
     group: "Acesso",
   },
   {
