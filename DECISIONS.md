@@ -6723,3 +6723,12 @@ Weekly de 21/10/2026 com a Karol (closer da Consultoria), em cima da tela. Escol
 - **Aceito pelo estoque.** A Karol explicou que o aceite vira estoque de crédito e que o honorário sai quando o cliente compensa ou a Receita restitui (11:36–11:48). O degrau 6 passa a ter quatro motivos (compensou sem cobrança, aceitou sem estoque, aguardando compensar, encerrado sem uso). Em 22/10, dos 35 "aceitaram e não faturamos": 9, 6, 1 e 19. Os 9 que compensaram são todos da carteira de Goiânia, com R$ 8,3 mi compensados e R$ 831 mil de honorário estimado, sem cobrança na plataforma. O texto não afirma que o honorário não saiu, porque Goiânia pode cobrar por fora.
 - **Leitura do Funil** (migration `20261022160000`): o JSON de cada empresa ganha `estoque_ativo`, `estoque_utilizado`, `exito_estimado` e `notas`, sem mudar nenhum campo antigo. Ensaio em produção desfeito: 4,3 s e 2,1 MB (eram cerca de 1,8 MB).
 - **Chave `view.consultoria`** (migration `20261022161000`): a porta da tela e os painéis do Handoff e da busca aceitam as duas chaves. A chave entra na área Monetização e vai a quem tem `view.monetizacao` pessoa a pessoa. As demais telas da Monetização passam a pedir `view.monetizacao` na lateral. A Karol ganha a porta do Ops, a área, só a chave da Consultoria e todas as unidades, sem o Financeiro. Ensaio desfeito: nenhuma das 7 pessoas com `view.monetizacao` perde a tela, e a Karol é a única só com a Consultoria. Ordem de publicação: as migrations antes do app, porque a lateral nova esconde a Consultoria de quem ainda não tem a chave.
+
+## [2026-10-23] Pipe 40 › Ritmo: os números abrem as atividades do Pipedrive
+
+**Contexto:** na daily de 23/10, o Pedro pediu, sobre o print da Pré-venda › Ritmo do pipe 40: "nas atividades previstas eu quero ter a possibilidade de espelhar as previstas que estão no Pipedrive. Quero poder clicar, abrir e ver elas ali".
+
+**Decisão:**
+- Previstas, Feitas e Vencidas viram clicáveis. Cada um abre a lista de atividades por trás do número (`ritmoDiagnostico` devolve `itens`).
+- O clique num dia do gráfico abre as previstas e as feitas daquele dia.
+- A fonte é o retrato das atividades que a carga `monetizacao-diagnostico` grava a cada 5 minutos. Não é uma leitura nova do Pipedrive.

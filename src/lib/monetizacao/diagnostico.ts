@@ -732,6 +732,9 @@ export type DiaRitmo = {
   vencidas: number;
   avancos: number;
 };
+/** Uma atividade por trás de um número do Ritmo, para a lista que o número abre (23/10/2026). `dia` = vencimento, ou
+ *  o dia em que foi feita na lista das feitas. */
+export type AtividadeRitmo = { card: CardDiag; atividade: AtividadeDiag; dia: string };
 export type RitmoPessoa = {
   pessoa: number;
   nome: string;
@@ -741,7 +744,13 @@ export type RitmoPessoa = {
   vencidas: number;
   avancos: number;
   regua: number;
+  /** As atividades de cada número, como estão no Pipedrive (o retrato da carga), em ordem de dia. */
+  itens: { previstas: AtividadeRitmo[]; feitas: AtividadeRitmo[]; vencidas: AtividadeRitmo[] };
 };
+const ordenar = (l: AtividadeRitmo[]) =>
+  l.sort(
+    (a, b) => a.dia.localeCompare(b.dia) || nomeDoCard(a.card).localeCompare(nomeDoCard(b.card)),
+  );
 /** Tarefas previstas (vencimento no dia), feitas (marcadas no dia), vencidas (do dia e não feitas) e etapas avançadas. */
 export function ritmoDiagnostico(cards: CardDiag[], f: FiltroDiag, hoje: string): RitmoPessoa[] {
   const dias: string[] = [];
@@ -750,16 +759,24 @@ export function ritmoDiagnostico(cards: CardDiag[], f: FiltroDiag, hoje: string)
     const linhas = dias.map((dia) => ({ dia, previstas: 0, feitas: 0, vencidas: 0, avancos: 0 }));
     const porDia = new Map(linhas.map((l) => [l.dia, l]));
     let regua = 0;
+    const itens: RitmoPessoa["itens"] = { previstas: [], feitas: [], vencidas: [] };
     for (const c of cards) {
       for (const a of c.atividades.filter((x) => x.user_id === pessoa)) {
         const prevista = a.due_date ? porDia.get(a.due_date) : undefined;
         if (prevista) {
           prevista.previstas++;
-          if (!a.done && a.due_date! < hoje) prevista.vencidas++;
+          itens.previstas.push({ card: c, atividade: a, dia: prevista.dia });
+          if (!a.done && a.due_date! < hoje) {
+            prevista.vencidas++;
+            itens.vencidas.push({ card: c, atividade: a, dia: prevista.dia });
+          }
           if (ehDaRegua(a)) regua++;
         }
         const feita = a.done ? porDia.get(diaSP(a.done_at) ?? "") : undefined;
-        if (feita) feita.feitas++;
+        if (feita) {
+          feita.feitas++;
+          itens.feitas.push({ card: c, atividade: a, dia: feita.dia });
+        }
       }
       for (let i = 1; i < c.moves.length; i++) {
         const m = c.moves[i];
@@ -778,6 +795,11 @@ export function ritmoDiagnostico(cards: CardDiag[], f: FiltroDiag, hoje: string)
       vencidas: soma("vencidas"),
       avancos: soma("avancos"),
       regua,
+      itens: {
+        previstas: ordenar(itens.previstas),
+        feitas: ordenar(itens.feitas),
+        vencidas: ordenar(itens.vencidas),
+      },
     };
   });
 }

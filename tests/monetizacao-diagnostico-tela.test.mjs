@@ -260,6 +260,16 @@ test("Ritmo: previstas e feitas por dia, avanços de quem moveu", () => {
   assert.equal(j.vencidas, 1);
   assert.equal(j.avancos, 3, "Jordana moveu 3 para 300 e para 301, e 5 para 299, no período");
   assert.equal(m.avancos, 2, "Matheus moveu 1 para 294 e 5 para 298");
+  // Cada número abre as atividades por trás dele (23/10/2026).
+  assert.equal(j.itens.previstas.length, j.previstas);
+  assert.equal(j.itens.feitas.length, j.feitas);
+  assert.equal(j.itens.vencidas.length, j.vencidas);
+  assert.ok(j.itens.vencidas.every((x) => !x.atividade.done && x.atividade.due_date < HOJE));
+  assert.ok(j.itens.feitas.every((x) => x.atividade.done));
+  assert.ok(
+    j.itens.previstas.every((x, i, l) => !i || l[i - 1].dia <= x.dia),
+    "em ordem de dia",
+  );
 });
 
 test("Aderência: passagem confere o para-avançar da etapa que o card deixou", () => {
