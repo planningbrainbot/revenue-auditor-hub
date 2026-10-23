@@ -6773,3 +6773,7 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Líderes e financeiro entram como admins das áreas `comissoes_revisao` e `comissoes_fechamento` (`ops.area_admins`): pela concessão por pessoa, `ops.can_user` exige a chave em `ops.usuario_chaves`, que só aceita `view.%`.
 - Testes de banco em `tests/comissoes-banco/` (pytest, contra a homologação do sistema novo, numa transação desfeita): 19 passam.
 - Cor da área: `--area-comissoes` usa a da Receita, como o BI Financeiro.
+
+## [2026-10-23] Comissões e Receita são acessos separados
+
+**Decisão (dono):** quem tem a área Receita não ganha Comissões, e vice-versa. Migration `20261023120100` aplicada: `view.comissoes` saiu da área `receita`. As 3 concessões individuais de `view.comissoes` dependiam da Receita e deixaram de valer; quem precisar entra pela área `comissoes`. Também aplicada a `20261023130000` (planilha para o DP no formato da de set/26; pagamento sempre no dia 20, o dia útil é do fluxo do DP e do financeiro).
