@@ -1,9 +1,11 @@
 // Pré-venda › Base nova (pipe 40). As mesmas quatro visões da base antiga, refeitas para o diagnóstico (sem cadência):
 //   Hoje      Fila de trabalho: o que o Matheus e a Jordana fazem hoje (tarefas, parados, prazos, sem próximo passo).
-//   Ritmo     Visão geral: tarefas previstas, feitas e vencidas por pessoa e por dia, e as etapas avançadas.
+//   Ritmo     Visão geral: tarefas previstas, feitas e vencidas por pessoa e por dia, e as etapas avançadas. Cada número
+//             e cada dia do gráfico abrem as atividades, como estão no Pipedrive (23/10/2026).
 //   Aderência Visão geral: cada passagem de etapa confere o "para avançar" do desenho.
 //   Ficha     Ficha: o card no relógio, as tarefas, os campos e os produtos.
 // Régua em src/lib/monetizacao/diagnostico.ts.
+import { useState } from "react";
 import {
   CircleCheck,
   CirclePause,
@@ -24,6 +26,13 @@ import {
   YAxis,
 } from "recharts";
 import { EstadoVazio, KpiCard, KpiGrade, Secao, StatusBadge } from "@/components/planning";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   COR_NEUTRA,
   CORES_SERIE,
@@ -59,6 +68,7 @@ import {
   relogioDoCard,
   ritmoDiagnostico,
   valorDoCard,
+  type AtividadeRitmo,
   type CardDiag,
   type EtapaDiag,
   type FiltroDiag,
@@ -314,10 +324,106 @@ const uniq = (cs: CardDiag[]) => [...new Map(cs.map((c) => [c.id, c])).values()]
 
 // ---------------------------------------------------------------------------- Ritmo
 
+/** Rótulo do tipo de atividade do Pipedrive. */
+const TIPO_ATIVIDADE: Readonly<Record<string, string>> = {
+  task: "Tarefa",
+  call: "Ligação",
+  email: "E-mail",
+  whatsapp: "WhatsApp",
+  meeting: "Reunião",
+};
+
+type ListaAtividades = { titulo: string; descricao: string; itens: AtividadeRitmo[] };
+
+/** As atividades por trás de um número do Ritmo, uma por linha, como estão no Pipedrive (pedido do Pedro, 23/10/2026). */
+function ListaDeAtividades({
+  lista,
+  hoje,
+  fechar,
+}: {
+  lista: ListaAtividades | null;
+  hoje: string;
+  fechar: () => void;
+}) {
+  return (
+    <Dialog open={!!lista} onOpenChange={(o) => !o && fechar()}>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>{lista?.titulo}</DialogTitle>
+          <DialogDescription>
+            {lista
+              ? `${plural(lista.itens.length, "atividade", "atividades")} · ${lista.descricao}`
+              : ""}{" "}
+            · clique na empresa para abrir o card no Pipedrive
+          </DialogDescription>
+        </DialogHeader>
+        {lista && !lista.itens.length ? (
+          <EstadoVazio titulo="Nenhuma atividade neste número" />
+        ) : (
+          <div className="max-h-[65vh] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Atividade</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Vencimento</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead>Etapa do card</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lista?.itens.map(({ card: c, atividade: a }) => {
+                  const vencida = !a.done && !!a.due_date && a.due_date < hoje;
+                  return (
+                    <TableRow key={`${c.id}-${a.id}`}>
+                      <TableCell>
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {nomeDoCard(c)}
+                          <ExternalLink
+                            className="size-4 text-muted-foreground"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                        </a>
+                      </TableCell>
+                      <TableCell>{a.subject}</TableCell>
+                      <TableCell>{TIPO_ATIVIDADE[a.type ?? ""] ?? a.type ?? "—"}</TableCell>
+                      <TableCell className="num text-right">{ddmm(a.due_date)}</TableCell>
+                      <TableCell>
+                        {a.done ? (
+                          <StatusBadge tom="sucesso">Feita em {ddmm(diaSP(a.done_at))}</StatusBadge>
+                        ) : vencida ? (
+                          <StatusBadge tom="perigo">Vencida</StatusBadge>
+                        ) : (
+                          <StatusBadge tom="neutro">A fazer</StatusBadge>
+                        )}
+                      </TableCell>
+                      <TableCell>{rotuloEtapa(c)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Ritmo({ cards, filtro, hoje }: { cards: CardDiag[]; filtro: FiltroDiag; hoje: string }) {
   const pessoas = ritmoDiagnostico(cards, filtro, hoje);
+  const [lista, setLista] = useState<ListaAtividades | null>(null);
+  const periodo = `${ddmm(filtro.de)} a ${ddmm(filtro.ate)}`;
   return (
     <div className="space-y-6">
+      <ListaDeAtividades lista={lista} hoje={hoje} fechar={() => setLista(null)} />
       {pessoas.map((p) => {
         const util = p.dias.filter((d) => d.previstas || d.feitas || d.avancos);
         return (
@@ -331,17 +437,44 @@ function Ritmo({ cards, filtro, hoje }: { cards: CardDiag[]; filtro: FiltroDiag;
                 rotulo="Previstas"
                 valor={INT.format(p.previstas)}
                 nota={`vencimento no período · ${INT.format(p.regua)} da régua`}
+                abrir={{
+                  rotulo: "Ver as atividades",
+                  onClick: () =>
+                    setLista({
+                      titulo: `${p.nome}: atividades previstas`,
+                      descricao: `vencimento de ${periodo}`,
+                      itens: p.itens.previstas,
+                    }),
+                }}
               />
               <KpiCard
                 rotulo="Feitas"
                 valor={INT.format(p.feitas)}
                 nota="marcadas como feitas no período"
+                abrir={{
+                  rotulo: "Ver as atividades",
+                  onClick: () =>
+                    setLista({
+                      titulo: `${p.nome}: atividades feitas`,
+                      descricao: `marcadas como feitas de ${periodo}`,
+                      itens: p.itens.feitas,
+                    }),
+                }}
               />
               <KpiCard
                 rotulo="Vencidas"
                 valor={INT.format(p.vencidas)}
                 nota="venceram no período e seguem abertas"
                 tom={p.vencidas ? "atencao" : undefined}
+                abrir={{
+                  rotulo: "Ver as atividades",
+                  onClick: () =>
+                    setLista({
+                      titulo: `${p.nome}: atividades vencidas`,
+                      descricao: `venceram de ${periodo} e seguem abertas`,
+                      itens: p.itens.vencidas,
+                    }),
+                }}
               />
               <KpiCard
                 rotulo="Etapas avançadas"
@@ -357,7 +490,23 @@ function Ritmo({ cards, filtro, hoje }: { cards: CardDiag[]; filtro: FiltroDiag;
                       data={p.dias.map((d) => ({ ...d, rotulo: ddmm(d.dia) }))}
                       margin={{ top: 16, right: 12, bottom: 0, left: -20 }}
                       role="img"
-                      aria-label={`Tarefas por dia de ${p.nome}`}
+                      aria-label={`Tarefas por dia de ${p.nome}; clique num dia para ver as atividades`}
+                      className="cursor-pointer"
+                      onClick={(e: { activePayload?: { payload?: { dia?: string } }[] }) => {
+                        const dia = e?.activePayload?.[0]?.payload?.dia;
+                        if (!dia) return;
+                        const doDia = (l: AtividadeRitmo[]) => l.filter((x) => x.dia === dia);
+                        const feitas = doDia(p.itens.feitas);
+                        const ids = new Set(feitas.map((x) => x.atividade.id));
+                        setLista({
+                          titulo: `${p.nome}: atividades de ${ddmm(dia)}`,
+                          descricao: "previstas para o dia e feitas no dia",
+                          itens: [
+                            ...doDia(p.itens.previstas).filter((x) => !ids.has(x.atividade.id)),
+                            ...feitas,
+                          ],
+                        });
+                      }}
                     >
                       <CartesianGrid {...gradeProps} />
                       <XAxis {...eixoProps} dataKey="rotulo" minTickGap={8} />

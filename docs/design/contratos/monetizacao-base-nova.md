@@ -168,3 +168,8 @@ Os quadros de receita, horizontes, etapas e áreas continuam abaixo.
 
 - O card entra no pipe 40 no 30º dia depois de o cliente concluir o onboarding do CS (Concluído, Check-out ou Pesquisa de Esforço). A prévia da entrada mostra "clientes que concluíram o onboarding há 30 dias".
 - O resumo da carga ganha `concluiram_onboarding`, `aguardando_30_dias`, `prontos` e `consultoria`, com o resultado do cadastro na plataforma da Consultoria.
+
+## Adendo · 23/10/2026 · Ritmo abre as atividades
+
+- Na Pré-venda › Ritmo do pipe 40, Previstas, Feitas e Vencidas abrem a lista das atividades por trás do número, como estão no Pipedrive (o retrato da carga de 5 minutos). Cada linha traz empresa (com link para o card), atividade, tipo, vencimento, situação (Feita em DD/MM, Vencida ou A fazer) e etapa do card.
+- Clicar num dia do gráfico abre as atividades previstas para o dia e as feitas no dia.
