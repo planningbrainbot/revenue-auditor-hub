@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CellaBruto } from "./cella";
 
-// Leitura da aba Cella (migration 20261022190000), com a sessão da pessoa. O RPC confere `view.monetizacao` e o escopo
+// Leitura da aba Cella (migration 20261022191000), com a sessão da pessoa. O RPC confere `view.monetizacao` e o escopo
 // de unidades; a conta fica em src/lib/monetizacao/cella.ts.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
