@@ -6792,3 +6792,23 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Tudo fica atrás de `MONET_CADENCIA_NAO_REPETIR=sim`. Sem a chave, a função faz o que fazia.
 
 **Lacuna conhecida:** se o card sai e volta à 276 em menos de 5 minutos, antes de a rodada gravar a data, a automação do Pipedrive ainda manda o e-mail. A cadência, porém, não recomeça.
+
+## [2026-10-23] Pipe 40: a entrada acha a venda pelo CNPJ ou pelo nome quando o handoff não liga
+
+**Contexto:** a base do Matheus esgotou. Os 29 clientes com perfil já viraram card, e o Pedro pediu evidência no artefato "Base do Matheus". Na varredura apareceu uma falha: 33 clientes concluíram o onboarding sem a venda ligada no espelho do Handoff (`pipedrive_deal_id` vazio). A entrada lê o cliente pela venda, então nunca enxergava esses 33, nem os 12 que já tinham card no pipe 40 esperando os 30 dias. Das 526 vendas ganhas no pipe 2, só 84 têm o CNPJ preenchido.
+
+**Decisão do Pedro:** "Pode fazer e ligar".
+
+**Como:**
+- Para o pronto (30 dias ou mais) sem venda ligada, a entrada procura a venda nesta ordem:
+  1. pelo CNPJ do Handoff na busca do Pipedrive, na venda e na organização;
+  2. sem resultado, pelo nome: duas palavras que distinguem o nome, cada uma batendo inteira no título.
+- Vale a venda ganha nos pipes 2, 4 ou 28, até 240 dias antes de o cliente concluir o onboarding. Com venda de uma conta só, entra a mais recente. Com vendas de mais de uma conta, o caso é marcado como ambíguo e nada entra.
+- O resultado fica em `ops.monetizacao_diagnostico_vinculos`, para a rodada não procurar de novo. "nenhum" e "ambíguo" voltam a ser procurados um dia depois. São no máximo 8 buscas por rodada.
+- A nota do card avisa que a venda foi achada pelo CNPJ ou pelo nome e pede para conferir.
+- No protótipo de 23/10, 27 dos 33 casaram: 14 pelo CNPJ e 13 pelo nome. Três tinham mais de uma venda: duas da mesma conta e um falso positivo de nome, que a regra da palavra inteira tirou.
+
+**Também em 23/10:**
+- 9 cards que esperavam os 30 dias foram antecipados por decisão do Pedro; 2 são de Belém e seguem pausados.
+- Os 4 perdidos como "contato esgotado" foram reabertos com uma tarefa de ligação.
+- O Matheus vai para o pipe 39 só com a carga de novembro.

@@ -247,6 +247,8 @@ export type ClienteOnboarding = {
   pipedrive_deal_id: number | null;
   /** CNPJ do espelho do Handoff (reserva para quando a venda não tem). */
   cnpj?: string | null;
+  /** Como a venda foi achada quando o handoff não a liga (23/10/2026). Ausente = veio do handoff. */
+  vinculo?: "cnpj" | "nome";
 };
 
 /** Fases que contam como "concluiu o onboarding" (decisão do Pedro, 22/10/2026). */
@@ -257,7 +259,10 @@ export const DIAS_DEPOIS_DO_ONBOARDING = 30;
 /** Motivo de perda de quem saiu do pipe 40 esperando os 30 dias (22/10/2026): o card volta à etapa 01 no 30º dia. */
 export const MOTIVO_ESPERA_ONBOARDING = "Aguardando 30 dias do onboarding";
 /** Os dois motivos de espera: o de 21/10 ("Ainda não passou pelo onboarding") volta pela mesma regra. */
-export const MOTIVOS_DE_ESPERA = [MOTIVO_ESPERA_ONBOARDING, "Ainda não passou pelo onboarding"] as const;
+export const MOTIVOS_DE_ESPERA = [
+  MOTIVO_ESPERA_ONBOARDING,
+  "Ainda não passou pelo onboarding",
+] as const;
 
 /** O dia (São Paulo) em que o cliente concluiu o onboarding: a primeira entrada numa fase de saída. Churn: nunca. */
 export function saidaDoOnboarding(c: ClienteOnboarding): string | null {
@@ -285,16 +290,144 @@ export function cnpjDe(v: unknown): string | null {
   return d.length === 14 && !/^(\d)\1+$/.test(d) ? d : null;
 }
 
-const semAcento = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .trim()
-    .toLowerCase();
+const semAcento = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase();
 /** A unidade do cliente está entre as pausadas (MONET_DIAG_UNIDADES_PAUSADAS, ex.: Belém até o sócio liberar a lista). */
-export function unidadePausada(pausadas: readonly string[] | undefined, unidades: (string | null)[]) {
+export function unidadePausada(
+  pausadas: readonly string[] | undefined,
+  unidades: (string | null)[],
+) {
   const alvo = new Set((pausadas ?? []).map(semAcento).filter(Boolean));
   return unidades.find((u) => !!u && alvo.has(semAcento(u))) ?? null;
+}
+
+// ---------------------------------------------------------------------------- venda sem vínculo no handoff (23/10/2026)
+
+/** Pipes onde mora a venda do cliente do onboarding: Inside Sales (2) e os dois que o handoff também já ligou. */
+export const PIPES_DE_VENDA: ReadonlySet<number> = new Set([2, 4, 28]);
+/** A venda vem antes do onboarding: ganha até 240 dias antes de o cliente concluir, e nunca depois. */
+const JANELA_DA_VENDA_DIAS = 240;
+/** Buscas de venda por rodada; cada uma faz de 2 a 6 chamadas ao Pipedrive. */
+export const BUSCAS_POR_RODADA = 8;
+/** Busca que não achou a venda (ou achou de mais de uma conta) tenta de novo depois de um dia. */
+export const NOVA_BUSCA_MS = 86_400_000;
+
+/** O que a busca achou para um card do onboarding (ops.monetizacao_diagnostico_vinculos). */
+export type VinculoVenda = {
+  pipefy_card_id: string;
+  venda_id: number | null;
+  como: "cnpj" | "nome" | "nenhum" | "ambiguo";
+  candidatos: { id: number; org_id: number | null; won_time: string | null; titulo: string }[];
+  tentado_em: string;
+};
+
+/** As duas palavras que distinguem o nome do cliente ("SQI OUTSOURCING - YURI CARVALHO" → "SQI OUTSOURCING"). */
+export function termoDoNome(titulo: string): string {
+  const parte = String(titulo ?? "").split(/ - |,|\(/)[0];
+  const limpo = parte.replace(
+    /\b(ltda|epp|me|s\.?a\.?|eireli|comercio|com|ind|e|de|da|do|dos|grupo)\b/gi,
+    " ",
+  );
+  return limpo
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+    .slice(0, 2)
+    .join(" ");
+}
+
+/** Toda palavra do termo aparece inteira no título ("Nacional" não casa com "Internacional"). */
+export function mesmoNome(termo: string, titulo: string): boolean {
+  const palavras = new Set(semAcento(titulo).split(/[^a-z0-9]+/));
+  const busca = semAcento(termo)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return busca.length > 0 && busca.every((w) => palavras.has(w));
+}
+
+/**
+ * Entre as vendas achadas, a do cliente: ganha num pipe de venda, até 240 dias antes de ele concluir o onboarding.
+ * Tudo da mesma conta: a venda mais recente. De mais de uma conta: ambíguo, e nada entra.
+ */
+export function escolherVenda(
+  candidatas: readonly any[],
+  saida: string,
+): { venda_id: number | null; candidatos: VinculoVenda["candidatos"]; unica: boolean } {
+  const limite = Date.parse(`${saida}T23:59:59Z`);
+  const lista = (candidatas || [])
+    .filter((d) => d?.status === "won" && PIPES_DE_VENDA.has(Number(id(d.pipeline_id))))
+    .map((d) => ({
+      id: Number(d.id),
+      org_id: id(d.org_id),
+      won_time: d.won_time ?? null,
+      titulo: String(d.title ?? "").slice(0, 80),
+    }))
+    .filter((d) => {
+      const t = instante(d.won_time)?.getTime();
+      return t !== undefined && t <= limite && limite - t <= JANELA_DA_VENDA_DIAS * 86_400_000;
+    });
+  const unicos = [...new Map(lista.map((d) => [d.id, d])).values()];
+  const contas = new Set(unicos.map((d) => d.org_id ?? `venda ${d.id}`));
+  if (contas.size !== 1) return { venda_id: null, candidatos: unicos, unica: false };
+  const venda = [...unicos].sort(
+    (a, b) => String(b.won_time).localeCompare(String(a.won_time)) || b.id - a.id,
+  )[0];
+  return { venda_id: venda.id, candidatos: unicos, unica: true };
+}
+
+/**
+ * Procura a venda do cliente que concluiu o onboarding sem a venda ligada no handoff: pelo CNPJ (na venda ou na
+ * organização) e, sem resultado, pelo nome no título da venda.
+ */
+export async function acharVenda(
+  pd: PipedriveDiagnostico,
+  cliente: ClienteOnboarding,
+  saida: string,
+): Promise<Pick<VinculoVenda, "venda_id" | "como" | "candidatos">> {
+  const detalhes = async (ids: number[]) =>
+    ids.length ? ((await pd.v2("deals", { ids: ids.join(","), limit: 100 }))?.data ?? []) : [];
+  const cnpj = cnpjDe(cliente.cnpj);
+  if (cnpj) {
+    const vendas = new Set<number>();
+    const contas = new Set<number>();
+    const formatado = `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5, 8)}/${cnpj.slice(8, 12)}-${cnpj.slice(12)}`;
+    for (const term of [cnpj, formatado]) {
+      const corpo = await pd.v2("itemSearch", {
+        term,
+        item_types: "deal,organization",
+        fields: "custom_fields",
+        exact_match: "true",
+        limit: 20,
+      });
+      for (const it of corpo?.data?.items || []) {
+        if (it?.item?.type === "deal") vendas.add(Number(it.item.id));
+        if (it?.item?.type === "organization") contas.add(Number(it.item.id));
+      }
+    }
+    const achadas = await detalhes([...vendas]);
+    for (const org of contas)
+      achadas.push(
+        ...((await pd.v2("deals", { org_id: org, status: "won", limit: 100 }))?.data ?? []),
+      );
+    const r = escolherVenda(achadas, saida);
+    if (r.candidatos.length)
+      return { venda_id: r.venda_id, como: r.unica ? "cnpj" : "ambiguo", candidatos: r.candidatos };
+  }
+  const termo = termoDoNome(cliente.titulo);
+  if (!termo) return { venda_id: null, como: "nenhum", candidatos: [] };
+  const busca = await pd.get("deals/search", {
+    term: termo,
+    fields: "title",
+    status: "won",
+    limit: 20,
+  });
+  const ids = (busca?.data?.items || [])
+    .map((it: any) => it?.item)
+    .filter(
+      (d: any) => d && PIPES_DE_VENDA.has(Number(d.pipeline?.id)) && mesmoNome(termo, d.title),
+    )
+    .map((d: any) => Number(d.id));
+  const r = escolherVenda(await detalhes(ids), saida);
+  if (!r.candidatos.length) return { venda_id: null, como: "nenhum", candidatos: [] };
+  return { venda_id: r.venda_id, como: r.unica ? "nome" : "ambiguo", candidatos: r.candidatos };
 }
 /** Nota fixada que pausa o card (lida como `pausa` pela carga, porque começa com "Pausado em"). */
 export function notaDePausa(unidade: string, hoje: string): string {
@@ -722,6 +855,9 @@ export type StoreDiagnostico = {
   onboarding?(): Promise<ClienteOnboarding[]>;
   /** Apaga as linhas feitas ou apagadas de uma etapa do card, para a tarefa dela nascer de novo (card reaberto). */
   liberarEtapa?(dealId: number, etapa: number): Promise<void>;
+  /** Vendas achadas para o onboarding sem venda no handoff. Sem os dois métodos, esse cliente fica de fora. */
+  vinculos?(): Promise<VinculoVenda[]>;
+  gravarVinculo?(v: VinculoVenda): Promise<void>;
   tarefas(): Promise<LinhaTarefa[]>;
   inserirTarefa(linha: LinhaTarefa): Promise<boolean>;
   atualizarTarefa(
@@ -778,10 +914,13 @@ export type OpcoesDiagnostico = {
  */
 const SEM_TAREFA_PLATAFORMA: ReadonlySet<string> = new Set(["criado", "ja_existia", "sem_fit"]);
 const NOTA_CONSULTORIA: Readonly<Record<string, string>> = {
-  criado: "Consultoria: cadastrado na plataforma hoje, como Carteira BPO (Diagnóstico — Curva B e C).",
+  criado:
+    "Consultoria: cadastrado na plataforma hoje, como Carteira BPO (Diagnóstico — Curva B e C).",
   ja_existia: "Consultoria: o CNPJ já tem projeto na plataforma; nada foi cadastrado.",
-  sem_fit: "Consultoria: fora do perfil (Lucro Real, ou Presumido de R$ 50 mi para cima); nada foi cadastrado.",
-  sem_cnpj: "Consultoria: a venda não tem CNPJ; cadastre o cliente na plataforma pela tarefa da etapa 03.",
+  sem_fit:
+    "Consultoria: fora do perfil (Lucro Real, ou Presumido de R$ 50 mi para cima); nada foi cadastrado.",
+  sem_cnpj:
+    "Consultoria: a venda não tem CNPJ; cadastre o cliente na plataforma pela tarefa da etapa 03.",
   pendente:
     "Consultoria: o cadastro automático na plataforma ainda não está ligado; cadastre o cliente pela tarefa da etapa 03.",
   erro: "Consultoria: o cadastro automático falhou; cadastre o cliente na plataforma pela tarefa da etapa 03.",
@@ -925,9 +1064,47 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
   const fora = (motivo: string) => (foraDaRegra[motivo] = (foraDaRegra[motivo] || 0) + 1);
   const clientes = store.onboarding ? await store.onboarding() : [];
   const concluidos = clientes
-    .map((cliente) => ({ cliente, saida: saidaDoOnboarding(cliente) }))
+    // Cópia: a busca da venda (2a) completa o cliente sem mexer no que o banco devolveu.
+    .map((cliente) => ({ cliente: { ...cliente }, saida: saidaDoOnboarding(cliente) }))
     .filter((x): x is { cliente: ClienteOnboarding; saida: string } => !!x.saida);
-  const prontos = concluidos.filter((x) => diasCorridos(x.saida, hoje) >= DIAS_DEPOIS_DO_ONBOARDING);
+  const prontos = concluidos.filter(
+    (x) => diasCorridos(x.saida, hoje) >= DIAS_DEPOIS_DO_ONBOARDING,
+  );
+  // 2a. pronto sem a venda ligada no handoff (23/10/2026): vale a venda já achada; senão, procura pelo CNPJ e pelo nome,
+  // até BUSCAS_POR_RODADA por rodada, e não procura de novo por um dia quando não acha.
+  const vinculos = new Map(
+    (store.vinculos ? await store.vinculos() : []).map((v) => [v.pipefy_card_id, v]),
+  );
+  const busca = { buscas: 0, cnpj: 0, nome: 0, nenhum: 0, ambiguo: 0, ja_achadas: 0 };
+  for (const x of prontos) {
+    if (x.cliente.pipedrive_deal_id) continue;
+    const v = vinculos.get(x.cliente.pipefy_card_id);
+    if (v?.venda_id && (v.como === "cnpj" || v.como === "nome")) {
+      x.cliente.pipedrive_deal_id = Number(v.venda_id);
+      x.cliente.vinculo = v.como;
+      busca.ja_achadas++;
+      continue;
+    }
+    const recente = !!v && agora.getTime() - Date.parse(v.tentado_em) < NOVA_BUSCA_MS;
+    if (recente || !op.entradaAtiva || !store.gravarVinculo || busca.buscas >= BUSCAS_POR_RODADA)
+      continue;
+    busca.buscas++;
+    try {
+      const achado = await acharVenda(pd, x.cliente, x.saida);
+      busca[achado.como]++;
+      await store.gravarVinculo({
+        ...achado,
+        pipefy_card_id: x.cliente.pipefy_card_id,
+        tentado_em: agora.toISOString(),
+      });
+      if (achado.venda_id && (achado.como === "cnpj" || achado.como === "nome")) {
+        x.cliente.pipedrive_deal_id = achado.venda_id;
+        x.cliente.vinculo = achado.como;
+      }
+    } catch (err) {
+      erros.push(`venda do onboarding "${x.cliente.titulo}": ${(err as Error).message}`);
+    }
+  }
   const aLer: { cliente: ClienteOnboarding; saida: string }[] = [];
   const vistas = new Set<number>();
   for (const x of prontos) {
@@ -965,7 +1142,10 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
     saida: string | null,
     pausado = false,
   ) => {
-    const r: Record<string, unknown> = { consultoria_em: agora.toISOString(), consultoria_cnpj: cnpj };
+    const r: Record<string, unknown> = {
+      consultoria_em: agora.toISOString(),
+      consultoria_cnpj: cnpj,
+    };
     if (!fit) r.consultoria = "sem_fit";
     else if (!cnpj) r.consultoria = "sem_cnpj";
     else if (!op.consultoria || pausado) r.consultoria = "pendente";
@@ -1077,8 +1257,18 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
           content: notaDePausa(pausada, hoje),
           pinned_to_deal_flag: 1,
         });
-      const cadastro = await consultoriaDe(cnpj, fit, cliente.titulo, saida, !!pausada || !!existente?.pausa);
-      const aviso = NOTA_CONSULTORIA[String(cadastro.consultoria)];
+      const cadastro = await consultoriaDe(
+        cnpj,
+        fit,
+        cliente.titulo,
+        saida,
+        !!pausada || !!existente?.pausa,
+      );
+      const aviso =
+        (NOTA_CONSULTORIA[String(cadastro.consultoria)] ?? "") +
+        (cliente.vinculo
+          ? `\nO handoff não liga a venda a este cliente: ela foi achada pelo ${cliente.vinculo === "cnpj" ? "CNPJ" : "nome"}. Confira se é a venda certa.`
+          : "");
       if (existente)
         await pd.post("notes", {
           deal_id: dealId,
@@ -1096,7 +1286,11 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
           ]),
           pinned_to_deal_flag: 1,
         });
-      const linha = { ...cadastro, saiu_onboarding_em: saida, onboarding_card_id: cliente.pipefy_card_id };
+      const linha = {
+        ...cadastro,
+        saiu_onboarding_em: saida,
+        onboarding_card_id: cliente.pipefy_card_id,
+      };
       if (e) await store.atualizarEntrada?.(item.venda_id, { ...linha, deal_id: dealId });
       else
         await store.inserirEntrada({
@@ -1357,6 +1551,7 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
       aguardando_30_dias: concluidos.length - prontos.length,
       prontos: prontos.length,
       vendas_lidas: vendas.size,
+      venda_sem_vinculo: busca,
       a_criar_ou_criadas: previaEntradas.length,
       criadas: criadas.length,
       reabertas: reabertas.length,
