@@ -21,6 +21,7 @@ export type Linha = {
   motivo: string | null;
   excluida: boolean;
   ajustada: boolean;
+  servico?: string | null;
   mes: string;
 };
 

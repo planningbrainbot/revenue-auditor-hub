@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Download } from "lucide-react";
-import * as XLSX from "xlsx-js-style";
 import { toast } from "sonner";
 import {
   Carregando,
@@ -29,6 +28,7 @@ import { Confirmar } from "@/components/comissoes/confirmar";
 import { BlocosPendencias } from "@/components/comissoes/pendencias";
 import { usePermissions } from "@/hooks/use-permissions";
 import { CHAVE_COMISSOES, comissoes } from "@/lib/comissoes/api";
+import { baixarPlanilhaDp } from "@/lib/comissoes/planilha";
 import {
   mesAnterior,
   mesCurto,
@@ -55,50 +55,6 @@ export const Route = createFileRoute("/_authenticated/comissoes/fechamento")({
 });
 
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-
-// Planilha para o DP: uma aba por pessoa e valor (o que o iFood paga) e uma com as linhas, no layout da
-// planilha de comissões de hoje. O formato final do iFood está em aberto (P-13 do PRD).
-function baixarPlanilha(mes: string, d: Revisao) {
-  const wb = XLSX.utils.book_new();
-  const porPessoa = [
-    ["Pessoa", "Valor a pagar"],
-    ...d.pessoas.map((p) => [p.nome, Number(p.total)]),
-    ["Total", Number(d.total)],
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(porPessoa), "Para o DP");
-  const linhas = [
-    [
-      "Pessoa",
-      "Papel",
-      "Tipo",
-      "Cliente",
-      "Unidade",
-      "Metade",
-      "Base",
-      "%",
-      "Valor",
-      "De onde veio",
-      "Excluída",
-      "Motivo",
-    ],
-    ...d.linhas.map((l) => [
-      l.pessoa,
-      papelTexto(l.papel),
-      l.tipo,
-      l.cliente ?? "",
-      l.unidade ?? "",
-      metadeTexto(l.metade),
-      l.base == null ? "" : Number(l.base),
-      l.percentual == null ? "" : Number(l.percentual),
-      Number(l.valor),
-      origem(l),
-      l.excluida ? "sim" : "",
-      l.motivo ?? "",
-    ]),
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(linhas), "Linhas");
-  XLSX.writeFile(wb, `comissoes-${mes}.xlsx`);
-}
 
 function Fechamento() {
   const perms = usePermissions();
@@ -145,7 +101,7 @@ function Fechamento() {
         disabled={!d}
         onClick={async () => {
           try {
-            baixarPlanilha(mes, await comissoes.exportar(mes));
+            baixarPlanilhaDp(mes, await comissoes.exportar(mes));
           } catch (e) {
             toast.error((e as Error).message);
           }
