@@ -6704,3 +6704,15 @@ Pedido do RH de Maceió (22/10/2026): cadastro com e-mail errado não tinha saí
 **Decisão:** saem a rota, o item de menu (Receita e Repasses, Custos e comissões), o componente `ebit-operacional-view` e as server fns de `ebit-operacional.functions`, que só ela usava.
 
 **Fica de pé:** as tabelas `vendas_servicos_unidades` e `custo_operacional_mensal`, as Edge Functions `pipefy-vendas-servicos-sync` e `custo-operacional-sync` com os agendamentos, e a chave `view.ebit_operacional` (pode estar em RLS dessas tabelas).
+
+## [2026-10-22] Aba Cella na Monetização, com o honorário a 20% do crédito
+
+**Contexto:** a pauta da reunião com a Diehl & Cella precisava de acompanhamento contínuo: onde está cada contrato e
+quanto vale cada tese. A volta da integração já grava o funil 9 deles no Brain.
+
+**Decisão (Pedro, 22/10):** contrato de tela aprovado ("1 ok"), em `docs/design/contratos/monetizacao-cella.md`. O
+honorário estimado é 20% do crédito, pelo contrato do Radar ("no contrato é mais confiável"), e não os 12% da planilha
+da parceria. A parte da Planning é 25% do honorário. A aba fica em `/monetizacao?aba=cella`, logo depois do Forecast, e
+lê `ops.monetizacao_cella_painel()`. Sem tese com valor, honorário e parte da Planning aparecem como "não apurado",
+não como R$ 0. O nome do cliente é o título do card; a organização aparece embaixo quando é outra (a Tech Med está na
+org "REVENDEDOR PHILIPS", a Toyo Sen na "AGRO HARA").

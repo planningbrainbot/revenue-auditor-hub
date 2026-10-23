@@ -8,6 +8,7 @@ import type { SituacaoGravacao } from "../../lib/monetizacao/gravacoes.ts";
 import { CHAVES_ITEM, type ChaveItem } from "../../lib/monetizacao/pre-venda.ts";
 import type { Regime } from "../../lib/monetizacao/cruzamento-consultoria.ts";
 import { PESSOAS_DIAG } from "../../lib/monetizacao/diagnostico.ts";
+import type { VisaoCella } from "../../lib/monetizacao/cella.ts";
 
 /**
  * Estado de tela de `/monetizacao` na URL (contrato da moldura, "Filtros na URL").
@@ -24,6 +25,9 @@ export const ABAS = [
   "fechamentos",
   // Tela Consultoria: duas visões na mesma aba (`visao`), uma entrada só na lateral.
   "handoff-consultoria",
+  // Cella (22/10/2026, contrato monetizacao-cella.md): contratos passados à Diehl & Cella e o valor de cada tese, lidos do
+  // funil deles. Tela própria, com leitura própria (cella.tsx); a rota desvia antes do painel.
+  "cella",
   "funil",
   "roteiros",
   "distribuicao",
@@ -158,6 +162,8 @@ export type BuscaMonetizacao = {
   passo?: string;
   /** Consultoria, Fila: só um grupo da fila. */
   grupo?: "aceitou" | "atraso" | "90" | "30_90" | "recente";
+  /** Cella: o recorte da lista; ausente = contratos assinados. */
+  ver?: Exclude<VisaoCella, "contratos">;
 };
 
 const ehData = (v: unknown): v is string =>
@@ -267,6 +273,8 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     grupo: consultoria
       ? umDe(["aceitou", "atraso", "90", "30_90", "recente"] as const, s.grupo)
       : undefined,
+    ver:
+      aba === "cella" ? umDe(["sem-valor", "abertos", "divergentes"] as const, s.ver) : undefined,
     fila:
       aba === "fechamentos"
         ? umDe(["semana", "mes", "semdata", "consultoria"] as const, s.fila)
