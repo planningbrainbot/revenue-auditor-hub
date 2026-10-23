@@ -16,6 +16,14 @@
     {
       "source": "/financeiro/:path*",
       "destination": "https://brain-financeiro-planning17.vercel.app/financeiro/:path*"
+    },
+    {
+      "source": "/juridico",
+      "destination": "https://brain-juridico.vercel.app/juridico"
+    },
+    {
+      "source": "/juridico/:path*",
+      "destination": "https://brain-juridico.vercel.app/juridico/:path*"
     }
   ],
   "buildCommand": "npm run build",
