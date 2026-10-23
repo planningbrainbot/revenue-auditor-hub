@@ -3,13 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Search } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import {
+  convidarParaFinanceiro,
   definirEscoposFinanceiro,
   listarAcessosFinanceiro,
   listarCandidatosFinanceiro,
   revogarAcessoFinanceiro,
 } from "@/lib/acessos-financeiro.functions";
+import { emailDeFora } from "@/lib/acessos-financeiro-convite";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -49,6 +51,10 @@ import { supabase } from "@/integrations/supabase/client";
 // a mesma chave que o servidor confere em cada server fn. Molde:
 // `assertAdminIntegracoes` em integracoes-segredos.functions.ts.
 //
+// CONVITE (23/10/2026): "Convidar pessoa nova" cria a conta de quem ainda não
+// tem login, só com a porta do Financeiro (a Ana pediu para incluir e-mails que
+// não estavam na lista). Usa o mesmo painel de unidades, com nome e e-mail.
+//
 // DS v2 (24/09/2026): a moldura segue o arquétipo Configuração
 // (docs/design/ARQUETIPOS.md §5). Revogar confirma em AlertDialog com o efeito,
 // e toda escrita dá toast de sucesso e de erro, além do aviso na tela.
@@ -78,6 +84,8 @@ interface Rascunho {
   nome: string | null;
   unidades: string[];
   novo: boolean;
+  /** Pessoa sem conta: nome e e-mail são digitados e o servidor cria a conta. */
+  convite?: boolean;
 }
 
 function AcessosFinanceiroPage() {
@@ -89,6 +97,7 @@ function AcessosFinanceiroPage() {
   const candidatosFn = useServerFn(listarCandidatosFinanceiro);
   const definir = useServerFn(definirEscoposFinanceiro);
   const revogar = useServerFn(revogarAcessoFinanceiro);
+  const convidar = useServerFn(convidarParaFinanceiro);
 
   const acessos = useQuery({ queryKey: ["acessos-financeiro"], queryFn: () => listar() });
   const candidatos = useQuery({
@@ -136,6 +145,31 @@ function AcessosFinanceiroPage() {
     },
   });
 
+  const convite = useMutation({
+    mutationFn: (r: Rascunho) =>
+      convidar({ data: { nome: r.nome ?? "", email: r.email, unidades: r.unidades } }),
+    onSuccess: (res: { email: string; criada: boolean; emailEnviado: boolean }) => {
+      setErro(null);
+      const msg =
+        (res.criada
+          ? `Conta criada para ${res.email}, só com o Financeiro.`
+          : `${res.email} já tinha conta: o Financeiro foi liberado.`) +
+        (res.emailEnviado
+          ? " O convite saiu por e-mail."
+          : " O e-mail NÃO saiu: peça à pessoa que use “Esqueci minha senha” em planningbrain.com.br com este e-mail.");
+      setAviso(msg);
+      if (res.emailEnviado) toast.success(msg);
+      else toast.warning(msg);
+      setRascunho(null);
+      qc.invalidateQueries({ queryKey: ["acessos-financeiro"] });
+      qc.invalidateQueries({ queryKey: ["acessos-financeiro-candidatos"] });
+    },
+    onError: (e: Error) => {
+      setErro(e.message);
+      toast.error(`Não foi possível convidar: ${e.message}`);
+    },
+  });
+
   const tirar = useMutation({
     mutationFn: (alvo: { userId: string; email: string }) => revogar({ data: { userId: alvo.userId } }),
     onSuccess: (res: { sincronizado: boolean }, alvo) => {
@@ -170,6 +204,30 @@ function AcessosFinanceiroPage() {
     if (!t) return pessoas;
     return pessoas.filter((p) => normalizar(`${p.nome ?? ""} ${p.email}`).includes(t));
   }, [busca, pessoas]);
+
+  // Ajuda do convite, conferida contra as listas já carregadas. O servidor
+  // confere de novo; isto só evita que a Ana descubra depois de clicar.
+  const conviteAviso = useMemo(() => {
+    if (!rascunho?.convite) return null;
+    const email = rascunho.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+    if (pessoas.some((p) => p.email === email)) {
+      return { bloqueia: true, texto: "Esta pessoa já entra no Financeiro. Use “Editar unidades” na lista." };
+    }
+    if ((candidatos.data?.candidatos ?? []).some((c) => c.email === email)) {
+      return {
+        bloqueia: false,
+        texto: "Este e-mail já tem conta no Planning Brain: nenhuma conta nova é criada, só o Financeiro é liberado.",
+      };
+    }
+    if (emailDeFora(email)) {
+      return {
+        bloqueia: false,
+        texto: "E-mail de fora do grupo Planning. Confira antes: a pessoa vai ver os números das unidades marcadas.",
+      };
+    }
+    return null;
+  }, [rascunho, pessoas, candidatos.data]);
 
   const titulo = "Acessos do Financeiro";
   const pergunta = "Quem acessa o Financeiro, e de quais empresas?";
@@ -284,13 +342,25 @@ function AcessosFinanceiroPage() {
                 }
               }}
             >
-              <option value="">+ Dar acesso a alguém…</option>
+              <option value="">+ Dar acesso a quem já tem conta…</option>
               {(candidatos.data?.candidatos ?? []).map((c) => (
                 <option key={c.userId} value={c.userId}>
                   {c.nome ? `${c.nome} · ${c.email}` : c.email}
                 </option>
               ))}
             </select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => {
+                setRascunho({ userId: "", email: "", nome: "", unidades: [], novo: true, convite: true });
+                setAvisar(true);
+              }}
+            >
+              <UserPlus className="size-4" aria-hidden />
+              Convidar pessoa nova
+            </Button>
             </div>
           </div>
 
@@ -310,7 +380,7 @@ function AcessosFinanceiroPage() {
             <div className="p-4">
               <EstadoVazio
                 titulo="Ninguém tem acesso ao Financeiro"
-                descricao="Use “+ Dar acesso a alguém…” para liberar a primeira pessoa."
+                descricao="Use “+ Dar acesso a quem já tem conta…” ou “Convidar pessoa nova” para liberar a primeira pessoa."
               />
             </div>
           ) : visiveis.length === 0 ? (
@@ -410,12 +480,47 @@ function AcessosFinanceiroPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-lg rounded-xl border border-border bg-background p-5">
             <h3 className="text-sm font-semibold text-foreground">
-              {rascunho.novo ? "Dar acesso ao Financeiro" : "Unidades que esta pessoa abre"}
+              {rascunho.convite
+                ? "Convidar pessoa nova"
+                : rascunho.novo
+                  ? "Dar acesso ao Financeiro"
+                  : "Unidades que esta pessoa abre"}
             </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {rascunho.nome ? `${rascunho.nome} · ` : ""}
-              {rascunho.email}
-            </p>
+            {rascunho.convite ? (
+              <div className="mt-3 space-y-2">
+                <Input
+                  value={rascunho.nome ?? ""}
+                  onChange={(e) => setRascunho({ ...rascunho, nome: e.target.value })}
+                  placeholder="Nome completo"
+                  aria-label="Nome completo"
+                  className="h-8"
+                />
+                <Input
+                  type="email"
+                  value={rascunho.email}
+                  onChange={(e) => setRascunho({ ...rascunho, email: e.target.value })}
+                  placeholder="email@planning.com.br"
+                  aria-label="E-mail"
+                  className="h-8"
+                />
+                {conviteAviso && (
+                  <p
+                    className={
+                      conviteAviso.bloqueia
+                        ? "rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-foreground"
+                        : "rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+                    }
+                  >
+                    {conviteAviso.texto}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {rascunho.nome ? `${rascunho.nome} · ` : ""}
+                {rascunho.email}
+              </p>
+            )}
 
             <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
               {unidades.map((u) => {
@@ -473,14 +578,20 @@ function AcessosFinanceiroPage() {
               >
                 {rascunho.unidades.length === unidades.length ? "desmarcar todas" : "marcar todas"}
               </button>
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={avisar}
-                  onChange={(e) => setAvisar(e.target.checked)}
-                />
-                avisar por e-mail
-              </label>
+              {rascunho.convite ? (
+                <span className="text-xs text-muted-foreground">
+                  o convite vai por e-mail, com o link para definir a senha
+                </span>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={avisar}
+                    onChange={(e) => setAvisar(e.target.checked)}
+                  />
+                  avisar por e-mail
+                </label>
+              )}
             </div>
 
             {/* O consolidado exige TODAS as unidades. Sem este aviso, tirar uma
@@ -501,13 +612,29 @@ function AcessosFinanceiroPage() {
               >
                 Cancelar
               </button>
-              <button
-                onClick={() => salvar.mutate(rascunho)}
-                disabled={salvar.isPending}
-                className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {salvar.isPending ? "Salvando…" : "Salvar"}
-              </button>
+              {rascunho.convite ? (
+                <button
+                  onClick={() => convite.mutate(rascunho)}
+                  disabled={
+                    convite.isPending ||
+                    !(rascunho.nome ?? "").trim() ||
+                    !rascunho.email.trim() ||
+                    rascunho.unidades.length === 0 ||
+                    Boolean(conviteAviso?.bloqueia)
+                  }
+                  className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {convite.isPending ? "Convidando…" : "Convidar"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => salvar.mutate(rascunho)}
+                  disabled={salvar.isPending}
+                  className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {salvar.isPending ? "Salvando…" : "Salvar"}
+                </button>
+              )}
             </div>
           </div>
         </div>
