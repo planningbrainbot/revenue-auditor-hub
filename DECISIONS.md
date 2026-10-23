@@ -6732,3 +6732,28 @@ Weekly de 21/10/2026 com a Karol (closer da Consultoria), em cima da tela. Escol
 - Previstas, Feitas e Vencidas viram clicáveis. Cada um abre a lista de atividades por trás do número (`ritmoDiagnostico` devolve `itens`).
 - O clique num dia do gráfico abre as previstas e as feitas daquele dia.
 - A fonte é o retrato das atividades que a carga `monetizacao-diagnostico` grava a cada 5 minutos. Não é uma leitura nova do Pipedrive.
+
+## [2026-10-23] Quem administra o Financeiro convida pessoa nova, com conta só do Financeiro
+
+**Contexto:** a Ana (controladoria, chave `admin.acessos.financeiro`) pediu
+para incluir e-mails que não estavam na lista da tela Acessos do Financeiro.
+A tela só listava quem já tinha conta (`listarCandidatosFinanceiro`), e conta
+nova dependia do super admin. O Pedro: "A Ana precisa conseguir convidar novos
+usuários ao invés de apenas passar acessos ao financeiro de quem já existe".
+
+**Decisão:** botão "Convidar pessoa nova" na mesma tela, com nome, e-mail e
+unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
+- A conta nasce **só com a porta do Financeiro**: sem papel e sem a porta do
+  Ops, como as contas criadas à mão em 06/10 (Roney, Marco, Nairim).
+  Administrar o Financeiro não dá poder de distribuir acesso ao Ops.
+- E-mail que já tem conta ativa recebe só a concessão (igual ao "Dar acesso");
+  conta desativada é recusada (reativar devolve os acessos do Ops, decisão do
+  Ops); quem já entra no Financeiro vai para "Editar unidades".
+- Convite exige pelo menos uma unidade. Qualquer domínio é aceito; fora de
+  planning.com.br, grupoplanning.com.br e br.planning.com.br a tela avisa antes.
+- O link de definir senha vai só no e-mail, nunca para a tela. Se o e-mail
+  falhar, a pessoa usa "Esqueci minha senha".
+- Falha no meio apaga a conta nova (FKs em cascata para auth.users conferidas
+  em 23/10: profiles, produto_acesso, usuario_escopo, usuario_empresas,
+  usuario_recortes_financeiro). Registro em `ops.acessos_log` como
+  `financeiro_convidar`.

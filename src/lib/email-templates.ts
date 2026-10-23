@@ -206,6 +206,50 @@ export function emailAcessoFinanceiro(params: {
 }
 
 /**
+ * Convite de quem ainda não tinha conta (23/10/2026). A conta nasce só com o
+ * Financeiro; diferente do `emailAcessoFinanceiro`, aqui vai o link de definir
+ * senha, porque a pessoa ainda não tem senha do Planning Brain.
+ */
+export function emailConviteFinanceiro(params: {
+  nome: string;
+  email: string;
+  link: string;
+  unidades: string[];
+  concedidoPor: string;
+}) {
+  const primeiroNome = (params.nome || "").trim().split(/\s+/)[0] || params.email;
+  const lista = params.unidades.join(", ");
+  return {
+    subject: "Seu acesso ao Brain Financeiro",
+    html: layout({
+      titulo: `Olá, ${primeiroNome}`,
+      corpo: `
+        <p style="margin:0 0 12px 0;">${escapeHtml(params.concedidoPor)} liberou para você o <strong>Brain Financeiro</strong>, o cockpit de DRE, fluxo de caixa, inadimplência e aprovações do Grupo Planning.</p>
+        <p style="margin:0 0 12px 0;">As unidades que você abre: <strong>${escapeHtml(lista)}</strong>.</p>
+        <p style="margin:0;">Seu usuário é <strong>${escapeHtml(params.email)}</strong>. Defina sua senha no botão abaixo; depois, entre em planningbrain.com.br e escolha Financeiro.</p>`,
+      botao: { texto: "Definir minha senha", url: params.link },
+      rodape: `${VALIDADE} Se ele expirar, use "Esqueci minha senha" na tela de login que um novo chega no mesmo e-mail. Se alguma unidade dessa lista não deveria estar aí, responda este e-mail.`,
+    }),
+    text: [
+      `Olá, ${primeiroNome}`,
+      ``,
+      `${params.concedidoPor} liberou para você o Brain Financeiro, o cockpit de DRE,`,
+      `fluxo de caixa, inadimplência e aprovações do Grupo Planning.`,
+      ``,
+      `Unidades que você abre: ${lista}`,
+      `Usuário: ${params.email}`,
+      ``,
+      `Defina sua senha neste link (vale por 1 hora, uso único):`,
+      params.link,
+      ``,
+      `Depois, entre em planningbrain.com.br e escolha Financeiro.`,
+      `Se o link expirar, use "Esqueci minha senha" na tela de login.`,
+      `Planning Brain — planningbrain.com.br`,
+    ].join("\n"),
+  };
+}
+
+/**
  * Para quem pediu cadastro em /cadastro. O link de definir senha é também a
  * prova de que a pessoa é dona do e-mail: ninguém entra sem abrir esta caixa.
  */

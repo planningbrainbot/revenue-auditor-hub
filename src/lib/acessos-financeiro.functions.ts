@@ -46,8 +46,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAffected } from "@/lib/supabase-assert";
 import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
-import { emailAcessoFinanceiro } from "@/lib/email-templates";
-import { registrarAcesso } from "@/lib/acessos.server";
+import { emailAcessoFinanceiro, emailConviteFinanceiro } from "@/lib/email-templates";
+import { contaPorEmail, registrarAcesso } from "@/lib/acessos.server";
+import { gerarLinkDefinirSenha } from "@/lib/admin-users.functions";
+import { decidirConvite, validarConvite } from "@/lib/acessos-financeiro-convite";
 
 const PRODUTO = "financeiro";
 
@@ -232,6 +234,87 @@ export const listarCandidatosFinanceiro = createServerFn({ method: "GET" })
     };
   });
 
+/** O catálogo de unidades do cockpit, com as pedidas conferidas contra ele. */
+async function unidadesConferidas(pedidas: string[]): Promise<UnidadeDoCockpit[]> {
+  const unidades = await unidadesComEmpresas();
+  // Catálogo vazio é falha de conexão com o cockpit, não "nenhuma unidade":
+  // seguir em frente fazia `tudo` virar verdadeiro com a lista vazia e
+  // gravava "todas as empresas" (auditoria de 24/09/2026).
+  if (!unidades.length) {
+    throw new Error("Não foi possível ler as unidades do Financeiro agora. Nada foi alterado; tente de novo.");
+  }
+  const validas = new Set(unidades.map((u) => u.id));
+  const invalidas = pedidas.filter((e) => !validas.has(e));
+  if (invalidas.length) {
+    throw new Error(
+      `Unidade(s) que não existem no cockpit: ${invalidas.join(", ")}. ` +
+        `As que existem hoje: ${[...validas].join(", ")}.`,
+    );
+  }
+  return unidades;
+}
+
+/**
+ * Grava a porta e o recorte de uma pessoa. Devolve `true` quando virou "todas".
+ * Serve ao "Editar unidades" e ao convite (23/10/2026), que concedem igual.
+ */
+async function gravarConcessao(
+  db: any,
+  userId: string,
+  pedidas: string[],
+  unidades: UnidadeDoCockpit[],
+  ator: string,
+): Promise<boolean> {
+  // A porta primeiro: dar unidade a quem não entra no produto é conceder nada.
+  const porta = await db.schema("public").from("produto_acesso")
+    .upsert({ user_id: userId, produto: PRODUTO, concedido_por: ator },
+            { onConflict: "user_id,produto" })
+    .select("user_id");
+  assertAffected(porta, "Não foi possível conceder a porta do Financeiro.");
+
+  // TODAS as unidades vira a FLAG, não 16 linhas. É o que o modelo do Ops
+  // manda: `todas_empresas` responde "vê tudo" numa linha só, e mantém a
+  // resposta certa quando uma empresa nova é cadastrada amanhã. Gravar a
+  // lista inteira faria a pessoa PERDER a empresa nova sem ninguém mexer.
+  const tudo = pedidas.length === unidades.length;
+  // Recorte por departamento (Negócios Estruturados, Finance) é concessão
+  // própria e NÃO grava as empresas do BPO: antes, dar só o Finance abria o
+  // BPO inteiro, e dar o BPO abria os dois recortes junto (06/10/2026).
+  const escolhidas = unidades.filter((u) => pedidas.includes(u.id));
+  const recortes = tudo ? [] : escolhidas.filter(ehRecorte).map((u) => u.id);
+  const empresaIds = tudo
+    ? []
+    : Array.from(new Set(escolhidas.filter((u) => !ehRecorte(u)).flatMap((u) => u.empresaIds)));
+
+  const flag = await db.from("usuario_escopo")
+    .upsert({ user_id: userId, todas_empresas: tudo }, { onConflict: "user_id" })
+    .select("user_id");
+  assertAffected(flag, "Não foi possível gravar o escopo da pessoa.");
+
+  // Substituição inteira, não diferencial: um merge deixaria empresa antiga
+  // sobrevivendo a um desmarque, que é a forma mais silenciosa de acesso
+  // indevido.
+  const { error: delErr } = await db.from("usuario_empresas").delete().eq("user_id", userId);
+  if (delErr) throw new Error(delErr.message);
+  if (empresaIds.length) {
+    const { error: insErr } = await db.from("usuario_empresas")
+      .insert(empresaIds.map((empresa_id) => ({ user_id: userId, empresa_id })));
+    if (insErr) throw new Error(insErr.message);
+  }
+
+  // Recortes: mesma substituição inteira. Com "todas" a flag já cobre tudo.
+  const { error: delRecErr } = await db.from("usuario_recortes_financeiro")
+    .delete().eq("user_id", userId);
+  if (delRecErr) throw new Error(delRecErr.message);
+  if (recortes.length) {
+    const { error: insRecErr } = await db.from("usuario_recortes_financeiro").insert(
+      recortes.map((unidade_id) => ({ user_id: userId, unidade_id, concedido_por: ator })),
+    );
+    if (insRecErr) throw new Error(insRecErr.message);
+  }
+  return tudo;
+}
+
 export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { userId: string; unidades: string[]; avisarPorEmail?: boolean }) => {
@@ -246,73 +329,8 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as any;
 
-    const unidades = await unidadesComEmpresas();
-    // Catálogo vazio é falha de conexão com o cockpit, não "nenhuma unidade":
-    // seguir em frente fazia `tudo` virar verdadeiro com a lista vazia e
-    // gravava "todas as empresas" (auditoria de 24/09/2026).
-    if (!unidades.length) {
-      throw new Error("Não foi possível ler as unidades do Financeiro agora. Nada foi alterado; tente de novo.");
-    }
-    const validas = new Set(unidades.map((u) => u.id));
-    const invalidas = data.unidades.filter((e) => !validas.has(e));
-    if (invalidas.length) {
-      throw new Error(
-        `Unidade(s) que não existem no cockpit: ${invalidas.join(", ")}. ` +
-          `As que existem hoje: ${[...validas].join(", ")}.`,
-      );
-    }
-
-    // A porta primeiro: dar unidade a quem não entra no produto é conceder nada.
-    const porta = await db.schema("public").from("produto_acesso")
-      .upsert({ user_id: data.userId, produto: PRODUTO, concedido_por: context.userId },
-              { onConflict: "user_id,produto" })
-      .select("user_id");
-    assertAffected(porta, "Não foi possível conceder a porta do Financeiro.");
-
-    // TODAS as unidades vira a FLAG, não 16 linhas. É o que o modelo do Ops
-    // manda: `todas_empresas` responde "vê tudo" numa linha só, e mantém a
-    // resposta certa quando uma empresa nova é cadastrada amanhã. Gravar a
-    // lista inteira faria a pessoa PERDER a empresa nova sem ninguém mexer.
-    const tudo = data.unidades.length === unidades.length;
-    // Recorte por departamento (Negócios Estruturados, Finance) é concessão
-    // própria e NÃO grava as empresas do BPO: antes, dar só o Finance abria o
-    // BPO inteiro, e dar o BPO abria os dois recortes junto (06/10/2026).
-    const escolhidas = unidades.filter((u) => data.unidades.includes(u.id));
-    const recortes = tudo ? [] : escolhidas.filter(ehRecorte).map((u) => u.id);
-    const empresaIds = tudo
-      ? []
-      : Array.from(new Set(escolhidas.filter((u) => !ehRecorte(u)).flatMap((u) => u.empresaIds)));
-
-    const flag = await db.from("usuario_escopo")
-      .upsert({ user_id: data.userId, todas_empresas: tudo }, { onConflict: "user_id" })
-      .select("user_id");
-    assertAffected(flag, "Não foi possível gravar o escopo da pessoa.");
-
-    // Substituição inteira, não diferencial: um merge deixaria empresa antiga
-    // sobrevivendo a um desmarque, que é a forma mais silenciosa de acesso
-    // indevido.
-    const { error: delErr } = await db.from("usuario_empresas").delete().eq("user_id", data.userId);
-    if (delErr) throw new Error(delErr.message);
-    if (empresaIds.length) {
-      const { error: insErr } = await db.from("usuario_empresas")
-        .insert(empresaIds.map((empresa_id) => ({ user_id: data.userId, empresa_id })));
-      if (insErr) throw new Error(insErr.message);
-    }
-
-    // Recortes: mesma substituição inteira. Com "todas" a flag já cobre tudo.
-    const { error: delRecErr } = await db.from("usuario_recortes_financeiro")
-      .delete().eq("user_id", data.userId);
-    if (delRecErr) throw new Error(delRecErr.message);
-    if (recortes.length) {
-      const { error: insRecErr } = await db.from("usuario_recortes_financeiro").insert(
-        recortes.map((unidade_id) => ({
-          user_id: data.userId,
-          unidade_id,
-          concedido_por: context.userId,
-        })),
-      );
-      if (insRecErr) throw new Error(insRecErr.message);
-    }
+    const unidades = await unidadesConferidas(data.unidades);
+    const tudo = await gravarConcessao(db, data.userId, data.unidades, unidades, context.userId);
 
     const { data: perfil } = await db.schema("public").from("profiles")
       .select("email, nome").eq("user_id", data.userId).maybeSingle();
@@ -343,6 +361,117 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
       todas_empresas: tudo,
     });
     return { userId: data.userId, unidades: data.unidades, emailEnviado };
+  });
+
+/**
+ * Convida alguém para o Financeiro pelo e-mail (23/10/2026).
+ *
+ * Até aqui a tela só listava quem já tinha conta, e a conta nova dependia do
+ * super admin. Agora quem administra o Financeiro cria a conta, mas só com a
+ * porta DELE: sem papel e sem a porta do Ops, o mesmo desenho das contas que o
+ * Pedro criou à mão em 06/10 (Roney, Marco, Nairim). Administrar o Financeiro
+ * não é distribuir acesso ao Ops.
+ *
+ * E-mail que já tem conta ativa recebe só a concessão, como no "Dar acesso".
+ */
+export const convidarParaFinanceiro = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { nome: string; email: string; unidades: string[] }) => validarConvite(input))
+  .handler(async ({ data, context }) => {
+    await exigirAdminDoFinanceiro(context.supabase as any);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as any;
+
+    // O catálogo antes da conta: se o cockpit não responde, nada nasce.
+    const unidades = await unidadesConferidas(data.unidades);
+
+    const conta = await contaPorEmail(data.email);
+    let jaEntra = false;
+    if (conta) {
+      const { data: porta } = await db.schema("public").from("produto_acesso")
+        .select("user_id").eq("user_id", conta.user_id).eq("produto", PRODUTO).maybeSingle();
+      jaEntra = Boolean(porta);
+    }
+    const decisao = decidirConvite(conta, jaEntra);
+    if (decisao.tipo === "recusar") throw new Error(decisao.motivo);
+
+    let userId: string;
+    let tudo: boolean;
+    const criada = decisao.tipo === "criar";
+    if (decisao.tipo === "conceder") {
+      userId = decisao.userId;
+      tudo = await gravarConcessao(db, userId, data.unidades, unidades, context.userId);
+    } else {
+      const { data: criado, error } = await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        email_confirm: true,
+        user_metadata: { nome: data.nome },
+      });
+      if (error || !criado?.user) {
+        console.error("[convidarParaFinanceiro] createUser falhou:", error);
+        throw new Error(
+          "Não foi possível criar a conta. Se este e-mail já tem login sem cadastro no Planning Brain, peça à administração do Ops.",
+        );
+      }
+      userId = criado.user.id;
+      try {
+        const { error: perfilErr } = await db.schema("public").from("profiles")
+          .upsert({ user_id: userId, nome: data.nome, email: data.email }, { onConflict: "user_id" });
+        if (perfilErr) throw new Error(perfilErr.message);
+        tudo = await gravarConcessao(db, userId, data.unidades, unidades, context.userId);
+      } catch (err) {
+        // Conta pela metade some da lista e ninguém a acha. Apagar a conta leva
+        // junto cadastro, porta e recorte (FK em cascata, conferido em 23/10).
+        console.error("[convidarParaFinanceiro] desfazendo a conta nova:", err);
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        throw new Error("Não foi possível convidar a pessoa. Nada foi gravado; tente de novo.");
+      }
+      const { vincularCadastroDeGente } = await import("@/lib/gente-vinculo.server");
+      await vincularCadastroDeGente(supabaseAdmin, userId, data.email, { todas: false, unidades: [] });
+    }
+
+    // O link de definir senha vai só para a caixa da pessoa, nunca para a tela:
+    // quem convida não precisa dele, e com ele entraria no lugar da convidada.
+    // Se o e-mail falhar, "Esqueci minha senha" com o mesmo e-mail resolve.
+    const rotulo = new Map(unidades.map((u) => [u.id, u.rotulo]));
+    const nomesUnidades = data.unidades.map((e) => rotulo.get(e) ?? e);
+    const concedidoPor = await emailDoAtor(context.userId);
+    let emailEnviado = false;
+    try {
+      const msg = criada
+        ? emailConviteFinanceiro({
+            nome: data.nome,
+            email: data.email,
+            link: await gerarLinkDefinirSenha(data.email),
+            unidades: nomesUnidades,
+            concedidoPor,
+          })
+        : emailAcessoFinanceiro({
+            nome: conta?.nome ?? data.nome,
+            email: data.email,
+            link: `${appUrl()}/financeiro`,
+            unidades: nomesUnidades,
+            concedidoPor,
+          });
+      emailEnviado = (await enviarEmail({ to: data.email, ...msg })).enviado;
+    } catch (err) {
+      console.error("[convidarParaFinanceiro] e-mail do convite falhou:", err);
+    }
+
+    // Conta nova ainda não existe no cockpit (nasce no primeiro login) e a
+    // função devolve "sem-conta"; quem já tinha conta recebe a concessão agora.
+    if (!criada) {
+      const { aplicarConcessaoNoFinanceiro } = await import("@/lib/sessoes-irmas.functions");
+      await aplicarConcessaoNoFinanceiro(userId, data.email);
+    }
+
+    await registrarAcesso(context.userId, userId, "financeiro_convidar", {
+      conta_criada: criada,
+      unidades: data.unidades,
+      todas_empresas: tudo,
+      email_enviado: emailEnviado,
+    });
+    return { userId, email: data.email, criada, emailEnviado };
   });
 
 export const revogarAcessoFinanceiro = createServerFn({ method: "POST" })
