@@ -34,6 +34,7 @@ import {
   legendaProps,
   tooltipProps,
 } from "@/lib/planning/grafico";
+import { useDataFreshness } from "@/hooks/use-data-freshness";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AREAS, areaDoItem, partesDoLink } from "@/lib/areas";
 import {
@@ -337,6 +338,8 @@ export function ReceitaOverviewContent() {
   // ou base antiga" e pode não bater com a soma daqui: a explicação diz isso.
   const hrefApuracao = destinoApuracao;
   const nomeMes = rotuloMes(mes);
+  // Mesma consulta da barra de frescor (cache compartilhado): hora do último sync do Omie.
+  const { data: frescor } = useDataFreshness();
 
   return (
     <MolduraReceita
@@ -352,6 +355,7 @@ export function ReceitaOverviewContent() {
       }
       procedencia={{
         fonte: "Apuração de royalties, faturas e títulos do Omie",
+        atualizadoEm: frescor?.omie,
         regua: "caixa no repasse, competência na receita",
       }}
       filtros={<SeletorMes mes={mes} aoMudar={setMes} maximo={maximo} comApuracao />}
