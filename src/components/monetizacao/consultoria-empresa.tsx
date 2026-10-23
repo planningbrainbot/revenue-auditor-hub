@@ -139,7 +139,7 @@ export function ConsultoriaEmpresa({
         {!erro ? (
           <Carregando variante="kpis" />
         ) : /^Seu acesso não inclui/.test(erro.message) ? (
-          <EstadoSemAcesso oQueFalta="view.monetizacao com todas as unidades" />
+          <EstadoSemAcesso oQueFalta="view.monetizacao ou view.consultoria, com todas as unidades" />
         ) : (
           <EstadoErro
             detalhe={`Fonte: plataforma da Consultoria, contratos e PAT. ${erro.message}`}

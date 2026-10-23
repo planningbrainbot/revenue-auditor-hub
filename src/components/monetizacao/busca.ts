@@ -161,7 +161,7 @@ export type BuscaMonetizacao = {
   /** Consultoria, Funil: o clique aberto ("3" = chegaram à etapa 3; "3-real" = pararam na 3 por "Lucro Real"). */
   passo?: string;
   /** Consultoria, Fila: só um grupo da fila. */
-  grupo?: "aceitou" | "atraso" | "90" | "30_90" | "recente";
+  grupo?: "compensou" | "aceitou" | "atraso" | "90" | "30_90" | "recente";
   /** Cella: o recorte da lista; ausente = contratos assinados. */
   ver?: Exclude<VisaoCella, "contratos">;
 };
@@ -271,7 +271,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         ? s.passo
         : undefined,
     grupo: consultoria
-      ? umDe(["aceitou", "atraso", "90", "30_90", "recente"] as const, s.grupo)
+      ? umDe(["compensou", "aceitou", "atraso", "90", "30_90", "recente"] as const, s.grupo)
       : undefined,
     ver:
       aba === "cella" ? umDe(["sem-valor", "abertos", "divergentes"] as const, s.ver) : undefined,

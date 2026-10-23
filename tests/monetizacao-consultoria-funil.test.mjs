@@ -92,7 +92,7 @@ test("nível e motivo: a etapa mais adiantada e por que parou nela", () => {
   assert.deepEqual(por.vazio, [4, "sem_oportunidade"]);
   assert.deepEqual(por.parado, [5, "mais_90"]);
   assert.deepEqual(por.novo, [5, "ate_30"]);
-  assert.deepEqual(por.aceitou, [6, "aceitou"]);
+  assert.deepEqual(por.aceitou, [6, "sem_estoque"]);
   assert.deepEqual(por.faturou, [7, "em_atraso"]);
   assert.deepEqual(por.recebeu, [8, "recebido"]);
 });
@@ -145,7 +145,8 @@ test("gaveta: cada número abre as empresas que ele soma, e a ficha tem chave na
   assert.equal(garantido.length, dinheiroDe(EMPRESAS, true).empresasGarantido);
   // Cada cartão de "Onde agir agora" abre a lista do mesmo tamanho do número do cartão.
   for (const a of ondeAgir(EMPRESAS, HOJE)) assert.equal(empresasDoPasso(EMPRESAS, a.passo, HOJE).length, a.empresas, a.id);
-  assert.equal(grupoDoPasso("6-aceitou"), "aceitou");
+  assert.equal(grupoDoPasso("6-compensou"), "compensou");
+  assert.equal(grupoDoPasso("6-sem_estoque"), "aceitou");
   assert.equal(grupoDoPasso("5-mais_90"), "90");
   assert.equal(grupoDoPasso("3"), null);
   assert.equal(chaveDaFicha({ cnpj: C, deal: "9", cliente_id: "c1" }), C);
@@ -166,8 +167,8 @@ test("dinheiro de verdade e onde agir", () => {
   assert.equal(d.empresasParado, 2);
   assert.equal(dinheiroDe(EMPRESAS, false).faturado2026, null);
   const a = Object.fromEntries(ondeAgir(EMPRESAS, HOJE).map((x) => [x.id, x]));
-  assert.equal(a.aceitou.empresas, 1);
-  assert.equal(a.aceitou.valor, 400);
+  assert.equal(a.sem_estoque.empresas, 1);
+  assert.equal(a.sem_estoque.valor, 400);
   assert.equal(a.parado90.empresas, 1);
   assert.equal(a.atrasados.empresas, 1);
   assert.equal(a.real.empresas, 1);
@@ -261,4 +262,23 @@ test("em análise fica à parte do achado e parado e fora da fila", () => {
   assert.deepEqual(empresasDoPasso(lista, "5-parado", HOJE).map((x) => x.chave), ["parado", "novo"]);
   assert.deepEqual(empresasDoPasso(lista, "5-em_analise", HOJE).map((x) => x.chave), ["analise"]);
   assert.equal(montarFila(lista, HOJE).some((x) => x.e.chave === "analise"), false);
+});
+
+test("aceito lido pelo estoque: compensou, aguardando, encerrado sem uso e sem estoque (weekly de 21/10)", () => {
+  const base = { cnpj: C, auditado: true, identificado: 500, aceito: 0 };
+  const compensou = e({ ...base, chave: "comp", cliente_id: "k1", tem_estoque: true, estoque_ativo: false, estoque_utilizado: 1000, exito_estimado: 200 });
+  const aguardando = e({ ...base, chave: "agu", cliente_id: "k2", tem_estoque: true, estoque_ativo: true, estoque_utilizado: 0 });
+  const encerrado = e({ ...base, chave: "enc", cliente_id: "k3", tem_estoque: true, estoque_ativo: false, estoque_utilizado: 0 });
+  const semEstoque = e({ ...base, chave: "sem", cliente_id: "k4", aceito: 300 });
+  const lista = [compensou, aguardando, encerrado, semEstoque];
+  assert.deepEqual(lista.map((x) => [nivelDe(x), motivoDe(x, HOJE)]), [[6, "compensou"], [6, "aguardando"], [6, "encerrado"], [6, "sem_estoque"]]);
+  const a = Object.fromEntries(ondeAgir(lista, HOJE).map((x) => [x.id, x]));
+  assert.equal(a.compensou.empresas, 1);
+  assert.equal(a.compensou.valor, 200, "o valor é o honorário estimado");
+  assert.equal(a.sem_estoque.valor, 300);
+  // Na Fila: compensou no topo, depois o sim sem estoque; aguardando e encerrado não têm o que cobrar.
+  const fila = montarFila(lista, HOJE);
+  assert.deepEqual(fila.map((x) => [x.e.chave, x.grupo, x.valor]), [["comp", "compensou", 200], ["sem", "aceitou", 300]]);
+  assert.equal(empresasDoPasso(lista, "6-encerrado", HOJE).length, 1);
+  assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", grupo: "compensou" }).grupo, "compensou");
 });

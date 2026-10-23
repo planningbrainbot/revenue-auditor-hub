@@ -46,6 +46,7 @@ import {
   nivelDe,
   ondeAgir,
   porCliente,
+  rotuloNota,
   type EmpresaFunil,
   type FunilBruto,
   type GrupoFila,
@@ -121,7 +122,7 @@ export function ConsultoriaFunil({
         {!erro ? (
           <Carregando variante="kpis" />
         ) : /^Seu acesso não inclui/.test(erro.message) ? (
-          <EstadoSemAcesso oQueFalta="view.monetizacao com todas as unidades" />
+          <EstadoSemAcesso oQueFalta="view.monetizacao ou view.consultoria, com todas as unidades" />
         ) : (
           <EstadoErro
             detalhe={`Fonte: plataforma da Consultoria, contratos ganhos e Base. ${erro.message}`}
@@ -540,20 +541,26 @@ function GavetaDoPasso({
   const { titulo, curto, leitura } = passo
     ? tituloDoPasso(passo, empresas.length)
     : { titulo: "", curto: "", leitura: null };
-  const garantido = passo?.endsWith("-garantido") ?? false;
+  // O segundo dinheiro da lista: o garantido, o compensado (quem já usou o crédito) ou o aceito.
+  const modo: ModoLista = passo?.endsWith("-garantido")
+    ? "garantido"
+    : passo === "6-compensou"
+      ? "compensou"
+      : "aceito";
   const grupo = passo ? grupoDoPasso(passo) : null;
   const ordenadas = useMemo(
     () =>
       [...empresas].sort(
         (a, b) =>
-          (garantido ? num(b.garantido) - num(a.garantido) : 0) ||
+          (modo === "garantido" ? num(b.garantido) - num(a.garantido) : 0) ||
+          (modo === "compensou" ? num(b.exito_estimado) - num(a.exito_estimado) : 0) ||
           num(b.aceito) + num(b.identificado) - (num(a.aceito) + num(a.identificado)) ||
           num(b.mrr) - num(a.mrr) ||
           a.nome.localeCompare(b.nome, "pt-BR"),
       ),
-    [empresas, garantido],
+    [empresas, modo],
   );
-  const soma = (k: "identificado" | "aceito" | "garantido" | "faturado") =>
+  const soma = (k: "identificado" | "aceito" | "garantido" | "faturado" | "estoque_utilizado" | "exito_estimado") =>
     empresas.reduce((s, e) => s + num(e[k]), 0);
   const aberta = ficha ? (empresas.find((e) => chaveDaFicha(e) === ficha) ?? null) : null;
   // A última ficha aberta continua marcada na lista depois do "Voltar": a pessoa vê onde parou.
@@ -584,8 +591,20 @@ function GavetaDoPasso({
               <SheetDescription>{leitura ?? "As empresas deste número."}</SheetDescription>
             </SheetHeader>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Somado rotulo="Crédito achado" valor={soma("identificado")} />
-              <Somado rotulo={garantido ? "Garantido a faturar" : "Aceito pelo cliente"} valor={soma(garantido ? "garantido" : "aceito")} />
+              {modo === "compensou" ? (
+                <>
+                  <Somado rotulo="Crédito compensado" valor={soma("estoque_utilizado")} />
+                  <Somado rotulo="Honorário estimado" valor={soma("exito_estimado")} />
+                </>
+              ) : (
+                <>
+                  <Somado rotulo="Crédito achado" valor={soma("identificado")} />
+                  <Somado
+                    rotulo={modo === "garantido" ? "Garantido a faturar" : "Aceito pelo cliente"}
+                    valor={soma(modo === "garantido" ? "garantido" : "aceito")}
+                  />
+                </>
+              )}
               <Somado rotulo="Faturado" valor={porta ? soma("faturado") : null} />
               <div className="rounded-lg border bg-card px-3 py-2">
                 <dt className="text-xs text-muted-foreground">Empresas</dt>
@@ -609,7 +628,7 @@ function GavetaDoPasso({
                 empresas={ordenadas}
                 hoje={hoje}
                 porta={porta}
-                garantido={garantido}
+                modo={modo}
                 aberta={ficha ?? ultima}
                 abrirFicha={(e) => abrirFicha(chaveDaFicha(e))}
               />
@@ -637,18 +656,20 @@ function Somado({ rotulo, valor }: { rotulo: string; valor: number | null }) {
   );
 }
 
+type ModoLista = "aceito" | "garantido" | "compensou";
+
 function ListaDoPasso({
   empresas,
   hoje,
   porta,
-  garantido,
+  modo,
   aberta,
   abrirFicha,
 }: {
   empresas: EmpresaFunil[];
   hoje: string;
   porta: boolean;
-  garantido: boolean;
+  modo: ModoLista;
   aberta: string | null;
   abrirFicha: (e: EmpresaFunil) => void;
 }) {
@@ -662,7 +683,9 @@ function ListaDoPasso({
             <TableHead className="text-xs">Origem</TableHead>
             <TableHead className="text-xs">Onde está</TableHead>
             <TableHead className="text-right text-xs">Crédito achado</TableHead>
-            <TableHead className="text-right text-xs">{garantido ? "Garantido" : "Aceito"}</TableHead>
+            <TableHead className="text-right text-xs">
+              {modo === "garantido" ? "Garantido" : modo === "compensou" ? "Compensado" : "Aceito"}
+            </TableHead>
             {porta && <TableHead className="text-right text-xs">Faturado</TableHead>}
             <TableHead className="text-xs">Venda / entrega</TableHead>
           </TableRow>
@@ -710,16 +733,32 @@ function ListaDoPasso({
                     {[e.unidade, e.closer].filter(Boolean).join(" · ") || "—"}
                   </span>
                 </TableCell>
-                <TableCell className="text-xs">{ondeEsta(e, hoje)}</TableCell>
+                <TableCell className="max-w-[18rem] text-xs">
+                  {ondeEsta(e, hoje)}
+                  {/* A nota mais recente da Consultoria (22/10/2026, pedido da Karol): o porquê sem abrir a ficha. */}
+                  {e.notas?.[0] && (
+                    <span
+                      className="mt-1 line-clamp-2 text-muted-foreground"
+                      title={e.notas
+                        .map((n) => `${rotuloNota(n)}${n.em ? ` (${ddmmaa(n.em)})` : ""}: ${n.texto}`)
+                        .join("\n\n")}
+                    >
+                      {rotuloNota(e.notas[0])}
+                      {e.notas[0].em ? ` (${ddmmaa(e.notas[0].em)})` : ""}: {e.notas[0].texto}
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="num whitespace-nowrap text-right text-xs">
                   {num(e.identificado) ? brlCurto(num(e.identificado)) : "—"}
                 </TableCell>
                 <TableCell className="num whitespace-nowrap text-right text-xs">
-                  {garantido
+                  {modo === "garantido"
                     ? brlCurto(num(e.garantido))
-                    : num(e.aceito)
-                      ? brlCurto(num(e.aceito))
-                      : "—"}
+                    : modo === "compensou"
+                      ? brlCurto(num(e.estoque_utilizado))
+                      : num(e.aceito)
+                        ? brlCurto(num(e.aceito))
+                        : "—"}
                 </TableCell>
                 {porta && (
                   <TableCell className="num whitespace-nowrap text-right text-xs">
