@@ -423,15 +423,8 @@ export const AREAS: Area[] = [
           },
         ],
       },
-      {
-        // Veio da antiga área Partners. Não é redundante com o cockpit: aqui se
-        // RATEIA custo por unidade e se apura comissão, lá se mostra resultado.
-        label: "Custos e comissões",
-        items: [
-          // EBIT Operacional (/ebit-operacional) apagado em 22/10/2026.
-          { title: "Comissões", url: "/comissoes", icon: Percent },
-        ],
-      },
+      // "Custos e comissões" saiu em 23/10/2026: a Apuração de comissões (/comissoes) foi
+      // substituída pela área Comissões (PRD wiki/prds/2026-10-comissoes-v1.md, D-05).
     ],
   },
   {
@@ -576,10 +569,20 @@ export const AREAS: Area[] = [
         items: [
           // As telas pedem view.monetizacao; a Consultoria tem chave própria (22/10/2026): a Karol, closer da Consultoria,
           // tem a área com a chave dela só.
-          { title: "Operação diária", url: "/monetizacao", icon: LayoutDashboard, chave: "view.monetizacao" },
+          {
+            title: "Operação diária",
+            url: "/monetizacao",
+            icon: LayoutDashboard,
+            chave: "view.monetizacao",
+          },
           // Pré-venda (09/10/2026, PRD aprovado): Ritmo, Aderência e Ficha numa aba só (`visao`). Gravações virou
           // Ficha › Reuniões e Pessoas e PDI saiu (decisão 1A); os links antigos abrem a Pré-venda com aviso.
-          { title: "Pré-venda", url: "/monetizacao?aba=pre-venda", icon: PhoneCall, chave: "view.monetizacao" },
+          {
+            title: "Pré-venda",
+            url: "/monetizacao?aba=pre-venda",
+            icon: PhoneCall,
+            chave: "view.monetizacao",
+          },
           {
             title: "Consultoria",
             url: "/monetizacao?aba=handoff-consultoria",
@@ -602,7 +605,12 @@ export const AREAS: Area[] = [
       {
         label: "Desenvolvimento comercial",
         items: [
-          { title: "Funil comercial", url: "/monetizacao?aba=funil", icon: Filter, chave: "view.monetizacao" },
+          {
+            title: "Funil comercial",
+            url: "/monetizacao?aba=funil",
+            icon: Filter,
+            chave: "view.monetizacao",
+          },
           {
             title: "Abordagens",
             url: "/monetizacao?aba=roteiros",
@@ -818,6 +826,37 @@ export const AREAS: Area[] = [
         label: "Configuração",
         items: [
           { title: "Departamentos", url: "/tarefas/departamentos", icon: Tags, area: "admin" },
+        ],
+      },
+    ],
+  },
+  {
+    // Comissões do time comercial (23/10/2026, PRD wiki/prds/2026-10-comissoes-v1.md, contrato
+    // docs/design/contratos/comissoes.md). Três áreas de permissão, nenhuma dada por papel: o time
+    // comercial recebe `comissoes` pessoa a pessoa; líderes e financeiro são admins de
+    // `comissoes_revisao` e `comissoes_fechamento`, que liberam as chaves de gestão.
+    slug: "comissoes",
+    nome: "Comissões",
+    descricao: "O que entra no próximo pagamento de comissão e o que fica para depois.",
+    icone: HandCoins,
+    grupos: [
+      {
+        label: "Comissões",
+        items: [
+          { title: "Minhas comissões", url: "/comissoes", icon: HandCoins },
+          {
+            title: "Revisão do mês",
+            url: "/comissoes/revisao",
+            icon: ClipboardCheck,
+            area: "comissoes_revisao",
+          },
+          {
+            title: "Fechamento",
+            url: "/comissoes/fechamento",
+            icon: Landmark,
+            area: "comissoes_fechamento",
+          },
+          { title: "Regras", url: "/comissoes/regras", icon: ScrollText },
         ],
       },
     ],

@@ -6732,3 +6732,19 @@ Weekly de 21/10/2026 com a Karol (closer da Consultoria), em cima da tela. Escol
 - Previstas, Feitas e Vencidas viram clicáveis. Cada um abre a lista de atividades por trás do número (`ritmoDiagnostico` devolve `itens`).
 - O clique num dia do gráfico abre as previstas e as feitas daquele dia.
 - A fonte é o retrato das atividades que a carga `monetizacao-diagnostico` grava a cada 5 minutos. Não é uma leitura nova do Pipedrive.
+
+## [2026-10-23] Comissões do time comercial: área nova no Ops, não no sistema novo
+
+**Contexto:** a regra nova de comissão (duas metades travadas pelo CAC que entra na apuração da unidade, pagamento todo dia 16, revisão dos líderes até o dia 10) foi aprovada em 22/10 como módulo do sistema novo, e a fatia 1 chegou a ser construída no `planning-broker` (branch `feat/comissoes-fatia1`, só local).
+
+**Decisão:** o dono decidiu em 23/10 que o sistema novo é só o broker por enquanto. Comissões vira área do Ops. PRD `wiki/prds/2026-10-comissoes-v1.md`, revisão 2; contrato de tela em `docs/design/contratos/comissoes.md`.
+- Três áreas em `ops.areas`, escopo `nenhum`, concedidas pessoa a pessoa em `ops.usuario_areas`, sem linha em `ops.role_areas`: `comissoes` (`view.comissoes`), `comissoes_revisao` (`manage.comissoes_revisao`) e `comissoes_fechamento` (`manage.comissoes_fechamento`).
+- Tabelas e regras no schema `comissoes`, fora dos expostos, sem grant; a tela chama funções `ops.comissoes_*` (`SECURITY DEFINER`, ator de `auth.uid()`, chave por `ops.can_user`). A prévia é chamada pelo n8n com a chave de serviço.
+- A lógica reaproveita a migration já testada no sistema novo.
+
+**Aprovado em 23/10:** revisão 2 do PRD e o contrato de tela ("ok para o código").
+- **Substitui a Apuração de comissões** (`/comissoes`, área Receita, de 03/07/2026), por decisão do dono: a rota passa a ser "Minhas comissões"; o item "Custos e comissões" sai da Receita; a chave `view.comissoes` deixa de vir da área `receita` (as 3 concessões individuais continuam). Apagados `src/routes/_authenticated/comissoes.tsx` e `src/components/page-content/comissoes-content.tsx`.
+- **Calendário (dono, 23/10):** apurações fechadas até o dia 5; líderes revisam até o dia 10 (ou o útil anterior); o financeiro envia a planilha ao Departamento Pessoal até o dia 11 (ou o próximo útil); pagamento pelo iFood no dia 20 (ou o útil anterior; 20/11/2026 é feriado). Antes era dia 16.
+- Líderes e financeiro entram como admins das áreas `comissoes_revisao` e `comissoes_fechamento` (`ops.area_admins`): pela concessão por pessoa, `ops.can_user` exige a chave em `ops.usuario_chaves`, que só aceita `view.%`.
+- Testes de banco em `tests/comissoes-banco/` (pytest, contra a homologação do sistema novo, numa transação desfeita): 19 passam.
+- Cor da área: `--area-comissoes` usa a da Receita, como o BI Financeiro.

@@ -52,7 +52,6 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
 import { Route as AuthenticatedDreCaixaRouteImport } from './routes/_authenticated/dre-caixa'
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
-import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
 import { Route as AuthenticatedCockpitCooRouteImport } from './routes/_authenticated/cockpit-coo'
 import { Route as AuthenticatedCockpitCeoRouteImport } from './routes/_authenticated/cockpit-ceo'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
@@ -65,6 +64,7 @@ import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedTarefasIndexRouteImport } from './routes/_authenticated/tarefas.index'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedFaturamentoIndexRouteImport } from './routes/_authenticated/faturamento.index'
+import { Route as AuthenticatedComissoesIndexRouteImport } from './routes/_authenticated/comissoes.index'
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
 import { Route as ApresentacaoListaIdRouteImport } from './routes/apresentacao.lista.$id'
 import { Route as ApiCockpitCeoConversaRouteImport } from './routes/api/cockpit-ceo/conversa'
@@ -82,6 +82,9 @@ import { Route as AuthenticatedFaturamentoTesourariaRouteImport } from './routes
 import { Route as AuthenticatedFaturamentoPedidosRouteImport } from './routes/_authenticated/faturamento.pedidos'
 import { Route as AuthenticatedFaturamentoNovoRouteImport } from './routes/_authenticated/faturamento.novo'
 import { Route as AuthenticatedFaturamentoConfiguracaoRouteImport } from './routes/_authenticated/faturamento.configuracao'
+import { Route as AuthenticatedComissoesRevisaoRouteImport } from './routes/_authenticated/comissoes.revisao'
+import { Route as AuthenticatedComissoesRegrasRouteImport } from './routes/_authenticated/comissoes.regras'
+import { Route as AuthenticatedComissoesFechamentoRouteImport } from './routes/_authenticated/comissoes.fechamento'
 import { Route as AuthenticatedCockpitCooPerguntarRouteImport } from './routes/_authenticated/cockpit-coo_.perguntar'
 import { Route as AuthenticatedCockpitCooCompromissosRouteImport } from './routes/_authenticated/cockpit-coo_.compromissos'
 import { Route as AuthenticatedCockpitCeoPerguntarRouteImport } from './routes/_authenticated/cockpit-ceo_.perguntar'
@@ -340,11 +343,6 @@ const AuthenticatedDisparosWhatsappRoute =
     path: '/disparos-whatsapp',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedComissoesRoute = AuthenticatedComissoesRouteImport.update({
-  id: '/comissoes',
-  path: '/comissoes',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedCockpitCooRoute = AuthenticatedCockpitCooRouteImport.update({
   id: '/cockpit-coo',
   path: '/cockpit-coo',
@@ -410,6 +408,12 @@ const AuthenticatedFaturamentoIndexRoute =
   AuthenticatedFaturamentoIndexRouteImport.update({
     id: '/faturamento/',
     path: '/faturamento/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComissoesIndexRoute =
+  AuthenticatedComissoesIndexRouteImport.update({
+    id: '/comissoes/',
+    path: '/comissoes/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedBrokerIndexRoute =
@@ -510,6 +514,24 @@ const AuthenticatedFaturamentoConfiguracaoRoute =
   AuthenticatedFaturamentoConfiguracaoRouteImport.update({
     id: '/faturamento/configuracao',
     path: '/faturamento/configuracao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComissoesRevisaoRoute =
+  AuthenticatedComissoesRevisaoRouteImport.update({
+    id: '/comissoes/revisao',
+    path: '/comissoes/revisao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComissoesRegrasRoute =
+  AuthenticatedComissoesRegrasRouteImport.update({
+    id: '/comissoes/regras',
+    path: '/comissoes/regras',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComissoesFechamentoRoute =
+  AuthenticatedComissoesFechamentoRouteImport.update({
+    id: '/comissoes/fechamento',
+    path: '/comissoes/fechamento',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCockpitCooPerguntarRoute =
@@ -659,7 +681,6 @@ export interface FileRoutesByFullPath {
   '/clientes': typeof AuthenticatedClientesRoute
   '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/cockpit-coo': typeof AuthenticatedCockpitCooRoute
-  '/comissoes': typeof AuthenticatedComissoesRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
@@ -713,6 +734,9 @@ export interface FileRoutesByFullPath {
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/comissoes/fechamento': typeof AuthenticatedComissoesFechamentoRoute
+  '/comissoes/regras': typeof AuthenticatedComissoesRegrasRoute
+  '/comissoes/revisao': typeof AuthenticatedComissoesRevisaoRoute
   '/faturamento/configuracao': typeof AuthenticatedFaturamentoConfiguracaoRoute
   '/faturamento/novo': typeof AuthenticatedFaturamentoNovoRoute
   '/faturamento/pedidos': typeof AuthenticatedFaturamentoPedidosRoute
@@ -730,6 +754,7 @@ export interface FileRoutesByFullPath {
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
+  '/comissoes/': typeof AuthenticatedComissoesIndexRoute
   '/faturamento/': typeof AuthenticatedFaturamentoIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/tarefas/': typeof AuthenticatedTarefasIndexRoute
@@ -754,7 +779,6 @@ export interface FileRoutesByTo {
   '/clientes': typeof AuthenticatedClientesRoute
   '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/cockpit-coo': typeof AuthenticatedCockpitCooRoute
-  '/comissoes': typeof AuthenticatedComissoesRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
@@ -807,6 +831,9 @@ export interface FileRoutesByTo {
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/comissoes/fechamento': typeof AuthenticatedComissoesFechamentoRoute
+  '/comissoes/regras': typeof AuthenticatedComissoesRegrasRoute
+  '/comissoes/revisao': typeof AuthenticatedComissoesRevisaoRoute
   '/faturamento/configuracao': typeof AuthenticatedFaturamentoConfiguracaoRoute
   '/faturamento/novo': typeof AuthenticatedFaturamentoNovoRoute
   '/faturamento/pedidos': typeof AuthenticatedFaturamentoPedidosRoute
@@ -824,6 +851,7 @@ export interface FileRoutesByTo {
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
+  '/comissoes': typeof AuthenticatedComissoesIndexRoute
   '/faturamento': typeof AuthenticatedFaturamentoIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/tarefas': typeof AuthenticatedTarefasIndexRoute
@@ -850,7 +878,6 @@ export interface FileRoutesById {
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/_authenticated/cockpit-coo': typeof AuthenticatedCockpitCooRoute
-  '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/_authenticated/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
@@ -905,6 +932,9 @@ export interface FileRoutesById {
   '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/_authenticated/cockpit-coo_/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/_authenticated/cockpit-coo_/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/_authenticated/comissoes/fechamento': typeof AuthenticatedComissoesFechamentoRoute
+  '/_authenticated/comissoes/regras': typeof AuthenticatedComissoesRegrasRoute
+  '/_authenticated/comissoes/revisao': typeof AuthenticatedComissoesRevisaoRoute
   '/_authenticated/faturamento/configuracao': typeof AuthenticatedFaturamentoConfiguracaoRoute
   '/_authenticated/faturamento/novo': typeof AuthenticatedFaturamentoNovoRoute
   '/_authenticated/faturamento/pedidos': typeof AuthenticatedFaturamentoPedidosRoute
@@ -922,6 +952,7 @@ export interface FileRoutesById {
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
+  '/_authenticated/comissoes/': typeof AuthenticatedComissoesIndexRoute
   '/_authenticated/faturamento/': typeof AuthenticatedFaturamentoIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/tarefas/': typeof AuthenticatedTarefasIndexRoute
@@ -949,7 +980,6 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/cockpit-ceo'
     | '/cockpit-coo'
-    | '/comissoes'
     | '/disparos-whatsapp'
     | '/dre-caixa'
     | '/dre-partners'
@@ -1003,6 +1033,9 @@ export interface FileRouteTypes {
     | '/cockpit-ceo/perguntar'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
+    | '/comissoes/fechamento'
+    | '/comissoes/regras'
+    | '/comissoes/revisao'
     | '/faturamento/configuracao'
     | '/faturamento/novo'
     | '/faturamento/pedidos'
@@ -1020,6 +1053,7 @@ export interface FileRouteTypes {
     | '/api/cockpit-ceo/conversa'
     | '/apresentacao/lista/$id'
     | '/broker/'
+    | '/comissoes/'
     | '/faturamento/'
     | '/royalties/'
     | '/tarefas/'
@@ -1044,7 +1078,6 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/cockpit-ceo'
     | '/cockpit-coo'
-    | '/comissoes'
     | '/disparos-whatsapp'
     | '/dre-caixa'
     | '/dre-partners'
@@ -1097,6 +1130,9 @@ export interface FileRouteTypes {
     | '/cockpit-ceo/perguntar'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
+    | '/comissoes/fechamento'
+    | '/comissoes/regras'
+    | '/comissoes/revisao'
     | '/faturamento/configuracao'
     | '/faturamento/novo'
     | '/faturamento/pedidos'
@@ -1114,6 +1150,7 @@ export interface FileRouteTypes {
     | '/api/cockpit-ceo/conversa'
     | '/apresentacao/lista/$id'
     | '/broker'
+    | '/comissoes'
     | '/faturamento'
     | '/royalties'
     | '/tarefas'
@@ -1139,7 +1176,6 @@ export interface FileRouteTypes {
     | '/_authenticated/clientes'
     | '/_authenticated/cockpit-ceo'
     | '/_authenticated/cockpit-coo'
-    | '/_authenticated/comissoes'
     | '/_authenticated/disparos-whatsapp'
     | '/_authenticated/dre-caixa'
     | '/_authenticated/dre-partners'
@@ -1194,6 +1230,9 @@ export interface FileRouteTypes {
     | '/_authenticated/cockpit-ceo_/perguntar'
     | '/_authenticated/cockpit-coo_/compromissos'
     | '/_authenticated/cockpit-coo_/perguntar'
+    | '/_authenticated/comissoes/fechamento'
+    | '/_authenticated/comissoes/regras'
+    | '/_authenticated/comissoes/revisao'
     | '/_authenticated/faturamento/configuracao'
     | '/_authenticated/faturamento/novo'
     | '/_authenticated/faturamento/pedidos'
@@ -1211,6 +1250,7 @@ export interface FileRouteTypes {
     | '/api/cockpit-ceo/conversa'
     | '/apresentacao/lista/$id'
     | '/_authenticated/broker/'
+    | '/_authenticated/comissoes/'
     | '/_authenticated/faturamento/'
     | '/_authenticated/royalties/'
     | '/_authenticated/tarefas/'
@@ -1537,13 +1577,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDisparosWhatsappRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/comissoes': {
-      id: '/_authenticated/comissoes'
-      path: '/comissoes'
-      fullPath: '/comissoes'
-      preLoaderRoute: typeof AuthenticatedComissoesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/cockpit-coo': {
       id: '/_authenticated/cockpit-coo'
       path: '/cockpit-coo'
@@ -1626,6 +1659,13 @@ declare module '@tanstack/react-router' {
       path: '/faturamento'
       fullPath: '/faturamento/'
       preLoaderRoute: typeof AuthenticatedFaturamentoIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comissoes/': {
+      id: '/_authenticated/comissoes/'
+      path: '/comissoes'
+      fullPath: '/comissoes/'
+      preLoaderRoute: typeof AuthenticatedComissoesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/broker/': {
@@ -1745,6 +1785,27 @@ declare module '@tanstack/react-router' {
       path: '/faturamento/configuracao'
       fullPath: '/faturamento/configuracao'
       preLoaderRoute: typeof AuthenticatedFaturamentoConfiguracaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comissoes/revisao': {
+      id: '/_authenticated/comissoes/revisao'
+      path: '/comissoes/revisao'
+      fullPath: '/comissoes/revisao'
+      preLoaderRoute: typeof AuthenticatedComissoesRevisaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comissoes/regras': {
+      id: '/_authenticated/comissoes/regras'
+      path: '/comissoes/regras'
+      fullPath: '/comissoes/regras'
+      preLoaderRoute: typeof AuthenticatedComissoesRegrasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comissoes/fechamento': {
+      id: '/_authenticated/comissoes/fechamento'
+      path: '/comissoes/fechamento'
+      fullPath: '/comissoes/fechamento'
+      preLoaderRoute: typeof AuthenticatedComissoesFechamentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cockpit-coo_/perguntar': {
@@ -1958,7 +2019,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedCockpitCeoRoute: typeof AuthenticatedCockpitCeoRoute
   AuthenticatedCockpitCooRoute: typeof AuthenticatedCockpitCooRoute
-  AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
   AuthenticatedDreCaixaRoute: typeof AuthenticatedDreCaixaRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
@@ -2012,6 +2072,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
   AuthenticatedCockpitCooCompromissosRoute: typeof AuthenticatedCockpitCooCompromissosRoute
   AuthenticatedCockpitCooPerguntarRoute: typeof AuthenticatedCockpitCooPerguntarRoute
+  AuthenticatedComissoesFechamentoRoute: typeof AuthenticatedComissoesFechamentoRoute
+  AuthenticatedComissoesRegrasRoute: typeof AuthenticatedComissoesRegrasRoute
+  AuthenticatedComissoesRevisaoRoute: typeof AuthenticatedComissoesRevisaoRoute
   AuthenticatedFaturamentoConfiguracaoRoute: typeof AuthenticatedFaturamentoConfiguracaoRoute
   AuthenticatedFaturamentoNovoRoute: typeof AuthenticatedFaturamentoNovoRoute
   AuthenticatedFaturamentoPedidosRoute: typeof AuthenticatedFaturamentoPedidosRoute
@@ -2020,6 +2083,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMonetizacaoProdutosRoute: typeof AuthenticatedMonetizacaoProdutosRoute
   AuthenticatedTarefasDepartamentosRoute: typeof AuthenticatedTarefasDepartamentosRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
+  AuthenticatedComissoesIndexRoute: typeof AuthenticatedComissoesIndexRoute
   AuthenticatedFaturamentoIndexRoute: typeof AuthenticatedFaturamentoIndexRoute
   AuthenticatedTarefasIndexRoute: typeof AuthenticatedTarefasIndexRoute
   AuthenticatedAdminUsuariosUserIdRoute: typeof AuthenticatedAdminUsuariosUserIdRoute
@@ -2037,7 +2101,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedCockpitCeoRoute: AuthenticatedCockpitCeoRoute,
   AuthenticatedCockpitCooRoute: AuthenticatedCockpitCooRoute,
-  AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
   AuthenticatedDreCaixaRoute: AuthenticatedDreCaixaRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
@@ -2094,6 +2157,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCockpitCooCompromissosRoute:
     AuthenticatedCockpitCooCompromissosRoute,
   AuthenticatedCockpitCooPerguntarRoute: AuthenticatedCockpitCooPerguntarRoute,
+  AuthenticatedComissoesFechamentoRoute: AuthenticatedComissoesFechamentoRoute,
+  AuthenticatedComissoesRegrasRoute: AuthenticatedComissoesRegrasRoute,
+  AuthenticatedComissoesRevisaoRoute: AuthenticatedComissoesRevisaoRoute,
   AuthenticatedFaturamentoConfiguracaoRoute:
     AuthenticatedFaturamentoConfiguracaoRoute,
   AuthenticatedFaturamentoNovoRoute: AuthenticatedFaturamentoNovoRoute,
@@ -2105,6 +2171,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTarefasDepartamentosRoute:
     AuthenticatedTarefasDepartamentosRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
+  AuthenticatedComissoesIndexRoute: AuthenticatedComissoesIndexRoute,
   AuthenticatedFaturamentoIndexRoute: AuthenticatedFaturamentoIndexRoute,
   AuthenticatedTarefasIndexRoute: AuthenticatedTarefasIndexRoute,
   AuthenticatedAdminUsuariosUserIdRoute: AuthenticatedAdminUsuariosUserIdRoute,

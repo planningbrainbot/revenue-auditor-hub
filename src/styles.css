@@ -133,6 +133,7 @@
   --color-area-cockpit_ceo: var(--area-cockpit_ceo);
   --color-area-cockpit_coo: var(--area-cockpit_coo);
   --color-area-tarefas: var(--area-tarefas);
+  --color-area-comissoes: var(--area-comissoes);
   --color-area-admin: var(--area-admin);
 
   --color-chart-1: var(--chart-1);
@@ -216,6 +217,7 @@
   --area-cockpit_coo: var(--area-estrategia);
   /* Tarefas (22/10/2026): a mesma cor da camada de gestão até a Mika definir a própria. */
   --area-tarefas: var(--area-estrategia);
+  --area-comissoes: var(--area-receita);
   --area-admin: #849199; /* neutro, 3,2:1 */
 
   /* Ver validação em src/lib/planning/grafico.ts. A lima do gráfico é mais
@@ -296,6 +298,7 @@
   --area-cockpit_ceo: var(--area-estrategia);
   --area-cockpit_coo: var(--area-estrategia);
   --area-tarefas: var(--area-estrategia);
+  --area-comissoes: var(--area-receita);
   --area-admin: #8a979f;
 
   --chart-1: #0ae18c;
