@@ -584,9 +584,25 @@ const COMO_POR_TIPO: Readonly<Record<string, string>> = {
 };
 
 /**
+ * E-mail recebido que não é do cliente: aviso de entrega do servidor ("Não é possível entregar", do Microsoft Outlook
+ * da Planning), resposta automática ou remetente da própria Planning.
+ */
+function ehAvisoAutomatico(de: any, assunto: unknown): boolean {
+  const quem = `${de?.name ?? ""} ${de?.email_address ?? ""}`;
+  return (
+    /@planning\.com\.br\b|mailer-daemon|postmaster|microsoftexchange|no-?reply/i.test(quem) ||
+    /^\s*(não é possível entregar|undeliverable|delivery status|falha na entrega|resposta automática|automatic reply|ausência temporária|out of office)/i.test(
+      String(assunto ?? ""),
+    )
+  );
+}
+
+/**
  * Os contatos com o cliente antes de `ate`, do mais antigo ao mais recente: atividades feitas de e-mail, WhatsApp e
  * reunião, ligação atendida (a Api4Com registra "Ligação para ... atendida às ...") e e-mails do card, enviados ou
- * recebidos. Ligação sem resposta não conta, nem o WhatsApp aos sócios da unidade (vai para o sócio, não ao cliente).
+ * recebidos. Ligação sem resposta não conta, nem o WhatsApp aos sócios da unidade (vai para o sócio, não ao cliente),
+ * nem aviso automático recebido (e-mail que voltou, resposta automática). O e-mail enviado que voltou ainda conta: o
+ * aviso fica no histórico do card, para o pré-vendedor ver na retomada.
  */
 export function contatosDoCard(
   atividades: readonly any[],
@@ -614,6 +630,7 @@ export function contatosDoCard(
     if (!em || em.getTime() >= limite) continue;
     const de = Array.isArray(m?.from) ? m.from[0] : null;
     const enviado = feita(m?.sent_flag);
+    if (!enviado && ehAvisoAutomatico(de, m?.subject)) continue;
     r.push({
       em: em.toISOString(),
       quem: String(de?.name ?? "").trim(),
