@@ -158,6 +158,8 @@ export type BuscaMonetizacao = {
   regime?: Regime;
   /** Consultoria, Funil e Fila: as origens, separadas por vírgula; ausente = o padrão de cada visão. */
   origem?: string;
+  /** Consultoria, Funil: só as empresas com perfil da Consultoria pelo que declararam na venda (26/10/2026). */
+  perfil?: "consultoria";
   /** Consultoria, Funil: o clique aberto ("3" = chegaram à etapa 3; "3-real" = pararam na 3 por "Lucro Real"). */
   passo?: string;
   /** Consultoria, Fila: só um grupo da fila. */
@@ -266,6 +268,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
       )
         ? s.origem
         : undefined,
+    perfil: consultoria ? umDe(["consultoria"] as const, s.perfil) : undefined,
     passo:
       consultoria && typeof s.passo === "string" && /^[1-8](-[a-z0-9_]{1,20})?$/.test(s.passo)
         ? s.passo

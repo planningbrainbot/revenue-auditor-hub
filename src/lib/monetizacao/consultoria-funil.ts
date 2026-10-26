@@ -71,6 +71,18 @@ export interface EmpresaFunil {
   filiais?: string[];
   /** As três notas mais recentes da Consultoria sobre o cliente (follow-up, área, projeto, baixa), desde 22/10/2026. */
   notas?: NotaConsultoria[];
+  /** O que cada venda declarou no Pipedrive (migration 20261026210000); vazio na carteira de Goiânia. */
+  declarados?: VendaDeclarada[];
+}
+
+export interface VendaDeclarada {
+  deal: string;
+  /** "Qual é o regime tributário da sua empresa?" do negócio, gravado no contrato. */
+  regime: string | null;
+  /** "Faturamento anual" do negócio; `null` enquanto a sync não leu. */
+  faixa: string | null;
+  pipeline_id: number | null;
+  titulo: string | null;
 }
 
 export interface NotaConsultoria {
@@ -115,6 +127,36 @@ const num = (v: unknown) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+
+// ─── Perfil da Consultoria ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Perfil da Consultoria pelo que o cliente declarou na venda (decisão do Pedro em 26/10/2026, por opções): Lucro Real de
+ * qualquer porte, ou Lucro Presumido com faturamento declarado de R$ 25 mi para cima. "Segunda Oportunidade" é venda na
+ * base, não aquisição, e fica fora. A carteira de Goiânia não tem venda em 2026 e também fica fora.
+ */
+export const PERFIL_CONSULTORIA =
+  "Lucro Real de qualquer porte, ou Lucro Presumido de R$ 25 mi para cima, como o cliente declarou na venda. Segunda Oportunidade fica fora.";
+/** As opções de "Faturamento anual" do Pipedrive de R$ 25 mi para cima (a antiga "Entre R$ 4,8 e R$ 78 mi" não dá para saber). */
+export const FAIXAS_DESDE_25_MI = new Set([
+  "R$ 25 milhões até R$ 50 milhões",
+  "R$ 50 milhões até R$ 78 milhões",
+  "Entre R$ 78 milhões e R$ 300 milhões",
+  "Acima de R$ 300 milhões",
+  "[ANTIGO] Acima de R$ 78 milhões",
+]);
+
+export function vendaComPerfil(v: VendaDeclarada): boolean {
+  if (/segunda oportunidade/i.test(v.titulo ?? "")) return false;
+  const r = (v.regime ?? "").toLowerCase();
+  if (r.includes("real")) return true;
+  return r.includes("presumido") && FAIXAS_DESDE_25_MI.has(v.faixa ?? "");
+}
+
+/** A empresa tem perfil quando alguma das vendas dela tem. */
+export function temPerfilConsultoria(e: EmpresaFunil): boolean {
+  return (e.declarados ?? []).some(vendaComPerfil);
+}
 const dias = (de: string | null, ate: string) =>
   de ? Math.floor((Date.parse(ate.slice(0, 10)) - Date.parse(de.slice(0, 10))) / 86_400_000) : null;
 
@@ -150,6 +192,7 @@ export function porCliente(empresas: EmpresaFunil[]): EmpresaFunil[] {
       ...base,
       mrr: mrrs.length ? mrrs.reduce<number>((s, x) => s + num(x), 0) : base.mrr,
       negocios: g.reduce((s, x) => s + x.negocios, 0),
+      declarados: g.flatMap((x) => x.declarados ?? []),
       filiais: resto.map((x) => x.cnpj).filter((x): x is string => !!x),
     });
   }
@@ -224,7 +267,7 @@ export const MOTIVOS: Record<number, Motivo[]> = {
     M("recente", "Venda recente", "Vendida há menos de 30 dias; ainda dá tempo de chegar.", "neutro"),
     // Karol, 21/10/2026 (14:11): alguns chegaram e foram baixados sem ficar na plataforma (Big Store, Frut Polpas).
     M("real", "Lucro Real", "É o perfil da Consultoria e não aparece na plataforma: furo do handoff ou baixado fora dela.", "perigo"),
-    M("presumido", "Lucro Presumido", "Só entra acima de R$ 50 mi de faturamento.", "atencao"),
+    M("presumido", "Lucro Presumido", "Tem perfil a partir de R$ 25 mi de faturamento declarado.", "atencao"),
     M("simples", "Simples Nacional", "Fora do perfil da Consultoria.", "neutro"),
     M("pequena", "Empresa pequena", "Porte ME ou EPP pela Receita: fora do perfil.", "neutro"),
     M("sem_regime", "Regime desconhecido", "Ninguém sabe o regime; não dá para dizer se devia chegar.", "atencao"),
@@ -269,7 +312,8 @@ export function motivoDe(e: EmpresaFunil, hoje: string): string {
   if (n === 2) {
     const ganho = dias(e.ganho_em, hoje);
     if (ganho !== null && ganho < 30) return "recente";
-    const r = (e.regime ?? "").toLowerCase();
+    // Sem regime na plataforma nem na Base, vale o que o cliente declarou na venda (26/10/2026).
+    const r = (e.regime ?? e.declarados?.find((v) => v.regime)?.regime ?? "").toLowerCase();
     if (r.includes("simples") || r === "mei") return "simples";
     if (r.includes("real")) return "real";
     if (r.includes("presumido")) return "presumido";
@@ -317,11 +361,16 @@ export interface PassoFunil {
 export interface Filtro {
   origens: Origem[];
   unidade?: string | null;
+  /** Só as empresas com perfil da Consultoria pelo que declararam na venda (26/10/2026). */
+  perfil?: boolean;
 }
 
 export function filtrar(empresas: EmpresaFunil[], f: Filtro): EmpresaFunil[] {
   return empresas.filter(
-    (e) => f.origens.includes(e.origem) && (!f.unidade || (e.unidade ?? "") === f.unidade),
+    (e) =>
+      f.origens.includes(e.origem) &&
+      (!f.unidade || (e.unidade ?? "") === f.unidade) &&
+      (!f.perfil || temPerfilConsultoria(e)),
   );
 }
 

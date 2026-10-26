@@ -333,3 +333,31 @@ export function linhaNegocio(deal, negocio, organizacao, agora) {
     tentado_em: agora,
   };
 }
+
+/**
+ * O que cada venda ganha em 2026 declarou no Pipedrive além do regime: a faixa de faturamento e o funil em que o negócio
+ * está (ops.consultoria_negocio_declarado). É o que o filtro "Só com perfil da Consultoria" do Funil precisa (decisão do
+ * Pedro em 26/10/2026: Lucro Real de qualquer porte, ou Lucro Presumido de R$ 25 mi para cima). O regime já vem do
+ * contrato. `negocios` = página de GET /deals?status=won ordenada pelo ganho, do mais recente para trás.
+ * Devolve as linhas de 2026 e se a leitura já passou de 2026 (`acabou`).
+ */
+export function linhasDeclaradas(negocios, opcoesFaixa, agora) {
+  const linhas = [];
+  let acabou = false;
+  for (const d of negocios ?? []) {
+    if (!d?.id) continue;
+    if (!d.won_time || d.won_time < "2026-01-01") {
+      acabou = true;
+      continue;
+    }
+    const f = faixaDeclarada(d[PD.faixaNegocio], null, opcoesFaixa);
+    linhas.push({
+      pipedrive_deal_id: String(d.id),
+      pipeline_id: d.pipeline_id ?? null,
+      faixa: f.faixa,
+      faixa_ordem: f.faixa_ordem,
+      lido_em: agora,
+    });
+  }
+  return { linhas, acabou };
+}

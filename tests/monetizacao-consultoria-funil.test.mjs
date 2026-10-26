@@ -6,6 +6,7 @@ import {
   chaveDaFicha,
   dinheiroDe,
   empresasDoPasso,
+  filtrar,
   grupoDoPasso,
   montarFila,
   montarFunil,
@@ -14,6 +15,8 @@ import {
   ondeAgir,
   porCliente,
   resumoFila,
+  temPerfilConsultoria,
+  vendaComPerfil,
 } from "../src/lib/monetizacao/consultoria-funil.ts";
 import { validarBuscaMonetizacao } from "../src/components/monetizacao/busca.ts";
 
@@ -281,4 +284,42 @@ test("aceito lido pelo estoque: compensou, aguardando, encerrado sem uso e sem e
   assert.deepEqual(fila.map((x) => [x.e.chave, x.grupo, x.valor]), [["comp", "compensou", 200], ["sem", "aceitou", 300]]);
   assert.equal(empresasDoPasso(lista, "6-encerrado", HOJE).length, 1);
   assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", grupo: "compensou" }).grupo, "compensou");
+});
+
+test("perfil da Consultoria pelo que a venda declarou: Real de qualquer porte, Presumido de R$ 25 mi para cima (26/10)", () => {
+  const v = (regime, faixa, titulo = "Empresa") => ({ deal: "1", regime, faixa, pipeline_id: 2, titulo });
+  assert.equal(vendaComPerfil(v("Lucro Real", "R$ 2 milhões até R$ 4,8 milhões")), true);
+  assert.equal(vendaComPerfil(v("Lucro Real", null)), true);
+  assert.equal(vendaComPerfil(v("Lucro Presumido", "R$ 25 milhões até R$ 50 milhões")), true);
+  assert.equal(vendaComPerfil(v("Lucro Presumido", "[ANTIGO] Acima de R$ 78 milhões")), true);
+  assert.equal(vendaComPerfil(v("Lucro Presumido", "R$ 10 milhões até R$ 25 milhões")), false);
+  assert.equal(vendaComPerfil(v("Lucro Presumido", "[ANTIGO] Entre R$ 4,8 milhões e R$ 78 milhões")), false, "faixa antiga sem como saber");
+  assert.equal(vendaComPerfil(v("Lucro Presumido", null)), false, "sem faixa lida, não conta");
+  assert.equal(vendaComPerfil(v("Simples Nacional", "Acima de R$ 300 milhões")), false);
+  assert.equal(vendaComPerfil(v("Lucro Real", null, "Eletroparts Ltda (Segunda Oportunidade)")), false, "venda na base fica fora");
+
+  const real = e({ chave: "real", declarados: [v("Lucro Real", null)] });
+  const segunda = e({ chave: "seg", declarados: [v("Lucro Real", null, "X (Segunda Oportunidade)"), v("Lucro Presumido", "R$ 50 milhões até R$ 78 milhões")] });
+  const simples = e({ chave: "simples", declarados: [v("Simples Nacional", null)] });
+  const goiania = e({ chave: "goi", origem: "goiania" });
+  assert.equal(temPerfilConsultoria(segunda), true, "basta uma venda com perfil");
+  assert.equal(temPerfilConsultoria(goiania), false, "a carteira de Goiânia não tem venda declarada");
+  const todas = [real, segunda, simples, goiania];
+  const origens = ["inside_sales", "socios", "goiania"];
+  assert.deepEqual(filtrar(todas, { origens, perfil: true }).map((x) => x.chave), ["real", "seg"]);
+  assert.equal(filtrar(todas, { origens }).length, 4, "sem o filtro, nada muda");
+  // porCliente junta as vendas das filiais do mesmo cliente.
+  const a = e({ chave: "a", cnpj: "33333333000100", cliente_id: "c1", declarados: [v("Simples Nacional", null)] });
+  const b = e({ chave: "b", cnpj: "33333333000280", cliente_id: "c1", declarados: [v("Lucro Real", null)] });
+  const [junto] = porCliente([a, b]);
+  assert.equal(junto.declarados.length, 2);
+  assert.equal(temPerfilConsultoria(junto), true);
+  // Sem regime na plataforma nem na Base, o motivo de quem não chegou usa o regime declarado na venda.
+  const semBase = e({ chave: "sb", cnpj: "44444444000100", ganho_em: "2026-05-01", regime: null, declarados: [v("Lucro Real", null)] });
+  assert.equal(motivoDe(semBase, HOJE), "real");
+  assert.equal(motivoDe({ ...semBase, declarados: [] }, HOJE), "sem_regime");
+  // A URL guarda o filtro só na Consultoria.
+  assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", perfil: "consultoria" }).perfil, "consultoria");
+  assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", perfil: "x" }).perfil, undefined);
+  assert.equal(validarBuscaMonetizacao({ aba: "operacao", perfil: "consultoria" }).perfil, undefined);
 });
