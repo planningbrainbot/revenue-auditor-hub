@@ -4,6 +4,9 @@ import { KNOWN_PERMISSIONS } from "@/lib/permissions.functions";
 import { gerarLinkDefinirSenha } from "@/lib/admin-users.functions";
 import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
 import { emailBoasVindas } from "@/lib/email-templates";
+import { generatePassword } from "@/lib/password-utils";
+import { MARCA_SENHA_PROVISORIA } from "@/lib/senha-provisoria";
+import { registrarAcesso } from "@/lib/acessos.server";
 
 // A tela de quem ADMINISTRA uma área: o admin nomeia sócios, o sócio convida a
 // equipe e escolhe as páginas de cada um (Fase 3 do PLANO-ADMIN-DELEGADO).
@@ -325,6 +328,73 @@ export const removerDaEquipe = createServerFn({ method: "POST" })
       .eq("produto", "ops");
     if (error) console.error("[removerDaEquipe] fechar a porta do Ops falhou:", error);
     return { ok: true, saiuDoOps: !error };
+  });
+
+/**
+ * Senha provisória para quem não recebeu o convite, gerada por quem administra
+ * a área. Antes de 27/10/2026 só o super admin gerava (em /admin/usuarios), e
+ * o admin da área convidava mas não tinha como destravar quem ficou sem e-mail.
+ *
+ * Trocar a senha de alguém é poder entrar como ele, então a trava é mais dura
+ * que a de editar páginas: além de `pode_administrar` na área, a pessoa não
+ * pode alcançar nada que o ator não alcance acima dela. Nenhuma outra área em
+ * que o ator não esteja num nível maior, e nenhum produto além do Ops.
+ */
+export const gerarSenhaProvisoriaEquipe = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; area: string }) => {
+    if (!UUID_RE.test(input?.userId ?? "")) throw new Error("Pessoa inválida.");
+    const area = (input?.area ?? "").trim();
+    if (!area) throw new Error("Área obrigatória.");
+    return { userId: input.userId, area };
+  })
+  .handler(async ({ data, context }) => {
+    const eu = context.userId;
+    if (data.userId === eu) {
+      throw new Error("Para trocar a sua própria senha, use “Esqueci minha senha” na tela de login.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const adm = supabaseAdmin as Cliente;
+
+    if (!(await rpc(adm, "pode_administrar", { _ator: eu, _alvo: data.userId, _area: data.area }))) {
+      throw new Error("Você não administra esta pessoa nesta área.");
+    }
+
+    const [{ data: produtos }, { data: areas }] = await Promise.all([
+      adm.schema("public").from("produto_acesso").select("produto").eq("user_id", data.userId),
+      adm.from("areas").select("slug"),
+    ]);
+    if (((produtos ?? []) as { produto: string }[]).some((p) => p.produto !== "ops")) {
+      throw new Error("Esta pessoa entra em outros produtos além do Ops. Peça a senha ao super admin.");
+    }
+    const niveis = await Promise.all(
+      ((areas ?? []) as { slug: string }[]).map(async ({ slug }) => ({
+        slug,
+        dela: await nivelNaArea(adm, data.userId, slug),
+        meu: await nivelNaArea(adm, eu, slug),
+      })),
+    );
+    if (niveis.some((n) => n.dela >= 1 && n.meu <= n.dela)) {
+      throw new Error("Esta pessoa tem acesso a áreas que você não administra. Peça a senha ao super admin.");
+    }
+
+    const { data: alvo, error } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    const email = alvo?.user?.email ?? "";
+    if (error || !email) {
+      console.error("[gerarSenhaProvisoriaEquipe] getUserById falhou:", error);
+      throw new Error("Pessoa não encontrada.");
+    }
+    const senha = generatePassword(12);
+    const { error: upErr } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      password: senha,
+      app_metadata: { [MARCA_SENHA_PROVISORIA]: true },
+    });
+    if (upErr) {
+      console.error("[gerarSenhaProvisoriaEquipe] updateUserById falhou:", upErr);
+      throw new Error("Falha ao gerar a senha provisória. Tente novamente.");
+    }
+    await registrarAcesso(eu, data.userId, "senha_provisoria", { area: data.area, via: "equipe" });
+    return { email, senha };
   });
 
 /** Só o admin da área: transforma um membro em sócio. */

@@ -25,6 +25,7 @@ import {
   convidarParaEquipe,
   definirPaginasEquipe,
   definirUnidadesEquipe,
+  gerarSenhaProvisoriaEquipe,
   listEquipe,
   minhasAreasAdministradas,
   nomearSocioDaArea,
@@ -442,10 +443,12 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
   const removerFn = useServerFn(removerDaEquipe);
   const nomearFn = useServerFn(nomearSocioDaArea);
   const unidadesFn = useServerFn(definirUnidadesEquipe);
+  const senhaFn = useServerFn(gerarSenhaProvisoriaEquipe);
   const [aberto, setAberto] = useState(false);
+  const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
   const [paginas, setPaginas] = useState(pessoa.paginas);
   const [unidades, setUnidades] = useState<number[]>([]);
-  const [confirmar, setConfirmar] = useState<"remover" | "nomear" | null>(null);
+  const [confirmar, setConfirmar] = useState<"remover" | "nomear" | "senha" | null>(null);
   // Níveis de acesso (/admin/niveis) só abre para admin do sistema; admin de área não chega lá.
   const { isAdmin } = usePermissions();
 
@@ -498,7 +501,19 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
     },
     onError: (e) => toast.error(`Não foi possível nomear ${pessoa.nome} sócio: ${msgErro(e)}`),
   });
-  const erro = (salvar.error ?? remover.error ?? nomear.error) as Error | null;
+  const senha = useMutation({
+    mutationFn: () => senhaFn({ data: { userId: pessoa.userId, area: area.slug } }),
+    onSuccess: (r) => {
+      setSenhaGerada(r.senha);
+      setConfirmar(null);
+      toast.success(`Senha provisória de ${pessoa.nome} gerada. Copie e envie para a pessoa.`);
+    },
+    onError: (e) => {
+      setConfirmar(null);
+      toast.error(`Não foi possível gerar a senha de ${pessoa.nome}: ${msgErro(e)}`);
+    },
+  });
+  const erro = (salvar.error ?? remover.error ?? nomear.error ?? senha.error) as Error | null;
   const id = `pessoa-${pessoa.userId}`;
   const semPagina = pessoa.nivel === "usuario" && paginas.length === 0;
   // Só barra quando a pessoa tinha unidade e ficou sem: o servidor recusa lista vazia.
@@ -566,6 +581,29 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
           )}
 
           {erro && <p className="text-xs text-destructive">{erro.message}</p>}
+          {senhaGerada && (
+            <div className="space-y-1">
+              <p className="text-xs text-primary-text">
+                Envie para {pessoa.nome} o login {pessoa.email} e a senha abaixo. No primeiro acesso a pessoa
+                cadastra a dela. A senha não aparece de novo depois que você fechar.
+              </p>
+              <div className="flex items-center gap-2">
+                <p className="flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground">
+                  {senhaGerada}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(`Login: ${pessoa.email}\nSenha provisória: ${senhaGerada}`);
+                    toast.success("Login e senha copiados.");
+                  }}
+                >
+                  Copiar
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
@@ -576,6 +614,9 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
               className="mr-auto border-destructive/40 text-destructive hover:border-destructive hover:text-destructive"
             >
               {remover.isPending ? "Removendo…" : "Tirar da área"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setConfirmar("senha")} disabled={senha.isPending}>
+              {senha.isPending ? "Gerando…" : "Senha provisória"}
             </Button>
             {podeNomear && pessoa.nivel === "usuario" && (
               <>
@@ -618,7 +659,30 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
 
       <AlertDialog open={confirmar !== null} onOpenChange={(o) => !o && setConfirmar(null)}>
         <AlertDialogContent>
-          {confirmar === "nomear" ? (
+          {confirmar === "senha" ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Gerar senha provisória para {pessoa.nome}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Serve para quem não recebeu o e-mail de convite. A senha atual de {pessoa.nome} para de valer na
+                  hora, a nova aparece aqui para você copiar e enviar, e no primeiro acesso a pessoa é obrigada a
+                  cadastrar a dela.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Voltar</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={senha.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    senha.mutate();
+                  }}
+                >
+                  {senha.isPending ? "Gerando…" : "Gerar senha"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : confirmar === "nomear" ? (
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>Nomear {pessoa.nome} sócio de {area.nome}?</AlertDialogTitle>
