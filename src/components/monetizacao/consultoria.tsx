@@ -36,6 +36,7 @@ export function Consultoria({
           ate: undefined,
           unidade: undefined,
           origem: undefined,
+          perfil: undefined,
           passo: undefined,
           grupo: undefined,
         })

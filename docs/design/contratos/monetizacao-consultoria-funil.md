@@ -95,6 +95,7 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
 | `visao` | fila, empresa, handoff | — (Funil) | a visão aberta |
 | `origem` | inside_sales, socios, goiania, outra (vírgula) | Funil: as três primeiras; Fila: todas | o recorte |
 | `unidade` | nome da unidade | — (todas) | Funil |
+| `perfil` | consultoria | — (todas as vendas) | Funil: só as vendas com perfil da Consultoria (26/10/2026) |
 | `passo` | `1`–`8` ou `<n>-<motivo>` (inclui `3-atrasado`, `5-parado`, `6-garantido`) | — | a gaveta aberta à direita do Funil |
 | `grupo` | compensou, aceitou, atraso, 90, 30_90, recente | — | Fila |
 | `empresa` | CNPJ, `deal:<id>`, `cliente:<id>` ou `card:<id>` | — | a ficha aberta por cima da gaveta (Funil, Handoff) ou sozinha (Fila) |
@@ -164,3 +165,25 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
 - quem parou mais quem passou dá o degrau;
 - 533 de 533 negócios estão no funil;
 - o faturado bate com a plataforma, empresa por empresa.
+
+## Só a máquina, com perfil da Consultoria (decisão do dono em 26/10/2026)
+- **Pedido:** "quero saber só o que veio da máquina de vendas ali, não quero pegar o que é da matriz… é pra ter 45 clientes
+  esse ano da máquina de vendas com perfil da consultoria". O "45" era a lista de fechados de 07/10. Medição em
+  `monetizacao/medicoes/2026-10-26-maquina-consultoria/`.
+- **Decisões por opções:**
+  - perfil = Lucro Real de qualquer porte, ou Lucro Presumido com faturamento declarado de R$ 25 mi para cima;
+  - a venda da máquina para a unidade Matriz conta como máquina (só a carteira de Goiânia fica fora);
+  - filtro na tela e correção de quem caía fora da máquina.
+- **O filtro:** um botão "Só com perfil da Consultoria" ao lado das origens (`perfil=consultoria`). A régua é do que o
+  cliente declarou na venda: o regime do contrato e a faixa "Faturamento anual" do negócio. "Segunda Oportunidade" é
+  venda na base e fica fora. A carteira de Goiânia não tem venda declarada e some com o filtro ligado. Basta uma venda
+  da empresa ter perfil. Com o filtro ligado, os números das origens contam só quem tem perfil.
+- **De onde vem a faixa:** `ops.consultoria_negocio_declarado`, gravada pela handoff-consultoria-sync (passo 2b) com uma
+  leitura em lote dos ganhos de 2026 no Pipedrive (duas páginas de 500 em out/2026). A faixa antiga "Entre R$ 4,8 e
+  R$ 78 mi" não diz se passa de R$ 25 mi e não conta.
+- **Correção da origem:** 7 vendas da máquina sem CNPJ em nenhuma fonte ganharam o CNPJ à mão em
+  `ops.consultoria_negocio_cnpj` (fonte `manual`). Sem ele, Luchini e UP Serviços apareciam na Carteira de Goiânia, e
+  Fazendas Dutra (R$ 34,9 mil faturados) e Queijos Lelo, em Outras origens.
+- **O motivo "Lucro Presumido"** do degrau 3 passa a dizer "Tem perfil a partir de R$ 25 mi de faturamento declarado".
+- **Medido no ensaio de 26/10:** máquina com perfil = 123 empresas, funil 123 → 104 → 55 → 31 → 25 → 8 → 4 → 4. A
+  conferência em Python bate venda a venda (123 de 123).

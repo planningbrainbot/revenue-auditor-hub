@@ -36,6 +36,7 @@ import {
   MOTIVOS,
   ORIGENS,
   ORIGENS_FUNIL,
+  PERFIL_CONSULTORIA,
   chaveDaFicha,
   dinheiroDe,
   empresasDoPasso,
@@ -47,6 +48,7 @@ import {
   ondeAgir,
   porCliente,
   rotuloNota,
+  temPerfilConsultoria,
   type EmpresaFunil,
   type FunilBruto,
   type GrupoFila,
@@ -150,22 +152,31 @@ export function PainelFunil({
 }) {
   const origens: Origem[] = origensDaBusca(busca, ORIGENS_FUNIL).filter((o) => o !== "outra");
   const unidade = busca.unidade ?? null;
+  // Só as vendas com perfil da Consultoria pelo que o cliente declarou (pedido do dono em 26/10/2026).
+  const perfil = busca.perfil === "consultoria";
   const porta = bruto.porta_financeiro.aberta;
   // Uma linha por cliente da plataforma: as filiais de Goiânia não repetem o dinheiro do cliente (20/10/2026).
   const universo = useMemo(
     () => porCliente(bruto.empresas).filter((e) => e.origem !== "outra"),
     [bruto.empresas],
   );
-  const empresas = useMemo(() => filtrar(universo, { origens, unidade }), [universo, origens, unidade]);
+  const noPerfil = useMemo(
+    () => (perfil ? universo.filter(temPerfilConsultoria) : universo),
+    [universo, perfil],
+  );
+  const empresas = useMemo(
+    () => filtrar(universo, { origens, unidade, perfil }),
+    [universo, origens, unidade, perfil],
+  );
   const passos = useMemo(() => montarFunil(empresas, hoje, porta), [empresas, hoje, porta]);
   const dinheiro = useMemo(() => dinheiroDe(empresas, porta), [empresas, porta]);
   const acoes = useMemo(() => ondeAgir(empresas, hoje), [empresas, hoje]);
   const unidades = useMemo(
     () =>
-      [...new Set(universo.filter((e) => origens.includes(e.origem)).map((e) => e.unidade).filter(Boolean))].sort(
+      [...new Set(noPerfil.filter((e) => origens.includes(e.origem)).map((e) => e.unidade).filter(Boolean))].sort(
         (a, b) => (a as string).localeCompare(b as string, "pt-BR"),
       ) as string[],
-    [universo, origens],
+    [noPerfil, origens],
   );
   const passo = busca.passo ?? null;
   const lista = useMemo(
@@ -203,7 +214,7 @@ export function PainelFunil({
         <span className="text-[13px] text-muted-foreground">Mostrar:</span>
         {ORIGENS.filter((o) => o.id !== "outra").map((o) => {
           const ativo = origens.includes(o.id);
-          const n = universo.filter((e) => e.origem === o.id).length;
+          const n = noPerfil.filter((e) => e.origem === o.id).length;
           return (
             <button
               key={o.id}
@@ -221,6 +232,27 @@ export function PainelFunil({
             </button>
           );
         })}
+        <button
+          type="button"
+          aria-pressed={perfil}
+          title={PERFIL_CONSULTORIA}
+          onClick={() =>
+            mudarBusca({
+              perfil: perfil ? undefined : "consultoria",
+              unidade: undefined,
+              passo: undefined,
+              empresa: undefined,
+            })
+          }
+          className={cn(
+            "rounded-full border border-dashed px-3 py-1 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            perfil
+              ? "border-solid border-primary-text/50 bg-primary/10 font-medium text-foreground"
+              : "text-muted-foreground hover:border-primary-text/40",
+          )}
+        >
+          Só com perfil da Consultoria
+        </button>
         <label className="ml-auto flex items-center gap-2 text-[13px] text-muted-foreground">
           Unidade
           <select
@@ -238,6 +270,11 @@ export function PainelFunil({
             ))}
           </select>
         </label>
+        {perfil && (
+          <p className="w-full text-[13px] text-muted-foreground">
+            Perfil da Consultoria: {PERFIL_CONSULTORIA} A carteira de Goiânia não tem venda declarada e fica fora.
+          </p>
+        )}
       </section>
 
       <Secao
@@ -287,7 +324,14 @@ export function PainelFunil({
         descricao="Cada degrau conta quem chegou até ali ou além. A porcentagem é sobre o degrau de cima. Clique num degrau ou num motivo para ver as empresas."
       >
         {empresas.length === 0 ? (
-          <EstadoVazio titulo="Nenhuma empresa" descricao="Escolha ao menos uma origem acima." />
+          <EstadoVazio
+            titulo="Nenhuma empresa"
+            descricao={
+              perfil
+                ? "Nenhuma venda com perfil da Consultoria nas origens escolhidas. Escolha Máquina ou Sócios."
+                : "Escolha ao menos uma origem acima."
+            }
+          />
         ) : (
           <Funil passos={passos} passo={passo} escolher={(p) => abrirPasso(p)} />
         )}
@@ -309,6 +353,7 @@ export function PainelFunil({
             empresa: undefined,
             origem: undefined,
             unidade: undefined,
+            perfil: undefined,
           })
         }
       />

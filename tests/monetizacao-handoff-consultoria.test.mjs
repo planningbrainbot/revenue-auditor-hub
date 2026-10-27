@@ -11,6 +11,7 @@ import {
   dataBR,
   faixaDeclarada,
   linhaDoCard,
+  linhasDeclaradas,
   linhasPat,
   podeMarcarAusentes,
   resolverChave,
@@ -710,4 +711,27 @@ test("plataforma: projeto marca o trabalho, o crédito recuperado vem dela e ven
   assert.equal(p.regras.unidade, 0);
   assert.equal(p.dinheiro.expansao, 5000);
   assert.equal(p.dinheiro.unidade, 0);
+});
+
+test("faixa declarada dos ganhos de 2026: lê a opção do Pipedrive e para quando passa de 2026", () => {
+  const opcoes = [
+    { id: 101, label: "R$ 10 milhões até R$ 25 milhões" },
+    { id: 102, label: "R$ 25 milhões até R$ 50 milhões" },
+  ];
+  const faixa = "b92a608454a6648327f24c5cc3bf87a95bb7fbcd";
+  const r = linhasDeclaradas(
+    [
+      { id: 98129, won_time: "2026-10-25 12:00:00", pipeline_id: 2, [faixa]: "102" },
+      { id: 98000, won_time: "2026-03-01 09:00:00", pipeline_id: 28, [faixa]: null },
+      { id: 60000, won_time: "2025-12-30 18:00:00", pipeline_id: 2, [faixa]: "101" },
+    ],
+    opcoes,
+    "2026-10-26T20:00:00Z",
+  );
+  assert.equal(r.acabou, true);
+  assert.deepEqual(r.linhas, [
+    { pipedrive_deal_id: "98129", pipeline_id: 2, faixa: "R$ 25 milhões até R$ 50 milhões", faixa_ordem: 1, lido_em: "2026-10-26T20:00:00Z" },
+    { pipedrive_deal_id: "98000", pipeline_id: 28, faixa: null, faixa_ordem: null, lido_em: "2026-10-26T20:00:00Z" },
+  ]);
+  assert.equal(linhasDeclaradas([{ id: 1, won_time: "2026-01-02" }], opcoes, "x").acabou, false);
 });

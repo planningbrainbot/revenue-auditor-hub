@@ -6824,3 +6824,17 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - A porta do produto é `public.produto_acesso` com `juridico`. O perfil dentro do app (Jurídico, Administrador, Contencioso) fica em `juridico.membros`.
 - Fica para depois, quando o app tiver tela para mostrar: a casca (lateral, trocador de produto, tema) e o card em `/inicio`.
 - Para publicar só a rota, o deploy sai do commit que já estava no ar com esta mudança por cima. O que estiver mergeado e ainda não publicado na `main` fica para quem é dono daquilo.
+
+## [2026-10-26] Consultoria: o filtro "Só com perfil da Consultoria" e a venda da máquina no lugar certo
+
+**Contexto:** o Pedro pediu para ver na tela Consultoria só o que veio da máquina de vendas, sem a matriz, e lembrou de "45 clientes esse ano da máquina de vendas com perfil da consultoria". No padrão, o Funil soma Máquina, Sócios e a carteira de Goiânia: dos R$ 6,38 mi faturados em 2026, R$ 6,13 mi eram de Goiânia. O chip "Máquina" já existia, mas sem régua de perfil (388 empresas de todo porte). E 7 vendas da máquina sem CNPJ caíam em outra origem: Luchini e UP Serviços na carteira de Goiânia, Fazendas Dutra e Queijos Lelo em Outras origens.
+
+**Decisões do Pedro (por opções, 26/10):** perfil = Lucro Real de qualquer porte, ou Lucro Presumido com faturamento declarado de R$ 25 mi para cima; a venda da máquina para a unidade Matriz conta como máquina; filtro na tela e correção da origem. As vendas que não chegaram à Consultoria estão com a Jordana, na planilha.
+
+**Como:**
+- Migration `20261026210000`: tabela `ops.consultoria_negocio_declarado` (faixa declarada e funil de cada ganho de 2026); 7 linhas `manual` em `ops.consultoria_negocio_cnpj`; o RPC do Funil devolve `declarados` por empresa, sem mudar campo antigo.
+- `handoff-consultoria-sync`, passo 2b: lê os ganhos de 2026 em lote no Pipedrive e grava a faixa. Não mexi na `pipedrive-contratos-sync`, que é compartilhada e chamada de fora do banco.
+- A régua fica em `consultoria-funil.ts` (`vendaComPerfil`, `temPerfilConsultoria`). "Segunda Oportunidade" fica fora: é venda na base. Por isso a Eletroparts, vendida em 2025, sai do filtro.
+- Ensaio desfeito em produção: 4,8 s, 2,1 MB, máquina com perfil = 123 empresas, conferência em Python 123 de 123.
+- A Toyo Sen-I segue fora: o ganho no Pipedrive é um negócio "(cópia)", que a sync de contratos descarta.
+

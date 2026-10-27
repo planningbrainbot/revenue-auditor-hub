@@ -9,7 +9,8 @@
 //   fin(caminho, init?) → JSON                          PostgREST do Financial Brain, schema public
 // }
 // Passos: 1. onboarding (Pipefy + conectores + Pipedrive); 2. CNPJ dos negócios ganhos em 2026 que o banco não
-// resolve (Pipedrive); 3. PAT no Financial Brain.
+// resolve (Pipedrive); 2b. faixa de faturamento declarada nos ganhos de 2026 (Pipedrive, em lote); 3. PAT no
+// Financial Brain.
 import {
   categoriaDeCreditos,
   conectoresMudaram,
@@ -18,6 +19,7 @@ import {
   faixaDeclarada,
   linhaDoCard,
   linhaNegocio,
+  linhasDeclaradas,
   linhasPat,
   negociosSemCnpj,
   PD,
@@ -363,6 +365,36 @@ export async function sincronizar(
     resumo.erro_negocios = String(e?.message ?? e).slice(0, 300);
   }
 
+  // ── 2b. Faixa de faturamento declarada nos ganhos de 2026 (filtro "Só com perfil da Consultoria" do Funil) ──
+  // Decisão do Pedro em 26/10/2026. Os ganhos vêm em lote, do mais recente para trás, até passar de 2026: duas páginas
+  // de 500 em out/2026, em vez de um GET por negócio.
+  try {
+    const linhas = [];
+    for (let start = 0, pagina = 0; pagina < 10; pagina++) {
+      const r = await io.pipedrive(
+        `deals?status=won&sort=${encodeURIComponent("won_time DESC")}&limit=500&start=${start}`,
+      );
+      const lidas = linhasDeclaradas(r?.data, opcoesFaixa, agora);
+      linhas.push(...lidas.linhas);
+      const mais = r?.additional_data?.pagination;
+      if (lidas.acabou || !mais?.more_items_in_collection) break;
+      start = mais.next_start;
+    }
+    resumo.declarados = {
+      ganhos_2026: linhas.length,
+      com_faixa: linhas.filter((l) => l.faixa).length,
+    };
+    if (gravar && linhas.length)
+      for (const l of lotes(linhas, 500))
+        await io.ops("consultoria_negocio_declarado?on_conflict=pipedrive_deal_id", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(l),
+        });
+  } catch (e) {
+    resumo.erro_declarados = String(e?.message ?? e).slice(0, 300);
+  }
+
   // ── 3. PAT no Financial Brain ──────────────────────────────────────────────────────────────────
   let pat = { linhas: [], sem_cnpj: [] };
   try {
@@ -429,6 +461,7 @@ export async function sincronizar(
     // O Financeiro fora não apaga o que já estava espelhado: a tela mostra a última leitura.
     resumo.erro_pat = String(e?.message ?? e).slice(0, 300);
   }
-  resumo.status = resumo.erro_pat || resumo.erro_negocios ? "parcial" : "sucesso";
+  resumo.status =
+    resumo.erro_pat || resumo.erro_negocios || resumo.erro_declarados ? "parcial" : "sucesso";
   return { resumo, onboarding: finais, pat: pat.linhas };
 }
