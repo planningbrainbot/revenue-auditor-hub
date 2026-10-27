@@ -94,6 +94,7 @@ import {
   ehExCliente,
   FAIXA_META,
   faixaDaConta,
+  foraDaBase,
   porCerteza,
   type Faixa,
 } from "@/lib/clientes/regra-cliente";
@@ -262,6 +263,8 @@ export function ClientesBase() {
     if (!data) return [];
     const unitKeys = new Set(unidadesSelecionadas.flatMap((u) => u.account_keys));
     return data.accounts.filter((a) => {
+      // Não é cliente pela regra: fora de todas as telas da Base (27/10). A ficha ainda abre por link (`?item=`).
+      if (foraDaBase(a)) return false;
       if (unidadesUrl.length && !unitKeys.has(a.key)) return false;
       // A busca é uma só (a da tabela saiu): nome, segmento, unidade e CNPJ.
       if (
@@ -660,7 +663,7 @@ export function ClientesBase() {
   const contagemTudo = contarFaixas(data.accounts);
   const descricao =
     view === "clientes"
-      ? `${number(contagemTudo.g4 + contagemTudo.g3 + contagemTudo.g2 + contagemTudo.g1)} clientes e ${number(contagemTudo.ex_cliente)} ex-clientes pela regra de cliente · todas as unidades liberadas · a busca acha qualquer empresa do seu escopo`
+      ? `${number(contagemTudo.g4 + contagemTudo.g3 + contagemTudo.g2 + contagemTudo.g1)} clientes e ${number(contagemTudo.ex_cliente)} ex-clientes pela regra de cliente · todas as unidades liberadas · a busca diz se a empresa é cliente`
       : view === "painel"
         ? `Clientes pela regra de cliente · ${perimetro} · toque em qualquer número, barra ou filtro para ver as empresas`
         : view === "confianca"
@@ -906,8 +909,8 @@ export function ClientesBase() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Todo verde é cliente pela regra; quanto mais escuro, mais certeza. Amarelo espera
-                  o sócio confirmar, cinza não é cliente, azul é ex-cliente. Toque num pedaço da
-                  barra para ver as empresas.
+                  o sócio confirmar e azul é ex-cliente. Quem não é cliente pela regra fica fora da
+                  Base. Toque num pedaço da barra para ver as empresas.
                 </p>
               </section>
               <TabelaContas

@@ -138,7 +138,7 @@ export function PainelBase({
     });
     numeros.set("kpi:ex", {
       titulo: "Inativos",
-      descricao: "Ex-clientes: distrato concluído na Central de Tratativas.",
+      descricao: "Ex-clientes: distrato concluído na Central de Tratativas ou contrato cancelado no Omie, sem pagamento em 90 dias.",
       contas: ex,
       irPara: { sit: "ex" },
       irContratos: true,
@@ -372,7 +372,7 @@ export function PainelBase({
         <KpiCard
           rotulo="Inativos"
           valor={number(dados.ex)}
-          nota="Distrato concluído na Central de Tratativas"
+          nota="Distrato concluído ou contrato cancelado no Omie"
           abrir={{ rotulo: "Ver as empresas", onClick: () => abrir("kpi:ex") }}
         />
       </KpiGrade>

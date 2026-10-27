@@ -146,3 +146,18 @@ Pedido do Pedro (22/10): "todos do time de vendas tenham acesso à base de clien
 - Confiança, Painel e Contratos e churn pedem a chave `view.clientes_painel` (lateral e página). Sem ela, a lateral da Base mostra só Clientes, as três telas não aparecem no topo para quem chega por outra área, e `?view=confianca|painel|unidades` (e os links antigos) abrem a tela Clientes. Enquanto as permissões carregam, a tela pedida espera em vez de piscar a Clientes.
 - A tela Clientes não muda para o vendedor: busca, recorte, lista, Inativos e a ficha com contatos.
 - Quem recebe o quê está em `DECISIONS.md` (22/10).
+
+## Adendo 27/10/2026 · Quem não é cliente sai da Base
+
+Pedido do Pedro (27/10), olhando as 1.423 "não é cliente" de Curitiba na Confiança: "se tá nessa regra de cliente que não é cliente, é melhor tirar". Vale como "contrato ok". Arquétipos não mudam.
+- **Confiança:** a barra e a lista deixam de ter a faixa "Não é cliente"; "Fora da regra" passa a somar a confirmar, ex-cliente, fornecedor e grupo. O texto abaixo da barra diz que quem não é cliente pela regra fica fora da Base.
+- **Clientes:** a busca de uma empresa que não é cliente pela regra cai no vazio "não é cliente, não cite", sem o cartão com o motivo. O cartão segue para a confirmar, fornecedor e grupo.
+- **Arrumar a base** (Validar origem, Entenda os números, Contatos) conta e lista sem elas.
+- **Não muda:** a regra, o Painel, os cartões por unidade e a ficha aberta por link.
+
+## Adendo 27/10/2026 · Contrato cancelado no Omie é ex-cliente
+
+Pedido do Pedro (27/10), por opções, depois do print dos contratos de Curitiba: só contrato cancelado no Omie e sem pagamento em 90 dias vira ex-cliente. Vale como "contrato ok". Arquétipos não mudam.
+- **Clientes:** "Inativos" passa a somar distrato concluído e contrato cancelado no Omie; a nota do cartão e o subtítulo da lista dizem isso. O motivo na ficha traz o mês de fim do contrato.
+- **Painel:** o KPI "Inativos" e a gaveta dele dizem a mesma régua.
+- **Não muda:** a barra, os graus e quem pode citar. Ex-cliente segue "não cite".

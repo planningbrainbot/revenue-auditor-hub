@@ -90,6 +90,11 @@ export function faixaDe(s: SituacaoCliente | null | undefined): Faixa {
 export const faixaDaConta = (a: Conta) => faixaDe(a.base?.situacao);
 export const ehCliente = (a: Conta) => a.base?.situacao?.estado === "cliente";
 export const ehExCliente = (a: Conta) => a.base?.situacao?.estado === "ex_cliente";
+/**
+ * Quem a regra diz que não é cliente sai das telas da Base (Pedro, 27/10/2026: "se tá nessa regra de cliente que não é
+ * cliente, é melhor tirar"). Eram cadastros do Omie sem contrato, título, tag nem Pipefy: 1.423 só em Curitiba.
+ */
+export const foraDaBase = (a: Conta) => a.base?.situacao?.estado === "nao_cliente";
 
 /** Contagem por faixa, na ordem da barra. */
 export function contarFaixas(contas: readonly Conta[]) {
