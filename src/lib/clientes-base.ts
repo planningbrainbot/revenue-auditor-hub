@@ -65,7 +65,8 @@ export type SinalProva = {
  * Regra de cliente (Pedro, 15/10/2026; migration 20261015170000, `ops.base_conta_situacao`). A regra decide se a empresa
  * é cliente; o grau (4 a 1) diz a certeza dentro de quem é cliente. Cliente = negócio ganho no Pipedrive, base de
  * clientes do Pipefy, tag Cliente no Omie de uma unidade, ou contrato ou recebimento no Omie (inclui o faturamento das
- * empresas do grupo). Não é cliente: distrato concluído (ex-cliente) ou qualquer tag Fornecedor no Omie. O lote da
+ * empresas do grupo). Não é cliente: distrato concluído ou, desde 27/10, só contrato cancelado no Omie sem pagamento
+ * em 90 dias (ex-cliente), ou qualquer tag Fornecedor no Omie. O lote da
  * Matriz (só a tag do Omie da Matriz, sem faturamento) fica "a confirmar" com o sócio.
  */
 export type EstadoCliente =
@@ -84,6 +85,8 @@ export type SituacaoCliente = {
   cita: "sim" | "confirmar" | "nao";
   motivo: string;
   criterios?: string[];
+  /** Ex-cliente por contrato cancelado no Omie (27/10): a última vigência final, "AAAA-MM-DD". */
+  saida_em?: string | null;
 };
 /** Casamento com a plataforma da Consultoria: CNPJ completo, raiz (mesma pessoa jurídica) ou nome. */
 export type CasamentoConsultoria = "cnpj" | "raiz" | "nome";

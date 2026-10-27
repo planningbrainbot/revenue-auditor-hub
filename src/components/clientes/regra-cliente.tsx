@@ -383,7 +383,8 @@ export function TabelaContas({
  * Tela Clientes (15/10/2026, segunda rodada): a lista de clientes com o resumo Ativos · Inativos · Base Antiga · Base
  * Nova, que também filtra. A busca do topo diz se a empresa é cliente: "a confirmar", fornecedor e grupo aparecem num
  * cartão "não cite", fora da lista; quem não é cliente pela regra já não chega aqui (27/10) e cai no vazio "não é
- * cliente, não cite". Ativo = cliente pela regra; inativo = ex-cliente (distrato concluído).
+ * cliente, não cite". Ativo = cliente pela regra; inativo = ex-cliente (distrato concluído ou
+ * contrato cancelado no Omie, 27/10).
  */
 export function VisaoClientes({
   contas,
@@ -441,7 +442,7 @@ export function VisaoClientes({
     {
       rotulo: "Inativos",
       n: ex.length,
-      nota: "Distrato concluído na Central de Tratativas",
+      nota: "Distrato concluído ou contrato cancelado no Omie",
       ativo: sit === "ex",
       ir: () => aoMudar({ sit: "ex" }),
     },
@@ -530,7 +531,7 @@ export function VisaoClientes({
           }
           subtitulo={
             sit === "ex"
-              ? "Distrato concluído na Central de Tratativas · para reconquista, com o sócio da unidade"
+              ? "Distrato concluído ou contrato cancelado no Omie · para reconquista, com o sócio da unidade"
               : "Das de mais certeza para as de menos · toque na empresa para abrir a ficha"
           }
           contas={lista}

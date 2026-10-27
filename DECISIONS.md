@@ -6848,3 +6848,15 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 **Como:** `foraDaBase` em `src/lib/clientes/regra-cliente.ts`, aplicado na origem das linhas da Base (`rowsSemOrigem`, `base-unica.tsx`). `nao_cliente` sai de `SITS_CONFIANCA`: o link antigo com `sit=nao_cliente` abre a barra inteira. Painel e cartões por unidade já contavam só cliente e ex-cliente.
 
 **Revê a de 21/10 ("o recorte não esconde o cartão 'não cite'"):** buscar uma empresa que não é cliente pela regra já não mostra o cartão com o motivo; cai no vazio "Nenhuma empresa com esse nome ou CNPJ na sua Base: não é cliente, não cite". O cartão continua para "a confirmar", fornecedor e grupo.
+
+## [2026-10-27] Base de clientes: contrato cancelado no Omie vira ex-cliente
+
+**Contexto:** a Ana Paula respondeu à mensagem sobre Curitiba com o print dos contratos do Omie (aplicativo Planning CWB 01, 398 contratos: 73 ativos e 325 cancelados), e o Pedro pediu para investigar o que o status muda. O Brain já lia os três aplicativos de Curitiba (CWB 01, CWB 02 e Curitiba, 1.454 contratos: 356 ativos, 1.085 cancelados e 13 com o código 90), mas a regra de 15/10 tratava qualquer contrato, até cancelado, como prova de cliente. O status só subia o grau; ex-cliente era só distrato concluído (decisão de 13/10).
+
+**Medido em 27/10, nos 1.309 clientes de Curitiba:** 340 com contrato ativo; 869 só com contrato cancelado, dos quais 51 pagaram nos últimos 90 dias e 818 não; 9 só com o código 90; 91 sem contrato. As 818 têm vigência final de 2017 a 2026 (101 em 2026). Na rede são 825, e 818 estão em Curitiba. Nenhuma das 1.423 "não é cliente" de Curitiba tem contrato, nem cancelado. Os 9 contratos ativos fora da Base são de pessoa física (CPF).
+
+**Decisão (Pedro, 27/10, por opções):** quem só tem contrato cancelado no Omie (cCodSit 99, "Cancelado" na tela) e não pagou nos últimos 90 dias (nem recebimento, nem faturamento do grupo desde o mês de 90 dias atrás) é ex-cliente, com a vigência final como data de saída. Sem exceção para negócio ganho no Pipedrive: das 8 com ganho, as 4 com ganho depois do fim do contrato são o lote de limpeza do pipe 4 de 11/08. O código 90 não entra.
+
+**Como:** migration `20261027120000`. `ops.base_conta_prova` devolve `contrato_cancelado` e `contrato_fim`; `ops.base_conta_situacao` aplica a regra depois de grupo e fornecedor. As duas partem das versões no ar em 27/10. Ensaio em produção desfeito: Curitiba vai a 491 clientes (397 · 90 · 0 · 4 por grau) e 829 ex-clientes, sem nenhuma outra transição. 25 casos em `tests/base-regra-cliente.sql`, 6 novos. Textos de "Inativos" na Base e no Painel passam a dizer "distrato concluído ou contrato cancelado no Omie".
+
+**Depende do recálculo da carteira:** o job `base-carteira-refresh` está pausado desde 15/10 (pedido do Pedro), e a ficha das contas está parada em 15/10 17h59. A regra nova só aparece na tela depois de rodar `ops.base_carteira_refresh` ou religar o job.

@@ -154,3 +154,10 @@ Pedido do Pedro (27/10), olhando as 1.423 "não é cliente" de Curitiba na Confi
 - **Clientes:** a busca de uma empresa que não é cliente pela regra cai no vazio "não é cliente, não cite", sem o cartão com o motivo. O cartão segue para a confirmar, fornecedor e grupo.
 - **Arrumar a base** (Validar origem, Entenda os números, Contatos) conta e lista sem elas.
 - **Não muda:** a regra, o Painel, os cartões por unidade e a ficha aberta por link.
+
+## Adendo 27/10/2026 · Contrato cancelado no Omie é ex-cliente
+
+Pedido do Pedro (27/10), por opções, depois do print dos contratos de Curitiba: só contrato cancelado no Omie e sem pagamento em 90 dias vira ex-cliente. Vale como "contrato ok". Arquétipos não mudam.
+- **Clientes:** "Inativos" passa a somar distrato concluído e contrato cancelado no Omie; a nota do cartão e o subtítulo da lista dizem isso. O motivo na ficha traz o mês de fim do contrato.
+- **Painel:** o KPI "Inativos" e a gaveta dele dizem a mesma régua.
+- **Não muda:** a barra, os graus e quem pode citar. Ex-cliente segue "não cite".
