@@ -15,8 +15,11 @@ import {
   faixaDaConta,
   faixaDe,
   porCerteza,
+  SINAIS,
+  SINAL_META,
   totalClientes,
   type Faixa,
+  type Sinal,
 } from "@/lib/clientes/regra-cliente";
 import {
   PORTES,
@@ -203,6 +206,57 @@ export function BarraConfianca({
             <span className="num text-foreground">{number(contagem[f])}</span>
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * De onde vem a certeza (27/10/2026): os clientes da barra divididos pelo sinal mais forte de cada um, para a unidade
+ * conferir o número na tela. O clique filtra a lista, como a barra.
+ */
+export function CertezaPorSinal({
+  contagem,
+  selecionado,
+  aoEscolher,
+}: {
+  contagem: Record<Sinal, number>;
+  selecionado?: Sinal | null;
+  aoEscolher?: (s: Sinal | null) => void;
+}) {
+  const total = SINAIS.reduce((s, k) => s + contagem[k], 0);
+  if (!total) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground">
+        De onde vem a certeza dos {number(total)} clientes
+      </p>
+      <div
+        className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2"
+        role="group"
+        aria-label="Clientes por sinal"
+      >
+        {SINAIS.filter((s) => contagem[s] > 0).map((s) => {
+          const ativo = selecionado === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={ativo}
+              title={SINAL_META[s].dica}
+              onClick={() => aoEscolher?.(ativo ? null : s)}
+              className={cn(
+                "grid gap-0.5 rounded-xl border bg-card p-3 text-left",
+                ativo ? "border-foreground ring-1 ring-foreground" : "hover:bg-muted/30",
+                selecionado && !ativo && "opacity-60",
+                FOCO_VISIVEL,
+              )}
+            >
+              <span className="num text-lg font-semibold">{number(contagem[s])}</span>
+              <span className="text-xs text-muted-foreground">{SINAL_META[s].rotulo}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -26,6 +26,7 @@ import type {
   OrigemBase,
   PortfolioFilters,
 } from "@/lib/monetizacao/portfolio";
+import { SINAIS, type Sinal } from "@/lib/clientes/regra-cliente";
 
 /**
  * Estado de tela de `/clientes` na URL (contrato `docs/design/contratos/clientes.md`, moldura).
@@ -79,6 +80,8 @@ export type BuscaClientes = {
    * (`SITS_CONFIANCA`); ausente = todas.
    */
   sit?: string;
+  /** Confiança: o sinal escolhido em "De onde vem a certeza" (`SINAIS`, 27/10); ausente = todos. */
+  sinal?: Sinal;
   /**
    * Confiança: a parte de correções aberta ("validar" = Validar origem, "gates" = Entenda os números, "contatos");
    * ausente = os graus de confiança.
@@ -186,6 +189,7 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
   return {
     view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "clientes",
     sit: umDe(["ex", ...SITS_CONFIANCA], s.sit),
+    sinal: umDe(SINAIS, s.sinal),
     sub: umDe(["validar", "gates", "contatos"], s.sub),
     base: umDe(["antiga", "nova"], s.base),
     secao: umDe(["carteira"], s.secao),

@@ -7,10 +7,12 @@ import {
   casaBusca,
   contarFaixas,
   ehCliente,
+  contarSinais,
   ehExCliente,
   faixaDe,
   foraDaBase,
   porCerteza,
+  sinalDoCliente,
   totalClientes,
 } from "../src/lib/clientes/regra-cliente.ts";
 import { foraDaRegraDeCliente, fornecedorForaDeOferta, oferta } from "../src/lib/monetizacao/model.ts";
@@ -128,4 +130,38 @@ test("Ofertas: só cliente pela regra entra; a conta sem situação segue só as
   assert.equal(foraDaRegraDeCliente(conta("f", sit("fornecedor"))).status, "fora_regra");
   // Sem situação (antes da atualização da carteira): nada muda.
   assert.equal(foraDaRegraDeCliente(conta("s", null)), null);
+});
+
+test("De onde vem a certeza: um sinal por cliente, do contrato ativo à tag (27/10)", () => {
+  const cli = (nome, grau, criterios, prova = {}) =>
+    conta(nome, { ...sit("cliente", grau), criterios }, { prova: { nivel: "comprovado", provas: [], ...prova } });
+  const omie = "contrato ou recebimento no Omie";
+  const ganho = "negócio ganho no Pipedrive";
+  const pipefy = "base de clientes do Pipefy";
+  const contas = [
+    cli("ativo", 4, [omie, pipefy], { contrato_ativo: true }),
+    cli("pagou", 4, [omie]),
+    cli("antigo", 3, [omie, pipefy]),
+    cli("ganho", 3, [ganho, pipefy]),
+    cli("pipefy", 1, [pipefy]),
+    cli("tag", 1, ["tag Cliente no Omie da Matriz"]),
+    conta("ex", sit("ex_cliente")),
+  ];
+  assert.deepEqual(contas.map(sinalDoCliente), [
+    "contrato_ativo",
+    "pagamento_recente",
+    "omie_antigo",
+    "ganho",
+    "pipefy",
+    "tag",
+    null,
+  ]);
+  assert.deepEqual(contarSinais(contas), {
+    contrato_ativo: 1,
+    pagamento_recente: 1,
+    omie_antigo: 1,
+    ganho: 1,
+    pipefy: 1,
+    tag: 1,
+  });
 });

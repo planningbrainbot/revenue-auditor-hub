@@ -77,7 +77,13 @@ import {
   SITS_CONFIANCA,
   type BuscaClientes,
 } from "./busca";
-import { BarraConfianca, CartoesUnidades, TabelaContas, VisaoClientes } from "./regra-cliente";
+import {
+  BarraConfianca,
+  CartoesUnidades,
+  CertezaPorSinal,
+  TabelaContas,
+  VisaoClientes,
+} from "./regra-cliente";
 import { PainelBase } from "./painel-base";
 import { FiltrosBase } from "./filtros-base";
 import {
@@ -90,12 +96,15 @@ import {
 } from "@/lib/clientes/recorte";
 import {
   contarFaixas,
+  contarSinais,
   ehCliente,
   ehExCliente,
   FAIXA_META,
   faixaDaConta,
   foraDaBase,
   porCerteza,
+  SINAL_META,
+  sinalDoCliente,
   type Faixa,
 } from "@/lib/clientes/regra-cliente";
 
@@ -258,13 +267,13 @@ export function ClientesBase() {
   );
   // O recorte do topo sem a origem: os cartões de origem da gaveta da unidade contam sobre ele,
   // para nunca mostrar 0 numa origem que o próprio clique vai aplicar (e abrir N).
-  const rowsSemOrigem = useMemo(() => {
+  // Não é cliente pela regra: fora de todas as telas da Base (27/10); a Confiança diz quantas ficaram de fora no recorte.
+  // A ficha ainda abre por link (`?item=`).
+  const [rowsSemOrigem, foraDaBaseNoTopo] = useMemo(() => {
     const data = query.data;
-    if (!data) return [];
+    if (!data) return [[] as Conta[], 0] as const;
     const unitKeys = new Set(unidadesSelecionadas.flatMap((u) => u.account_keys));
-    return data.accounts.filter((a) => {
-      // Não é cliente pela regra: fora de todas as telas da Base (27/10). A ficha ainda abre por link (`?item=`).
-      if (foraDaBase(a)) return false;
+    const noTopo = data.accounts.filter((a) => {
       if (unidadesUrl.length && !unitKeys.has(a.key)) return false;
       // A busca é uma só (a da tabela saiu): nome, segmento, unidade e CNPJ.
       if (
@@ -280,6 +289,8 @@ export function ClientesBase() {
         return false;
       return true;
     });
+    const fora = noTopo.filter(foraDaBase).length;
+    return [noTopo.filter((a) => !foraDaBase(a)), fora] as const;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.data, unidadesSelecionadas, search.q]);
   // Origem pela régua da tabela (`origemBase`, 4 valores). A antiga lia `base.origin`, com 3
@@ -330,12 +341,20 @@ export function ClientesBase() {
     ? (search.sit as Faixa)
     : null;
   const contagemConfianca = useMemo(() => contarFaixas(filtered), [filtered]);
+  // De onde vem a certeza (27/10): os clientes do recorte por sinal; escolher um sinal filtra a lista no lugar da faixa.
+  const sinalConfianca = search.sinal ?? null;
+  const contagemSinais = useMemo(() => contarSinais(filtered), [filtered]);
   const linhasConfianca = useMemo(
     () =>
-      (sitConfianca ? filtered.filter((a) => faixaDaConta(a) === sitConfianca) : filtered)
+      (sinalConfianca
+        ? filtered.filter((a) => sinalDoCliente(a) === sinalConfianca)
+        : sitConfianca
+          ? filtered.filter((a) => faixaDaConta(a) === sitConfianca)
+          : filtered
+      )
         .slice()
         .sort(porCerteza),
-    [filtered, sitConfianca],
+    [filtered, sitConfianca, sinalConfianca],
   );
   const contaPorChave = useMemo(
     () => new Map((query.data?.accounts ?? []).map((a) => [a.key, a])),
@@ -828,7 +847,7 @@ export function ClientesBase() {
                 key={k || "graus"}
                 type="button"
                 aria-pressed={sub === k}
-                onClick={() => change({ sub: k || undefined, sit: undefined })}
+                onClick={() => change({ sub: k || undefined, sit: undefined, sinal: undefined })}
                 className={`rounded-full border px-3 py-1 text-sm ${FOCO_VISIVEL} ${sub === k ? "border-foreground bg-foreground text-background" : "bg-card text-muted-foreground hover:text-foreground"}`}
               >
                 {rotulo}
@@ -904,17 +923,31 @@ export function ClientesBase() {
               >
                 <BarraConfianca
                   contagem={contagemConfianca}
-                  selecionada={sitConfianca}
-                  aoEscolher={(f) => change({ sit: f ?? undefined })}
+                  selecionada={sinalConfianca ? null : sitConfianca}
+                  aoEscolher={(f) => change({ sit: f ?? undefined, sinal: undefined })}
                 />
                 <p className="text-xs text-muted-foreground">
                   Todo verde é cliente pela regra; quanto mais escuro, mais certeza. Amarelo espera
-                  o sócio confirmar e azul é ex-cliente. Quem não é cliente pela regra fica fora da
-                  Base. Toque num pedaço da barra para ver as empresas.
+                  o sócio confirmar e azul é ex-cliente.{" "}
+                  {foraDaBaseNoTopo > 0
+                    ? `${number(foraDaBaseNoTopo)} ${foraDaBaseNoTopo === 1 ? "empresa do recorte não é cliente pela regra e fica" : "empresas do recorte não são clientes pela regra e ficam"} fora da Base.`
+                    : "Quem não é cliente pela regra fica fora da Base."}{" "}
+                  Toque num pedaço da barra para ver as empresas.
                 </p>
+                <CertezaPorSinal
+                  contagem={contagemSinais}
+                  selecionado={sinalConfianca}
+                  aoEscolher={(s) => change({ sinal: s ?? undefined, sit: undefined })}
+                />
               </section>
               <TabelaContas
-                titulo={sitConfianca ? FAIXA_META[sitConfianca].rotulo : "Empresas da base"}
+                titulo={
+                  sinalConfianca
+                    ? SINAL_META[sinalConfianca].rotulo
+                    : sitConfianca
+                      ? FAIXA_META[sitConfianca].rotulo
+                      : "Empresas da base"
+                }
                 subtitulo={`${number(linhasConfianca.length)} empresas · das de mais certeza para as de menos · toque na empresa para abrir a ficha`}
                 contas={linhasConfianca}
                 colunas={["certeza", "unidade", "reuniao", "motivo"]}

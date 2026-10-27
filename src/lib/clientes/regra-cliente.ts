@@ -96,6 +96,67 @@ export const ehExCliente = (a: Conta) => a.base?.situacao?.estado === "ex_client
  */
 export const foraDaBase = (a: Conta) => a.base?.situacao?.estado === "nao_cliente";
 
+/**
+ * De onde vem a certeza de cada cliente (27/10/2026, para a unidade conferir na tela o número de clientes): o sinal mais
+ * forte, um só por conta, nesta ordem. "Pagamento recente" é o grau 4 sem contrato ativo (recebimento em 90 dias ou
+ * faturamento recente do grupo); "antigo" é contrato ou título no Omie sem pagamento recente.
+ */
+export const SINAIS = [
+  "contrato_ativo",
+  "pagamento_recente",
+  "omie_antigo",
+  "ganho",
+  "pipefy",
+  "tag",
+] as const;
+export type Sinal = (typeof SINAIS)[number];
+export const SINAL_META: Record<Sinal, { rotulo: string; dica: string }> = {
+  contrato_ativo: {
+    rotulo: "Contrato ativo no Omie",
+    dica: "Contrato de serviço ativo em algum aplicativo do Omie.",
+  },
+  pagamento_recente: {
+    rotulo: "Pagamento nos últimos 90 dias",
+    dica: "Sem contrato ativo, mas com recebimento ou faturamento do grupo nos últimos 90 dias.",
+  },
+  omie_antigo: {
+    rotulo: "Contrato ou título antigo no Omie",
+    dica: "Tem contrato ou título no Omie, sem pagamento nos últimos 90 dias.",
+  },
+  ganho: {
+    rotulo: "Negócio ganho no Pipedrive",
+    dica: "Ganho no Inside Sales ou em Sócios, ainda sem contrato nem título no Omie.",
+  },
+  pipefy: {
+    rotulo: "Só na base do Pipefy",
+    dica: "Card na base de clientes do Pipefy, sem contrato, título nem negócio ganho.",
+  },
+  tag: {
+    rotulo: "Só a tag Cliente do Omie",
+    dica: "Só a tag Cliente no Omie da unidade ou da Matriz.",
+  },
+};
+export function sinalDoCliente(a: Conta): Sinal | null {
+  const s = a.base?.situacao;
+  if (s?.estado !== "cliente") return null;
+  const criterios = s.criterios ?? [];
+  if (a.base?.prova?.contrato_ativo) return "contrato_ativo";
+  if (s.grau === 4) return "pagamento_recente";
+  if (criterios.includes("contrato ou recebimento no Omie")) return "omie_antigo";
+  if (criterios.includes("negócio ganho no Pipedrive")) return "ganho";
+  if (criterios.includes("base de clientes do Pipefy")) return "pipefy";
+  return "tag";
+}
+/** Clientes por sinal, na ordem de `SINAIS`. */
+export function contarSinais(contas: readonly Conta[]) {
+  const c = Object.fromEntries(SINAIS.map((s) => [s, 0])) as Record<Sinal, number>;
+  for (const a of contas) {
+    const s = sinalDoCliente(a);
+    if (s) c[s] += 1;
+  }
+  return c;
+}
+
 /** Contagem por faixa, na ordem da barra. */
 export function contarFaixas(contas: readonly Conta[]) {
   const c = Object.fromEntries([...FAIXAS, "sem_situacao"].map((f) => [f, 0])) as Record<

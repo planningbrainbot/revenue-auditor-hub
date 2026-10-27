@@ -161,3 +161,10 @@ Pedido do Pedro (27/10), por opções, depois do print dos contratos de Curitiba
 - **Clientes:** "Inativos" passa a somar distrato concluído e contrato cancelado no Omie; a nota do cartão e o subtítulo da lista dizem isso. O motivo na ficha traz o mês de fim do contrato.
 - **Painel:** o KPI "Inativos" e a gaveta dele dizem a mesma régua.
 - **Não muda:** a barra, os graus e quem pode citar. Ex-cliente segue "não cite".
+
+## Adendo 27/10/2026 · De onde vem a certeza
+
+Pedido do Pedro (27/10): a Ana Paula precisa ver na tela, por link, os números de Curitiba da mensagem à unidade. Vale como "contrato ok". Arquétipo não muda.
+- **Confiança (graus):** abaixo da barra, "De onde vem a certeza dos N clientes": um cartão por sinal (contrato ativo no Omie, pagamento nos últimos 90 dias, contrato ou título antigo no Omie, negócio ganho no Pipedrive, só na base do Pipefy, só a tag Cliente), com o número e a régua no title. O clique filtra a lista (`sinal` na URL) e dá o título da tabela; a faixa da barra e o sinal não se somam.
+- **Texto da barra:** diz quantas empresas do recorte não são clientes pela regra e ficam fora da Base.
+- **N2:** a soma dos cartões é o total de "Clientes pela regra" da barra.
