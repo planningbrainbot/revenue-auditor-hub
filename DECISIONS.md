@@ -6925,3 +6925,21 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Contratos: seções "Mudanças da call de 27/10/2026" em `faturamento-novo.md`, `faturamento-pedido.md`, `faturamento-tesouraria.md` e `faturamento-configuracao.md`.
 
 **Status:** banco aplicado. O app está no PR e não foi publicado (o Pedro publica). Até o deploy, o app no ar continua com o formulário antigo, que segue funcionando: as funções novas são aditivas, e o pedido novo só deixa de ganhar a linha "card montado e guardado" do Pipefy. Simulação, acessos e o recorrente ficam fora deste PR.
+## [2026-10-27] Uso do Brain no Ops (/uso-brain): coleta por minuto ativo
+
+**Contexto:** pedido do dono: "preciso de uma página dessa no brain ops", apontando
+para `/growth/uso-brain`. O Ops não registrava uso nenhum, só `last_sign_in_at`.
+PRD `wiki/prds/2026-10-ops-uso-do-brain.md` (AI Projects), aprovado em 27/10 com:
+só admin vê (chave `view.admin.uso`, área Administração), só o uso do Ops na v1
+(somar o Growth depois), sócios de unidade também são medidos.
+
+**Decisão:** mesmo desenho do Growth (`growth.uso_minutos` + `uso_brain_painel`),
+em `ops.uso_minutos` + `ops.registrar_uso` + `ops.uso_brain_painel`, com quatro
+diferenças de propósito: chave por `user_id` (sem e-mail na tabela); minuto do
+relógio do servidor; rota normalizada no banco (sem query, ids viram `:id`);
+"ver como" não grava. Minuto conta só com aba visível e interação no último
+minuto (`src/lib/uso-regra.ts`). O registro vive no layout `_authenticated`.
+Entrega em duas fatias: coleta primeiro (a tela nasce vazia sem ela), tela
+depois do "contrato ok" de `docs/design/contratos/uso-brain.md`.
+
+**Pendente:** retenção de 13 meses (job no n8n) e somar o Growth (v2).
