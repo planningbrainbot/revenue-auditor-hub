@@ -381,8 +381,9 @@ export function TabelaContas({
 
 /**
  * Tela Clientes (15/10/2026, segunda rodada): a lista de clientes com o resumo Ativos · Inativos · Base Antiga · Base
- * Nova, que também filtra. A busca do topo acha qualquer empresa do escopo e diz se ela é cliente: quem não é aparece
- * num cartão "não cite", fora da lista. Ativo = cliente pela regra; inativo = ex-cliente (distrato concluído).
+ * Nova, que também filtra. A busca do topo diz se a empresa é cliente: "a confirmar", fornecedor e grupo aparecem num
+ * cartão "não cite", fora da lista; quem não é cliente pela regra já não chega aqui (27/10) e cai no vazio "não é
+ * cliente, não cite". Ativo = cliente pela regra; inativo = ex-cliente (distrato concluído).
  */
 export function VisaoClientes({
   contas,

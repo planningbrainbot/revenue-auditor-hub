@@ -6838,3 +6838,13 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Ensaio desfeito em produção: 4,8 s, 2,1 MB, máquina com perfil = 123 empresas, conferência em Python 123 de 123.
 - A Toyo Sen-I segue fora: o ganho no Pipedrive é um negócio "(cópia)", que a sync de contratos descarta.
 
+
+## [2026-10-27] Base de clientes: quem não é cliente pela regra sai das telas da Base
+
+**Contexto:** o Pedro abriu a Confiança filtrada em Curitiba e perguntou por que havia 1.423 empresas "não é cliente". Medido em 27/10: todas são cadastro do Omie de Curitiba, sem tag, contrato nem título no contas a receber (28.179 títulos de Curitiba desde jul/2019, todos com CNPJ; é deles que saem os 1.309 clientes da unidade). 1.138 entraram no Omie no mesmo lote de carga que 803 clientes atuais: é o cadastro antigo migrado, com ex-cliente, proposta e serviço avulso misturados, que o Brain não separa. Na rede são 1.788 contas "não é cliente".
+
+**Decisão (Pedro, 27/10):** "se tá nessa regra de cliente que não é cliente, é melhor tirar". A conta com `situacao.estado = 'nao_cliente'` sai de todas as telas da Base: barra e lista da Confiança, Validar origem, Entenda os números, Contatos e a busca da tela Clientes. A regra (`ops.base_conta_situacao`) e o dado não mudam; a ficha ainda abre por link (`?item=`).
+
+**Como:** `foraDaBase` em `src/lib/clientes/regra-cliente.ts`, aplicado na origem das linhas da Base (`rowsSemOrigem`, `base-unica.tsx`). `nao_cliente` sai de `SITS_CONFIANCA`: o link antigo com `sit=nao_cliente` abre a barra inteira. Painel e cartões por unidade já contavam só cliente e ex-cliente.
+
+**Revê a de 21/10 ("o recorte não esconde o cartão 'não cite'"):** buscar uma empresa que não é cliente pela regra já não mostra o cartão com o motivo; cai no vazio "Nenhuma empresa com esse nome ou CNPJ na sua Base: não é cliente, não cite". O cartão continua para "a confirmar", fornecedor e grupo.

@@ -9,6 +9,7 @@ import {
   ehCliente,
   ehExCliente,
   faixaDe,
+  foraDaBase,
   porCerteza,
   totalClientes,
 } from "../src/lib/clientes/regra-cliente.ts";
@@ -80,6 +81,19 @@ test("Clientes pela regra somam os quatro graus; ex-cliente e a confirmar ficam 
   assert.equal(c.sem_situacao, 1);
   assert.deepEqual(contas.filter(ehCliente).map((a) => a.name), ["a", "b", "c", "d"]);
   assert.deepEqual(contas.filter(ehExCliente).map((a) => a.name), ["f"]);
+});
+
+test("Só 'não é cliente' sai da Base (27/10); a confirmar, ex-cliente, fornecedor, grupo e conta nova ficam", () => {
+  const contas = [
+    conta("a", sit("cliente", 4)),
+    conta("b", sit("nao_cliente")),
+    conta("c", sit("a_confirmar")),
+    conta("d", sit("ex_cliente")),
+    conta("e", sit("fornecedor")),
+    conta("f", sit("grupo")),
+    conta("g", null),
+  ];
+  assert.deepEqual(contas.filter(foraDaBase).map((a) => a.name), ["b"]);
 });
 
 test("A lista vai da maior certeza para a menor, e o nome desempata", () => {

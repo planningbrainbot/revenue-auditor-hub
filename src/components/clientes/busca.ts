@@ -57,14 +57,16 @@ export const VIEWS_CLIENTES = [
   "gates",
   "contatos",
 ] as const;
-/** Faixas da tela Confiança (`sit`): os graus de cliente e o que fica fora da regra. */
+/**
+ * Faixas da tela Confiança (`sit`): os graus de cliente e o que fica fora da regra. "Não é cliente" saiu da Base em
+ * 27/10/2026; o link antigo com `sit=nao_cliente` abre a barra inteira.
+ */
 export const SITS_CONFIANCA = [
   "g4",
   "g3",
   "g2",
   "g1",
   "a_confirmar",
-  "nao_cliente",
   "ex_cliente",
   "fornecedor",
   "grupo",
