@@ -31,6 +31,7 @@ import {
   serieAtividades,
   situacaoDaAtividade,
   situacaoDaLigacao,
+  todasAsPaginas,
   uteisAteHoje,
 } from "../src/lib/monetizacao/pre-venda.ts";
 import {
@@ -272,6 +273,36 @@ test("Ritmo: atividades feitas contam pelo dia em que foram feitas, não pelo ve
   assert.deepEqual([d26.feitas, d26.vencidas, d26.aVencer, d26.previstas], [53, 22, 0, 49]);
   // Dia só com feitas (nada vencia nele) também aparece.
   assert.deepEqual([d27.dia, d27.feitas, d27.previstas], ["2026-10-27", 54, 0]);
+});
+
+test("Ritmo: a aba lateral lê todas as páginas, sem o corte de 1.000 linhas (28/10/2026)", async () => {
+  // O mês de 28/10 tinha 1.040 linhas: na versão de uma chamada só, as 40 mais antigas caíam (7 delas feitas).
+  const banco = Array.from({ length: 1040 }, (_, i) => ({ deal_id: i }));
+  const pedidos = [];
+  const ler = async (de, ate) => {
+    pedidos.push([de, ate]);
+    return banco.slice(de, ate + 1);
+  };
+  const tudo = await todasAsPaginas(ler);
+  assert.equal(tudo.length, 1040);
+  assert.deepEqual(pedidos, [
+    [0, 999],
+    [1000, 1999],
+  ]);
+  assert.deepEqual(
+    tudo.map((l) => l.deal_id),
+    banco.map((l) => l.deal_id),
+  );
+  // Página cheia no fim: pede mais uma, que vem vazia, e para.
+  pedidos.length = 0;
+  banco.length = 1000;
+  assert.equal((await todasAsPaginas(ler)).length, 1000);
+  assert.equal(pedidos.length, 2);
+  // Abaixo do teto, uma chamada só.
+  pedidos.length = 0;
+  banco.length = 54;
+  assert.equal((await todasAsPaginas(ler)).length, 54);
+  assert.equal(pedidos.length, 1);
 });
 
 test("Ritmo: a aba lateral confere cada número, atividade por atividade (28/10/2026)", () => {

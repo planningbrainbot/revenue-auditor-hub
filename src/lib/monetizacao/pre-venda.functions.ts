@@ -11,6 +11,7 @@ import {
   normalizarAvaliacoes,
   normalizarFicha,
   normalizarRitmo,
+  todasAsPaginas,
   type Atrasado,
   type AtividadePreVenda,
   type FichaLigacao,
@@ -71,13 +72,26 @@ export async function lerAtividades(
   context: { supabase: unknown },
   p: { de: string; ate: string },
 ): Promise<AtividadePreVenda[]> {
-  const data = await rpc(
-    context,
-    "monetizacao_pre_venda_atividades",
-    { p_de: p.de, p_ate: p.ate },
-    "as atividades da cadência",
-  );
-  return normalizarAtividades(data);
+  // Em páginas, ordenadas por todas as colunas que separam uma atividade da outra: o mesmo card pode estar em duas
+  // cadências (voltou para a fila), então empresa + vencimento + atividade não basta, e a ordem tem de ser a mesma em
+  // cada chamada para nenhuma linha cair nem se repetir entre as páginas.
+  const linhas = await todasAsPaginas(async (de, ate) => {
+    const { data, error } = await (context.supabase as DB)
+      .schema("ops")
+      .rpc("monetizacao_pre_venda_atividades", { p_de: p.de, p_ate: p.ate })
+      .order("deal_id")
+      .order("vence")
+      .order("feita_em")
+      .order("atividade")
+      .order("user_id")
+      .order("feita")
+      .order("automatica")
+      .order("cadencia_ativa")
+      .range(de, ate);
+    if (error) throw new Error(mensagemDeErroPreVenda(error, "as atividades da cadência"));
+    return Array.isArray(data) ? data : [];
+  });
+  return normalizarAtividades(linhas);
 }
 
 /** As atividades das cadências ativas, para a visão Hoje (14/10/2026). */
