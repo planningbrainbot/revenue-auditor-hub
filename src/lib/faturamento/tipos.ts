@@ -510,7 +510,7 @@ export interface FilaTesouraria {
   lido_em: string;
 }
 
-// ------------------------------------------------------------------ catálogos (§1.6, §1.7)
+// ------------------------------------------------------------------ catálogo (§1.6)
 
 export interface ServicoCatalogo extends ServicoRef {
   codigo_lc116: string | null;
@@ -526,8 +526,41 @@ export interface CatalogoServicos {
   sincronizado_em: string | null;
 }
 
-export interface Departamentos {
-  departamentos: { nome: string; ordem: number }[];
+// ------------------------------------------------------------------ cliente e projeto por lista (call de 27/10/2026)
+
+/** Um cliente da empresa na lista do campo Cliente (`ops.fat_clientes_busca`). */
+export interface ClienteDaBusca {
+  /** Sem máscara: 11 (CPF) ou 14 (CNPJ) caracteres. */
+  documento: string;
+  tipo: TipoTomador;
+  nome: string;
+  /** O nome fantasia, quando é diferente da razão social. */
+  fantasia: string | null;
+  /** De onde veio: o cadastro do Omie da empresa, um pedido anterior do portal ou a base de clientes. */
+  fonte: "omie" | "portal" | "base";
+}
+
+export interface BuscaClientes {
+  itens: ClienteDaBusca[];
+  /** Menos de 3 caracteres: a busca não roda. */
+  curto: boolean;
+  /** Há mais que o `limite`: a pessoa refina o texto. */
+  mais: boolean;
+  limite: number;
+  /** `omie`: a empresa tem o cadastro do Omie no banco (cinco empresas novas ainda não têm). */
+  fontes: { omie: boolean; omie_lido_em: string | null } | null;
+}
+
+/** Um projeto já usado pela empresa (`ops.fat_projetos`): lançamentos do Omie e pedidos do portal. */
+export interface ProjetoDaEmpresa {
+  projeto: string;
+  usos: number;
+  ultimo: string | null;
+}
+
+export interface ProjetosEmpresa {
+  itens: ProjetoDaEmpresa[];
+  fontes: { omie: boolean };
 }
 
 // ------------------------------------------------------------------ fat_tomador (§1.8)

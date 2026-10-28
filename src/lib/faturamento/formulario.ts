@@ -21,8 +21,12 @@ import { dinheiro, primeiroNome, rotuloMes } from "./formato.ts";
 export interface FormPedido {
   emissora_id: string | null;
   dono_id: string | null;
+  /**
+   * PF ou PJ. Desde a call de 27/10/2026 a tela não pergunta: o cliente vem da busca (ou do número digitado) e o tipo
+   * sai do documento (`tipoDoFormulario`). Fica aqui para o rascunho antigo e para o documento ainda incompleto.
+   */
   tomador_tipo: TipoTomador;
-  /** Como foi digitado (com ou sem máscara). */
+  /** Como foi escolhido ou digitado (com ou sem máscara). */
   tomador_documento: string;
   tomador_nome: string;
   emails_envio: string[];
@@ -42,7 +46,6 @@ export interface FormPedido {
   competencia: string;
   /** A pessoa mudou a competência à mão: ela para de acompanhar o vencimento. */
   competencia_manual: boolean;
-  departamento: string | null;
   observacoes: string;
   confirmou_emissora: boolean;
 }
@@ -68,7 +71,6 @@ export function formularioVazio(
     primeiro_vencimento: "",
     competencia: "",
     competencia_manual: false,
-    departamento: null,
     observacoes: "",
     confirmou_emissora: false,
   };
@@ -97,7 +99,6 @@ export function formularioDoPedido(ficha: FichaPedido): FormPedido {
     primeiro_vencimento: p.primeiro_vencimento ?? "",
     competencia: comp,
     competencia_manual: !!comp && comp !== doVenc,
-    departamento: p.departamento,
     observacoes: p.observacoes ?? "",
     confirmou_emissora: p.confirmou_emissora,
   };
@@ -201,6 +202,29 @@ export function mascararDocumento(tipo: TipoTomador, v: string): string {
   return out;
 }
 
+/**
+ * A máscara sem saber o tipo (campo "Cliente novo", call de 27/10/2026): até 11 números é CPF; com letra ou mais de 11
+ * caracteres, CNPJ.
+ */
+export function mascararDocumentoLivre(v: string): string {
+  const d = normalizarDocumento(v);
+  return mascararDocumento(/^\d{0,11}$/.test(d) ? "pf" : "pj", v);
+}
+
+/** O tipo do cliente pelo documento; enquanto o documento não fecha, o que o formulário já tinha. */
+export function tipoDoFormulario(
+  f: Pick<FormPedido, "tomador_tipo" | "tomador_documento">,
+): TipoTomador {
+  return tipoDoDocumento(f.tomador_documento) ?? f.tomador_tipo;
+}
+
+/** O erro do campo Cliente, na frase do banco quando o documento existe; `null` quando está certo. */
+export function erroDoCliente(v: string): string | null {
+  const d = normalizarDocumento(v);
+  if (!d) return "Escolha o cliente ou digite o CNPJ ou CPF.";
+  return erroDoDocumento(/^\d{0,11}$/.test(d) ? "pf" : "pj", d);
+}
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function emailValido(v: string): boolean {
@@ -220,6 +244,28 @@ export function juntarEmails(atuais: string[], novos: string[]): string[] {
 /** "Alteração  contratual " → "Alteração contratual" (é a chave de projeto da Ana). */
 export function normalizarProjeto(v: string): string {
   return v.trim().replace(/\s+/g, " ");
+}
+
+/** A chave de comparação do projeto: normalizado, sem acento e em maiúsculas ("Terral" = "TERRAL"). */
+export function chaveDoProjeto(v: string): string {
+  return normalizarProjeto(v)
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toUpperCase();
+}
+
+/**
+ * A lista do campo Projeto (call de 27/10/2026): os projetos da empresa que contêm o texto, na ordem que vieram (o
+ * mais recente primeiro), e se o texto digitado ainda não existe ("usar como projeto novo").
+ */
+export function filtrarProjetos<T extends { projeto: string }>(
+  itens: T[],
+  texto: string,
+): { itens: T[]; novo: string | null } {
+  const chave = chaveDoProjeto(texto);
+  const filtrados = chave ? itens.filter((i) => chaveDoProjeto(i.projeto).includes(chave)) : itens;
+  const existe = !!chave && itens.some((i) => chaveDoProjeto(i.projeto) === chave);
+  return { itens: filtrados, novo: chave && !existe ? normalizarProjeto(texto) : null };
 }
 
 /**
@@ -375,7 +421,7 @@ export function dadosParaSalvar(f: FormPedido): DadosPedido {
   return {
     emissora_id: f.emissora_id,
     dono_id: f.dono_id,
-    tomador_tipo: f.tomador_tipo,
+    tomador_tipo: tipoDoFormulario(f),
     tomador_documento: normalizarDocumento(f.tomador_documento) || null,
     tomador_nome: vazio(f.tomador_nome.trim()),
     emails_envio: juntarEmails([], f.emails_envio),
@@ -390,7 +436,8 @@ export function dadosParaSalvar(f: FormPedido): DadosPedido {
     competencia: comp ? `${comp}-01` : null,
     documento: f.documento,
     meio: f.meio,
-    departamento: f.departamento,
+    // Departamento saiu do pedido (call de 27/10/2026): o tipo de serviço já diz a linha de receita. Vai nulo.
+    departamento: null,
     observacoes: vazio(f.observacoes.trim()),
     confirmou_emissora: f.confirmou_emissora,
   };
@@ -417,7 +464,7 @@ export function pendenciasLocais(f: FormPedido, ctx: ContextoConferencia): ErroC
   if (ctx.contratoEmOutra && !f.confirmou_emissora)
     falta("confirmou_emissora", "Confirme a empresa que fatura.");
   if (!f.dono_id) falta("dono_id", "Escolha o dono da receita.");
-  const doc = erroDoDocumento(f.tomador_tipo, f.tomador_documento);
+  const doc = erroDoCliente(f.tomador_documento);
   if (doc) falta("tomador_documento", doc);
   else if (ctx.bloqueio) falta("tomador_documento", ctx.bloqueio);
   if (!f.tomador_nome.trim()) falta("tomador_nome", "Informe o nome do cliente.");

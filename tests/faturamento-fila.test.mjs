@@ -219,17 +219,15 @@ test("colunas: documento, onde parou, próxima ação e o botão da linha", () =
   assert.equal(botaoDaLinha(item({ status: "cancelamento_pedido" })), "confirmar_cancelamento");
   assert.equal(botaoDaLinha(item({ status: "na_fila_omie" })), null);
   assert.equal(botaoDaLinha(item({ status: "em_conferencia", faturando: true })), null);
-  // Card do Pipefy em erro: sem outro botão na linha, "Reenviar o card"; com outro, ele vence (o Sheet tem o
-  // reenvio do card na linha do Pipefy).
+  // O Pipefy saiu do portal (call de 27/10/2026): um erro antigo de card não vira botão nem próxima ação.
   const faturadoComErro = item({
     status: "faturado",
     pipefy_erro: "Campo obrigatório: Vencimento",
     proxima_acao: null,
   });
-  assert.equal(botaoDaLinha(faturadoComErro), "reenviar_pipefy");
-  assert.equal(textoProximaAcao(faturadoComErro, HOJE, AGORA), "Reenviar o card do Pipefy");
+  assert.equal(botaoDaLinha(faturadoComErro), null);
+  assert.equal(textoProximaAcao(faturadoComErro, HOJE, AGORA), "Faturado");
   assert.equal(botaoDaLinha(item({ pipefy_erro: "x" })), "conferir");
-  assert.equal(botaoDaLinha(item({ status: "faturado", pipefy_erro: null })), null);
 });
 
 const pessoa = (id, nome, papel, o = {}) => ({

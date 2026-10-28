@@ -12,6 +12,7 @@ import {
   descricaoPadrao,
   documentoValido,
   emailValido,
+  erroDoCliente,
   erroDoDocumento,
   errosDoCampo,
   formularioDoPedido,
@@ -20,6 +21,7 @@ import {
   juntarEmails,
   lerValor,
   mascararDocumento,
+  mascararDocumentoLivre,
   normalizarDocumento,
   normalizarProjeto,
   opcoesDeCompetencia,
@@ -29,6 +31,9 @@ import {
   resumoParcelas,
   rotuloEnviar,
   tipoDoDocumento,
+  tipoDoFormulario,
+  chaveDoProjeto,
+  filtrarProjetos,
   valorParaDigitar,
 } from "../src/lib/faturamento/formulario.ts";
 import {
@@ -476,4 +481,58 @@ test("busca do cliente: resposta de outro documento ou de outra empresa é desca
     buscaAindaVale({ documento: "11222333000181", emissora: "e1" }, { ...form, emissora_id: "e2" }),
     false,
   );
+});
+
+test("call de 27/10/2026: o tipo do cliente sai do documento; a máscara não pergunta PF ou PJ", () => {
+  assert.equal(mascararDocumentoLivre("52998224725"), "529.982.247-25");
+  assert.equal(mascararDocumentoLivre("1122233300018"), "11.222.333/0001-8");
+  assert.equal(mascararDocumentoLivre("12abc"), "12.ABC");
+  assert.equal(tipoDoFormulario({ tomador_tipo: "pj", tomador_documento: "529.982.247-25" }), "pf");
+  assert.equal(
+    tipoDoFormulario({ tomador_tipo: "pf", tomador_documento: "11.222.333/0001-81" }),
+    "pj",
+  );
+  // Documento incompleto: fica o que o formulário já tinha.
+  assert.equal(tipoDoFormulario({ tomador_tipo: "pf", tomador_documento: "529.98" }), "pf");
+  assert.equal(erroDoCliente(""), "Escolha o cliente ou digite o CNPJ ou CPF.");
+  assert.equal(erroDoCliente("529.982.247-25"), null);
+  assert.equal(erroDoCliente("529.982.247-24"), "CPF com dígito verificador errado.");
+  assert.equal(erroDoCliente("11.222.333/0001-8"), "O CNPJ tem 14 caracteres.");
+  assert.equal(erroDoCliente("11.222.333/0001-81"), null);
+  // O p_dados leva o tipo do documento, mesmo com o tipo antigo no formulário.
+  const d = dadosParaSalvar(completo({ tomador_tipo: "pj", tomador_documento: "529.982.247-25" }));
+  assert.equal(d.tomador_tipo, "pf");
+  assert.equal(d.tomador_documento, "52998224725");
+  // Departamento saiu do pedido: vai nulo.
+  assert.equal(d.departamento, null);
+  assert.equal(
+    errosDoCampo(
+      pendenciasLocais(formularioVazio(), { contratoEmOutra: false, bloqueio: null }),
+      "tomador_documento",
+    )[0],
+    "Escolha o cliente ou digite o CNPJ ou CPF.",
+  );
+});
+
+test("call de 27/10/2026: a lista de projetos filtra pela chave e oferece o projeto novo", () => {
+  const itens = [
+    { projeto: "TERRAL" },
+    { projeto: "Canopus" },
+    { projeto: "Alteração contratual" },
+  ];
+  assert.equal(chaveDoProjeto("  alteração   contratual "), "ALTERACAO CONTRATUAL");
+  assert.deepEqual(filtrarProjetos(itens, ""), { itens, novo: null });
+  assert.deepEqual(filtrarProjetos(itens, "terr"), {
+    itens: [{ projeto: "TERRAL" }],
+    novo: "terr",
+  });
+  assert.deepEqual(filtrarProjetos(itens, "terral"), {
+    itens: [{ projeto: "TERRAL" }],
+    novo: null,
+  });
+  assert.deepEqual(filtrarProjetos(itens, "alteracao"), {
+    itens: [{ projeto: "Alteração contratual" }],
+    novo: "alteracao",
+  });
+  assert.deepEqual(filtrarProjetos(itens, " Projeto   Novo "), { itens: [], novo: "Projeto Novo" });
 });

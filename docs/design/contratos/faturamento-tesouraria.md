@@ -143,3 +143,9 @@ Faturamento feito direto no Omie (RF-P08): a leitura de status detecta, o pedido
 ## Decisões da Ana (21/10/2026)
 1. **Prazos da higiene:** 2 dias para conferir e 1 dia útil para faturar (a pergunta era 3 dias e 1 dia útil). O contador e o filtro "Vence em até 2 dias sem nota" usam a chave `vence_2d` no banco e na URL (`ops.fat_fila_tesouraria`, migration `20261021122000`); "Parado há mais de 1 dia útil" não mudou. Até o app novo entrar no ar, o banco aceita e devolve também `vence_3d`, com a regra nova.
 2. **CNPJ que a Receita não acha:** o envio é bloqueado ("CNPJ não encontrado na Receita Federal: envio bloqueado. Confira o número."), então esse pedido não aparece na fila. "Situação não conferida" passa a querer dizer só que a Receita (CNPJá) não respondeu na hora do pedido (`faturamento-novo.md`, Decisões da Ana).
+
+## Mudanças da call de 27/10/2026
+Decisões confirmadas pelo Pedro em 28/10/2026. Valem sobre o que está acima.
+
+1. **O Pipefy saiu do portal.** Sai o "Pipefy recusou o card" da coluna "Onde parou", o botão "Reenviar o card" e a próxima ação "Reenviar o card do Pipefy". O painel do pedido mostra só as linhas do Omie.
+2. **Departamento saiu** do painel do pedido: o bloco vira "Observações".

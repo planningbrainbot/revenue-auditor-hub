@@ -47,10 +47,11 @@ import {
 } from "@/components/planning";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
 import {
+  useClientesFaturamento,
   useContextoFaturamento,
-  useDepartamentosFaturamento,
   useFichaPedido,
   usePreviaParcelas,
+  useProjetosFaturamento,
   useReler,
   useServicosFaturamento,
 } from "@/hooks/use-faturamento";
@@ -77,8 +78,9 @@ import {
   descricaoPadrao,
   documentoValido,
   emailValido,
-  erroDoDocumento,
+  erroDoCliente,
   errosDoCampo,
+  filtrarProjetos,
   avisoDoVencimento,
   formularioDoPedido,
   formularioVazio,
@@ -87,23 +89,27 @@ import {
   fraseAoEnviar,
   juntarEmails,
   lerValor,
-  mascararDocumento,
+  mascararDocumentoLivre,
   buscaAindaVale,
   normalizarDocumento,
   normalizarProjeto,
   parcelasDoFormulario,
   pendenciasLocais,
   rotuloEnviar,
+  tipoDoFormulario,
   valorParaDigitar,
   type FormPedido,
 } from "@/lib/faturamento/formulario";
 import { LIMIAR_SUGESTAO, TEMPO_JEV_MS } from "@/lib/faturamento/jev";
 import { fraseSimulacao, procedenciaFaturamento } from "@/lib/faturamento/rotulos";
 import type {
+  ClienteDaBusca,
   Contexto,
+  EmissoraContexto,
   ErroCampo,
   FichaPedido,
   ServicoCatalogo,
+  TipoTomador,
   TomadorConferido,
 } from "@/lib/faturamento/tipos";
 import { cn } from "@/lib/utils";
@@ -113,8 +119,12 @@ import { AREA_FATURAMENTO, ErroDaArea, PaginaFaturamento, SeloSituacao } from ".
  * Novo pedido (`/faturamento/novo`), Ficha em modo de edição. Contrato
  * `docs/design/contratos/faturamento-novo.md`: "O que precisa ser faturado, para quem e como?".
  *
- * Quatro seções na ordem da lista da Ana (spec §5.2), com o Dono da receita logo depois da empresa (a lista
- * não tem; o contrato pôs). O cliente é conferido e buscado pelo documento (`fat_tomador`, que consulta a
+ * Call de 27/10/2026: a empresa vem antes de tudo ("Por qual empresa você vai faturar?", só para quem pede em mais
+ * de uma) e fica fixa no alto; o cliente e o projeto saem de listas com busca (`fat_clientes_busca`, `fat_projetos`),
+ * com a saída "cliente novo" pelo número; o Departamento saiu.
+ *
+ * Depois da empresa, quatro seções na ordem da lista da Ana (spec §5.2), com o Dono da receita no começo (a lista
+ * não tem; o contrato pôs). O cliente escolhido é conferido pelo documento (`fat_tomador`, que consulta a
  * Receita quando falta); o serviço vem do catálogo da empresa (`fat_servicos`); a prévia das parcelas vem
  * da mesma função que grava no envio (`fat_parcelas_previa`). Recibo e nota de débito também saem por OS no
  * Omie (resposta 7 da Ana).
@@ -279,6 +289,8 @@ function Formulario({
   // A empresa em que a busca foi feita: o aviso de contrato "em outra empresa" é relativo a ela.
   const [tomadorEmissora, setTomadorEmissora] = useState<string | null>(null);
   const [descartar, setDescartar] = useState(false);
+  // "Trocar empresa" volta ao passo da empresa sem perder o que já foi preenchido.
+  const [escolhendoEmpresa, setEscolhendoEmpresa] = useState(false);
   // "Sugerir outro serviço" (aviso de descrição) pede a sugestão de novo.
   const [pedirSugestao, setPedirSugestao] = useState(0);
   // A descrição que o aviso do Jev confere: muda ao sair do campo (o contrato pede "ao sair do campo
@@ -296,7 +308,6 @@ function Formulario({
   const simulacao = emissora?.modo_omie === "simular";
 
   const servicos = useServicosFaturamento(form.emissora_id);
-  const departamentos = useDepartamentosFaturamento();
   // O cliente que vale é o da busca do documento e da empresa de agora.
   const tomadorAtual =
     tomador &&
@@ -362,7 +373,9 @@ function Formulario({
       // para o Enviar salvar antes o que veio preenchido.
       mudar({
         tomador_nome:
-          f.tomador_tipo === "pj" && t.nome && (!f.tomador_nome || f.tomador_nome === tomador?.nome)
+          tipoDoFormulario(f) === "pj" &&
+          t.nome &&
+          (!f.tomador_nome || f.tomador_nome === tomador?.nome)
             ? t.nome
             : f.tomador_nome,
         emails_envio: f.emails_envio.length ? f.emails_envio : juntarEmails([], t.emails),
@@ -401,6 +414,27 @@ function Formulario({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // O cliente escolhido na lista: o documento e o nome do cadastro; a Receita e o contrato vêm do fat_tomador.
+  const escolherCliente = (c: ClienteDaBusca) => {
+    mudar({
+      tomador_documento: formatarDocumento(c.documento) ?? c.documento,
+      tomador_tipo: c.tipo,
+      tomador_nome: c.nome,
+    });
+    setTomador(null);
+    conferirDocumento(c.documento, form.emissora_id);
+  };
+  const limparCliente = () => {
+    mudar({
+      tomador_documento: "",
+      tomador_nome: "",
+      tomador_tipo: "pj",
+      confirmou_emissora: false,
+    });
+    setTomador(null);
+    setErroBusca(null);
+  };
 
   const trocarEmissora = (id: string) => {
     const nova = ctx.emissoras.find((e) => e.id === id);
@@ -601,488 +635,485 @@ function Formulario({
         </div>
       )}
 
-      {/* Seção 1 */}
-      <Secao titulo="Quem fatura, e para quem?">
-        <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
-          <Campo id="fat-emissora" rotulo="Empresa que fatura" erros={erroDe("emissora_id")}>
-            <Select value={form.emissora_id ?? ""} onValueChange={trocarEmissora}>
-              <SelectTrigger id="fat-emissora" className="h-9">
-                <SelectValue placeholder="Escolha a empresa" />
-              </SelectTrigger>
-              <SelectContent>
-                {podem.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.apelido} · {e.razao_social}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Campo>
-
-          <Campo
-            id="fat-dono"
-            rotulo="Dono da receita"
-            ajuda="Quem responde pelo que é faturado. Quando não é você, o pedido vai para o OK dele."
-            erros={erroDe("dono_id")}
-          >
-            {!emissora ? (
-              <BotaoComMotivo
-                rotulo="Escolha o dono"
-                motivo="Escolha a empresa que fatura primeiro"
-                variant="outline"
-              />
-            ) : donos.length === 0 && !souDono ? (
-              <p className="text-sm text-muted-foreground">
-                A {emissora.apelido} ainda não tem dono cadastrado. Peça à controladoria (Ana
-                Carvalhais).
-              </p>
-            ) : (
-              <Select value={form.dono_id ?? ""} onValueChange={(v) => mudar({ dono_id: v })}>
-                <SelectTrigger id="fat-dono" className="h-9">
-                  <SelectValue placeholder="Escolha o dono" />
-                </SelectTrigger>
-                <SelectContent>
-                  {donos.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.nome}
-                      {d.id === ctx.usuario.id ? " (você)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </Campo>
-
-          {contratos.length > 0 && (
-            <div className="space-y-3 rounded-xl border bg-card p-3 md:col-span-2">
-              <p className="text-sm text-foreground">
-                Este cliente tem contrato vigente na{" "}
-                {listaNomes([...new Set(contratos.map((c) => c.emissora.apelido))])}. Você escolheu
-                a {emissora?.apelido ?? "outra empresa"}.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={form.confirmou_emissora}
-                    onCheckedChange={(v) => mudar({ confirmou_emissora: v === true })}
-                  />
-                  Confirmo que quem fatura é a {emissora?.apelido ?? "empresa escolhida"}
-                </label>
-                {contratos
-                  .map((c) => ctx.emissoras.find((e) => e.id === c.emissora.id && e.pode_pedir))
-                  .filter(
-                    (e, i, todos): e is NonNullable<typeof e> => !!e && todos.indexOf(e) === i,
-                  )
-                  .map((e) => (
-                    <Button
-                      key={e.id}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => trocarEmissora(e.id)}
-                    >
-                      Trocar para {e.apelido}
-                    </Button>
-                  ))}
-              </div>
-              {tomadorAtual?.contratos_lidos_em && (
-                <p className="text-[13px] text-muted-foreground">
-                  Contratos lidos do Omie em {dataCompleta(tomadorAtual.contratos_lidos_em)}.
-                </p>
-              )}
-              {erroDe("confirmou_emissora").map((m) => (
-                <MensagemErro key={m} mensagem={m} />
-              ))}
-            </div>
-          )}
-
-          <Campo id="fat-tipo" rotulo="Cliente PF ou PJ">
-            <RadioGroup
-              id="fat-tipo"
-              value={form.tomador_tipo}
-              onValueChange={(v) => {
-                mudar({ tomador_tipo: v as "pj" | "pf", tomador_documento: "" });
-                setTomador(null);
-              }}
-              className="flex gap-4"
-            >
-              <Opcao valor="pj" rotulo="PJ (CNPJ)" />
-              <Opcao valor="pf" rotulo="PF (CPF)" />
-            </RadioGroup>
-          </Campo>
-
-          <Campo
-            id="fat-documento"
-            rotulo={form.tomador_tipo === "pj" ? "CNPJ" : "CPF"}
-            ajuda={
-              form.tomador_tipo === "pj"
-                ? "Aceita o CNPJ com letras (o novo formato da Receita)."
-                : undefined
-            }
-            erros={[
-              ...erroDe("tomador_documento"),
-              ...(!tentouEnviar &&
-              form.tomador_documento &&
-              normalizarDocumento(form.tomador_documento).length >=
-                (form.tomador_tipo === "pj" ? 14 : 11)
-                ? [erroDoDocumento(form.tomador_tipo, form.tomador_documento)].filter(
-                    (x): x is string => !!x,
-                  )
-                : []),
-            ]}
-          >
-            <Input
-              id="fat-documento"
-              value={form.tomador_documento}
-              inputMode={form.tomador_tipo === "pf" ? "numeric" : "text"}
-              autoCapitalize="characters"
-              placeholder={form.tomador_tipo === "pj" ? "00.000.000/0000-00" : "000.000.000-00"}
-              onChange={(e) =>
-                mudar({ tomador_documento: mascararDocumento(form.tomador_tipo, e.target.value) })
-              }
-              onBlur={() => conferirDocumento(form.tomador_documento, form.emissora_id)}
-              className="h-9"
-            />
-          </Campo>
-
-          <QuadroCliente
-            tipo={form.tomador_tipo}
-            buscando={buscarTomador.isPending}
-            tomador={tomadorAtual}
-            documento={form.tomador_documento}
-            semEmpresa={!form.emissora_id}
-            erro={erroBusca}
-          />
-
-          <Campo id="fat-nome" rotulo="Nome do cliente" erros={erroDe("tomador_nome")}>
-            <Input
-              id="fat-nome"
-              value={form.tomador_nome}
-              onChange={(e) => mudar({ tomador_nome: e.target.value })}
-              className="h-9"
-            />
-          </Campo>
-
-          <Campo
-            id="fat-emails"
-            rotulo="E-mail para envio"
-            ajuda="Um ou mais. Vêm do cadastro quando existem; dá para tirar e acrescentar."
-            erros={erroDe("emails_envio")}
-          >
-            <Emails valor={form.emails_envio} aoMudar={(v) => mudar({ emails_envio: v })} />
-          </Campo>
-        </div>
-      </Secao>
-
-      {/* Seção 2 */}
-      <Secao titulo="O que foi feito?">
-        <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
-          <Campo id="fat-projeto" rotulo="Nome do projeto" erros={erroDe("projeto")}>
-            <Input
-              id="fat-projeto"
-              value={form.projeto}
-              onChange={(e) => mudar({ projeto: e.target.value })}
-              onBlur={() =>
-                form.projeto !== normalizarProjeto(form.projeto) &&
-                mudar({ projeto: normalizarProjeto(form.projeto) })
-              }
-              className="h-9"
-            />
-          </Campo>
-
-          <Campo id="fat-servico" rotulo="Serviço" erros={erroDe("servico_id")}>
-            <CampoServico
-              emissora={emissora?.apelido ?? null}
-              servicos={servicos.data?.servicos ?? null}
-              carregando={servicos.isFetching && !servicos.data}
-              semTributacao={servicos.data?.sem_tributacao ?? 0}
-              escolhido={servicoEscolhido}
-              aoEscolher={escolherServico}
-            />
-            {assistente && emissora && (
-              <SugestaoServico
-                // A sugestão é da empresa: trocar a empresa começa outra (achado da revisão de 20/10/2026).
-                key={emissora.id}
-                assistente={assistente}
-                emissoraId={emissora.id}
-                apelido={emissora.apelido}
-                projeto={form.projeto}
-                descricao={form.descricao_nf}
-                valor={valorNum}
-                nomeCliente={form.tomador_nome || null}
-                documento={normalizarDocumento(form.tomador_documento) || null}
-                servicos={servicos.data?.servicos ?? []}
-                aoUsar={escolherServico}
-                gatilho={pedirSugestao}
-              />
-            )}
-          </Campo>
-
-          <Campo
-            id="fat-descricao"
-            rotulo="Descrição da nota"
-            ajuda="O texto que vai na nota. Com o serviço escolhido e a descrição vazia, vem o padrão, editável."
-            erros={erroDe("descricao_nf")}
-            largura="inteira"
-          >
-            <Textarea
-              id="fat-descricao"
-              value={form.descricao_nf}
-              rows={3}
-              maxLength={2000}
-              onChange={(e) => mudar({ descricao_nf: e.target.value })}
-              onBlur={() => setDescricaoConferida(form.descricao_nf)}
-            />
-            {assistente && emissora && form.servico_id && (
-              <AvisoDescricao
-                assistente={assistente}
-                emissoraId={emissora.id}
-                servicoId={form.servico_id}
-                servico={servicoEscolhido?.descricao ?? "o serviço"}
-                descricao={descricaoConferida}
-                valor={valorNum}
-                nomeCliente={form.tomador_nome || null}
-                documento={normalizarDocumento(form.tomador_documento) || null}
-                aoSugerirOutro={() => setPedirSugestao((n) => n + 1)}
-              />
-            )}
-          </Campo>
-        </div>
-      </Secao>
-
-      {/* Seção 3 */}
-      <Secao titulo="Quanto e como cobrar?">
-        <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
-          <Campo id="fat-valor" rotulo="Valor (R$)" erros={erroDe("valor")}>
-            <Input
-              id="fat-valor"
-              value={form.valor}
-              inputMode="decimal"
-              placeholder="0,00"
-              onChange={(e) => mudar({ valor: e.target.value })}
-              onBlur={() => {
-                const v = lerValor(form.valor);
-                if (v !== null) mudar({ valor: valorParaDigitar(v) });
-              }}
-              className="num h-9"
-            />
-          </Campo>
-
-          <Campo
-            id="fat-documento-fiscal"
-            rotulo="Nota fiscal, recibo ou nota de débito"
-            ajuda="Recibo e nota de débito também saem por OS no Omie, como hoje."
-            erros={erroDe("documento")}
-          >
-            <RadioGroup
-              id="fat-documento-fiscal"
-              value={form.documento ?? ""}
-              onValueChange={(v) => mudar({ documento: v as FormPedido["documento"] })}
-              className="flex flex-wrap gap-4"
-            >
-              <Opcao valor="nf" rotulo="Nota fiscal" />
-              <Opcao valor="recibo" rotulo="Recibo" />
-              <Opcao valor="nd" rotulo="Nota de débito" />
-            </RadioGroup>
-          </Campo>
-
-          <Campo
-            id="fat-forma"
-            rotulo="À vista ou parcelado"
-            erros={[...erroDe("forma"), ...erroDe("parcelas")]}
-          >
-            <div className="flex flex-wrap items-center gap-4">
-              <RadioGroup
-                id="fat-forma"
-                value={form.forma ?? ""}
-                onValueChange={(v) =>
-                  mudar({
-                    forma: v as FormPedido["forma"],
-                    parcelas: v === "parcelado" ? form.parcelas || "2" : "",
-                  })
-                }
-                className="flex gap-4"
-              >
-                <Opcao valor="avulso" rotulo="À vista" />
-                <Opcao valor="parcelado" rotulo="Parcelado" />
-              </RadioGroup>
-              {form.forma === "parcelado" && (
-                <label className="flex items-center gap-2 text-sm">
-                  <span>Número de parcelas</span>
-                  <Input
-                    type="number"
-                    min={2}
-                    max={36}
-                    value={form.parcelas}
-                    onChange={(e) => mudar({ parcelas: e.target.value })}
-                    className="num h-9 w-20"
-                  />
-                </label>
-              )}
-            </div>
-          </Campo>
-
-          <Campo id="fat-meio" rotulo="Boleto ou pix" erros={erroDe("meio")}>
-            <RadioGroup
-              id="fat-meio"
-              value={form.meio ?? ""}
-              onValueChange={(v) => mudar({ meio: v as FormPedido["meio"] })}
-              className="flex gap-4"
-            >
-              <Opcao valor="boleto" rotulo="Boleto" />
-              <Opcao valor="pix" rotulo="Pix" />
-            </RadioGroup>
-          </Campo>
-
-          <Campo id="fat-vencimento" rotulo="1º vencimento" erros={erroDe("primeiro_vencimento")}>
-            <Input
-              id="fat-vencimento"
-              type="date"
-              value={form.primeiro_vencimento}
-              onChange={(e) => mudar({ primeiro_vencimento: e.target.value })}
-              className="num h-9 w-48"
-            />
-            {/* Vencimento no passado não bloqueia (decisão pendente da Ana); o campo só avisa. */}
-            {avisoDoVencimento(form.primeiro_vencimento, hojeSP) && (
-              <p className="text-[13px] text-muted-foreground">
-                {avisoDoVencimento(form.primeiro_vencimento, hojeSP)}
-              </p>
-            )}
-          </Campo>
-
-          <Campo
-            id="fat-competencia"
-            rotulo="Competência (opcional)"
-            ajuda="Vem com o mês do 1º vencimento e acompanha a data até você mudar à mão."
-            erros={erroDe("competencia")}
-          >
-            <Select
-              value={form.competencia_manual ? form.competencia : "automatica"}
-              onValueChange={(v) =>
-                v === "automatica"
-                  ? mudar({ competencia: "", competencia_manual: false })
-                  : mudar({ competencia: v, competencia_manual: true })
-              }
-            >
-              <SelectTrigger id="fat-competencia" className="h-9 w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="automatica">
-                  {competenciaDoFormulario({ ...form, competencia_manual: false })
-                    ? `Mês do 1º vencimento (${rotuloMes(competenciaDoFormulario({ ...form, competencia_manual: false }))})`
-                    : "Mês do 1º vencimento"}
-                </SelectItem>
-                {opcoesDeCompetencia(
-                  mesCorrenteSP(),
-                  form.competencia_manual ? form.competencia : null,
-                ).map((o) => (
-                  <SelectItem key={o.valor} value={o.valor}>
-                    {o.rotulo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Campo>
-        </div>
-      </Secao>
-
-      {/* Seção 4 */}
-      <Secao titulo="Mais alguma coisa?">
-        <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
-          <Campo
-            id="fat-departamento"
-            rotulo="Departamento (opcional)"
-            erros={erroDe("departamento")}
-          >
-            <Select
-              value={form.departamento ?? "nenhum"}
-              onValueChange={(v) => mudar({ departamento: v === "nenhum" ? null : v })}
-            >
-              <SelectTrigger id="fat-departamento" className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nenhum">Sem departamento</SelectItem>
-                {(departamentos.data?.departamentos ?? []).map((d) => (
-                  <SelectItem key={d.nome} value={d.nome}>
-                    {d.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Campo>
-          <Campo
-            id="fat-observacoes"
-            rotulo="Observações"
-            ajuda="Não é usado para regra: quem confere lê, o Omie não."
-            erros={erroDe("observacoes")}
-            largura="inteira"
-          >
-            <Textarea
-              id="fat-observacoes"
-              value={form.observacoes}
-              rows={3}
-              maxLength={4000}
-              onChange={(e) => mudar({ observacoes: e.target.value })}
-            />
-          </Campo>
-        </div>
-      </Secao>
-
-      <Secao
-        titulo="Como o valor fica dividido?"
-        descricao="A última parcela leva os centavos que sobram da divisão. As parcelas que valem são as gravadas no envio."
-      >
-        <PreviaParcelas
-          pronta={previaPronta(valorNum, parcelasNum, form.primeiro_vencimento || null)}
-          // Enquanto a prévia pedida não é a dos campos de agora (meio segundo depois de digitar), ou o
-          // banco ainda responde, a tela espera: nunca mostra a divisão de outro valor.
-          carregando={
-            previa.isFetching ||
-            previaPedida[0] !== valorNum ||
-            previaPedida[1] !== parcelasNum ||
-            previaPedida[2] !== (form.primeiro_vencimento || null)
-          }
-          parcelas={previa.data?.parcelas ?? null}
-          total={previa.data?.total ?? null}
-          erro={previa.error instanceof Error ? previa.error.message : null}
+      {!emissora || escolhendoEmpresa ? (
+        <EscolhaEmpresa
+          empresas={podem}
+          atual={form.emissora_id}
+          erros={erroDe("emissora_id")}
+          aoEscolher={(id) => {
+            // A primeira escolha não conta como alteração: sair da página ainda não pergunta nada.
+            if (!form.emissora_id) {
+              const nova = ctx.emissoras.find((e) => e.id === id);
+              setForm((f) => ({
+                ...f,
+                emissora_id: id,
+                dono_id: nova?.meus_papeis.includes("dono") ? ctx.usuario.id : null,
+              }));
+            } else if (id !== form.emissora_id) trocarEmissora(id);
+            setEscolhendoEmpresa(false);
+          }}
+          aoVoltar={emissora ? () => setEscolhendoEmpresa(false) : undefined}
         />
-      </Secao>
-
-      {/* Rodapé fixo: o que acontece ao enviar e as ações. */}
-      <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-2xl text-[13px] text-muted-foreground">
-            {fraseAoEnviar({ souDono, nomeDono, apelido: emissora?.apelido ?? null, simulacao })}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            {podeDescartar && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={ocupado}
-                onClick={() => setDescartar(true)}
-              >
-                Descartar
-              </Button>
-            )}
-            <Button variant="outline" size="sm" disabled={ocupado} onClick={() => salvar.mutate()}>
-              {salvar.isPending ? "Salvando…" : "Salvar rascunho"}
-            </Button>
-            {motivoEnvio ? (
-              <BotaoComMotivo
-                rotulo={rotuloEnviar({ souDono, nomeDono })}
-                motivo={motivoEnvio}
-                size="sm"
-              />
-            ) : (
-              <Button size="sm" disabled={ocupado} onClick={clicarEnviar}>
-                {enviar.isPending ? "Enviando…" : rotuloEnviar({ souDono, nomeDono })}
+      ) : (
+        <>
+          {/* A empresa fixa no alto (call de 27/10/2026): tudo abaixo é dela. */}
+          <div
+            id="fat-emissora"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3"
+          >
+            <p className="text-sm text-foreground">
+              Faturando pela <span className="font-semibold">{emissora.apelido}</span>
+              <span className="text-muted-foreground"> · {emissora.razao_social}</span>
+              {simulacao && <span className="text-muted-foreground"> · em simulação</span>}
+            </p>
+            {podem.length > 1 && (
+              <Button variant="outline" size="sm" onClick={() => setEscolhendoEmpresa(true)}>
+                Trocar empresa
               </Button>
             )}
           </div>
-        </div>
-      </div>
+
+          {/* Seção 1 */}
+          <Secao titulo="Quem fatura, e para quem?">
+            <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
+              <Campo
+                id="fat-dono"
+                rotulo="Dono da receita"
+                ajuda="Quem responde pelo que é faturado. Quando não é você, o pedido vai para o OK dele."
+                erros={erroDe("dono_id")}
+              >
+                {!emissora ? (
+                  <BotaoComMotivo
+                    rotulo="Escolha o dono"
+                    motivo="Escolha a empresa que fatura primeiro"
+                    variant="outline"
+                  />
+                ) : donos.length === 0 && !souDono ? (
+                  <p className="text-sm text-muted-foreground">
+                    A {emissora.apelido} ainda não tem dono cadastrado. Peça à controladoria (Ana
+                    Carvalhais).
+                  </p>
+                ) : (
+                  <Select value={form.dono_id ?? ""} onValueChange={(v) => mudar({ dono_id: v })}>
+                    <SelectTrigger id="fat-dono" className="h-9">
+                      <SelectValue placeholder="Escolha o dono" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {donos.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.nome}
+                          {d.id === ctx.usuario.id ? " (você)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Campo>
+
+              {contratos.length > 0 && (
+                <div className="space-y-3 rounded-xl border bg-card p-3 md:col-span-2">
+                  <p className="text-sm text-foreground">
+                    Este cliente tem contrato vigente na{" "}
+                    {listaNomes([...new Set(contratos.map((c) => c.emissora.apelido))])}. Você
+                    escolheu a {emissora?.apelido ?? "outra empresa"}.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={form.confirmou_emissora}
+                        onCheckedChange={(v) => mudar({ confirmou_emissora: v === true })}
+                      />
+                      Confirmo que quem fatura é a {emissora?.apelido ?? "empresa escolhida"}
+                    </label>
+                    {contratos
+                      .map((c) => ctx.emissoras.find((e) => e.id === c.emissora.id && e.pode_pedir))
+                      .filter(
+                        (e, i, todos): e is NonNullable<typeof e> => !!e && todos.indexOf(e) === i,
+                      )
+                      .map((e) => (
+                        <Button
+                          key={e.id}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => trocarEmissora(e.id)}
+                        >
+                          Trocar para {e.apelido}
+                        </Button>
+                      ))}
+                  </div>
+                  {tomadorAtual?.contratos_lidos_em && (
+                    <p className="text-[13px] text-muted-foreground">
+                      Contratos lidos do Omie em {dataCompleta(tomadorAtual.contratos_lidos_em)}.
+                    </p>
+                  )}
+                  {erroDe("confirmou_emissora").map((m) => (
+                    <MensagemErro key={m} mensagem={m} />
+                  ))}
+                </div>
+              )}
+
+              <Campo
+                id="fat-cliente"
+                rotulo="Cliente"
+                ajuda="Busque pelo nome ou pelo CNPJ/CPF entre os clientes da empresa. Não achou? Use “cliente novo”."
+                erros={[
+                  ...erroDe("tomador_documento"),
+                  ...(!tentouEnviar &&
+                  form.tomador_documento &&
+                  normalizarDocumento(form.tomador_documento).length >=
+                    (tipoDoFormulario(form) === "pj" ? 14 : 11)
+                    ? [erroDoCliente(form.tomador_documento)].filter((x): x is string => !!x)
+                    : []),
+                ]}
+              >
+                <CampoCliente
+                  emissoraId={form.emissora_id}
+                  apelido={emissora.apelido}
+                  documento={form.tomador_documento}
+                  nome={form.tomador_nome}
+                  aoEscolher={escolherCliente}
+                  aoDigitar={(v) => mudar({ tomador_documento: mascararDocumentoLivre(v) })}
+                  aoSairDoDigitado={() =>
+                    conferirDocumento(form.tomador_documento, form.emissora_id)
+                  }
+                  aoLimpar={limparCliente}
+                />
+              </Campo>
+
+              <QuadroCliente
+                tipo={tipoDoFormulario(form)}
+                buscando={buscarTomador.isPending}
+                tomador={tomadorAtual}
+                documento={form.tomador_documento}
+                semEmpresa={!form.emissora_id}
+                erro={erroBusca}
+              />
+
+              <Campo id="fat-nome" rotulo="Nome do cliente" erros={erroDe("tomador_nome")}>
+                <Input
+                  id="fat-nome"
+                  value={form.tomador_nome}
+                  onChange={(e) => mudar({ tomador_nome: e.target.value })}
+                  className="h-9"
+                />
+              </Campo>
+
+              <Campo
+                id="fat-emails"
+                rotulo="E-mail para envio"
+                ajuda="Um ou mais. Vêm do cadastro quando existem; dá para tirar e acrescentar."
+                erros={erroDe("emails_envio")}
+              >
+                <Emails valor={form.emails_envio} aoMudar={(v) => mudar({ emails_envio: v })} />
+              </Campo>
+            </div>
+          </Secao>
+
+          {/* Seção 2 */}
+          <Secao titulo="O que foi feito?">
+            <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
+              <Campo
+                id="fat-projeto"
+                rotulo="Projeto"
+                ajuda="Os projetos que a empresa já usa. Projeto que ainda não existe pode ser digitado."
+                erros={erroDe("projeto")}
+              >
+                <CampoProjeto
+                  emissoraId={form.emissora_id}
+                  apelido={emissora.apelido}
+                  valor={form.projeto}
+                  aoEscolher={(v) => mudar({ projeto: normalizarProjeto(v) })}
+                />
+              </Campo>
+
+              <Campo id="fat-servico" rotulo="Serviço" erros={erroDe("servico_id")}>
+                <CampoServico
+                  emissora={emissora?.apelido ?? null}
+                  servicos={servicos.data?.servicos ?? null}
+                  carregando={servicos.isFetching && !servicos.data}
+                  semTributacao={servicos.data?.sem_tributacao ?? 0}
+                  escolhido={servicoEscolhido}
+                  aoEscolher={escolherServico}
+                />
+                {assistente && emissora && (
+                  <SugestaoServico
+                    // A sugestão é da empresa: trocar a empresa começa outra (achado da revisão de 20/10/2026).
+                    key={emissora.id}
+                    assistente={assistente}
+                    emissoraId={emissora.id}
+                    apelido={emissora.apelido}
+                    projeto={form.projeto}
+                    descricao={form.descricao_nf}
+                    valor={valorNum}
+                    nomeCliente={form.tomador_nome || null}
+                    documento={normalizarDocumento(form.tomador_documento) || null}
+                    servicos={servicos.data?.servicos ?? []}
+                    aoUsar={escolherServico}
+                    gatilho={pedirSugestao}
+                  />
+                )}
+              </Campo>
+
+              <Campo
+                id="fat-descricao"
+                rotulo="Descrição da nota"
+                ajuda="O texto que vai na nota. Com o serviço escolhido e a descrição vazia, vem o padrão, editável."
+                erros={erroDe("descricao_nf")}
+                largura="inteira"
+              >
+                <Textarea
+                  id="fat-descricao"
+                  value={form.descricao_nf}
+                  rows={3}
+                  maxLength={2000}
+                  onChange={(e) => mudar({ descricao_nf: e.target.value })}
+                  onBlur={() => setDescricaoConferida(form.descricao_nf)}
+                />
+                {assistente && emissora && form.servico_id && (
+                  <AvisoDescricao
+                    assistente={assistente}
+                    emissoraId={emissora.id}
+                    servicoId={form.servico_id}
+                    servico={servicoEscolhido?.descricao ?? "o serviço"}
+                    descricao={descricaoConferida}
+                    valor={valorNum}
+                    nomeCliente={form.tomador_nome || null}
+                    documento={normalizarDocumento(form.tomador_documento) || null}
+                    aoSugerirOutro={() => setPedirSugestao((n) => n + 1)}
+                  />
+                )}
+              </Campo>
+            </div>
+          </Secao>
+
+          {/* Seção 3 */}
+          <Secao titulo="Quanto e como cobrar?">
+            <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
+              <Campo id="fat-valor" rotulo="Valor (R$)" erros={erroDe("valor")}>
+                <Input
+                  id="fat-valor"
+                  value={form.valor}
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  onChange={(e) => mudar({ valor: e.target.value })}
+                  onBlur={() => {
+                    const v = lerValor(form.valor);
+                    if (v !== null) mudar({ valor: valorParaDigitar(v) });
+                  }}
+                  className="num h-9"
+                />
+              </Campo>
+
+              <Campo
+                id="fat-documento-fiscal"
+                rotulo="Nota fiscal, recibo ou nota de débito"
+                ajuda="Recibo e nota de débito também saem por OS no Omie, como hoje."
+                erros={erroDe("documento")}
+              >
+                <RadioGroup
+                  id="fat-documento-fiscal"
+                  value={form.documento ?? ""}
+                  onValueChange={(v) => mudar({ documento: v as FormPedido["documento"] })}
+                  className="flex flex-wrap gap-4"
+                >
+                  <Opcao valor="nf" rotulo="Nota fiscal" />
+                  <Opcao valor="recibo" rotulo="Recibo" />
+                  <Opcao valor="nd" rotulo="Nota de débito" />
+                </RadioGroup>
+              </Campo>
+
+              <Campo
+                id="fat-forma"
+                rotulo="À vista ou parcelado"
+                erros={[...erroDe("forma"), ...erroDe("parcelas")]}
+              >
+                <div className="flex flex-wrap items-center gap-4">
+                  <RadioGroup
+                    id="fat-forma"
+                    value={form.forma ?? ""}
+                    onValueChange={(v) =>
+                      mudar({
+                        forma: v as FormPedido["forma"],
+                        parcelas: v === "parcelado" ? form.parcelas || "2" : "",
+                      })
+                    }
+                    className="flex gap-4"
+                  >
+                    <Opcao valor="avulso" rotulo="À vista" />
+                    <Opcao valor="parcelado" rotulo="Parcelado" />
+                  </RadioGroup>
+                  {form.forma === "parcelado" && (
+                    <label className="flex items-center gap-2 text-sm">
+                      <span>Número de parcelas</span>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={36}
+                        value={form.parcelas}
+                        onChange={(e) => mudar({ parcelas: e.target.value })}
+                        className="num h-9 w-20"
+                      />
+                    </label>
+                  )}
+                </div>
+              </Campo>
+
+              <Campo id="fat-meio" rotulo="Boleto ou pix" erros={erroDe("meio")}>
+                <RadioGroup
+                  id="fat-meio"
+                  value={form.meio ?? ""}
+                  onValueChange={(v) => mudar({ meio: v as FormPedido["meio"] })}
+                  className="flex gap-4"
+                >
+                  <Opcao valor="boleto" rotulo="Boleto" />
+                  <Opcao valor="pix" rotulo="Pix" />
+                </RadioGroup>
+              </Campo>
+
+              <Campo
+                id="fat-vencimento"
+                rotulo="1º vencimento"
+                erros={erroDe("primeiro_vencimento")}
+              >
+                <Input
+                  id="fat-vencimento"
+                  type="date"
+                  value={form.primeiro_vencimento}
+                  onChange={(e) => mudar({ primeiro_vencimento: e.target.value })}
+                  className="num h-9 w-48"
+                />
+                {/* Vencimento no passado não bloqueia (decisão pendente da Ana); o campo só avisa. */}
+                {avisoDoVencimento(form.primeiro_vencimento, hojeSP) && (
+                  <p className="text-[13px] text-muted-foreground">
+                    {avisoDoVencimento(form.primeiro_vencimento, hojeSP)}
+                  </p>
+                )}
+              </Campo>
+
+              <Campo
+                id="fat-competencia"
+                rotulo="Competência (opcional)"
+                ajuda="Vem com o mês do 1º vencimento e acompanha a data até você mudar à mão."
+                erros={erroDe("competencia")}
+              >
+                <Select
+                  value={form.competencia_manual ? form.competencia : "automatica"}
+                  onValueChange={(v) =>
+                    v === "automatica"
+                      ? mudar({ competencia: "", competencia_manual: false })
+                      : mudar({ competencia: v, competencia_manual: true })
+                  }
+                >
+                  <SelectTrigger id="fat-competencia" className="h-9 w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="automatica">
+                      {competenciaDoFormulario({ ...form, competencia_manual: false })
+                        ? `Mês do 1º vencimento (${rotuloMes(competenciaDoFormulario({ ...form, competencia_manual: false }))})`
+                        : "Mês do 1º vencimento"}
+                    </SelectItem>
+                    {opcoesDeCompetencia(
+                      mesCorrenteSP(),
+                      form.competencia_manual ? form.competencia : null,
+                    ).map((o) => (
+                      <SelectItem key={o.valor} value={o.valor}>
+                        {o.rotulo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Campo>
+            </div>
+          </Secao>
+
+          {/* Seção 4 */}
+          <Secao titulo="Mais alguma coisa?">
+            <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
+              <Campo
+                id="fat-observacoes"
+                rotulo="Observações"
+                ajuda="Não é usado para regra: quem confere lê, o Omie não."
+                erros={erroDe("observacoes")}
+                largura="inteira"
+              >
+                <Textarea
+                  id="fat-observacoes"
+                  value={form.observacoes}
+                  rows={3}
+                  maxLength={4000}
+                  onChange={(e) => mudar({ observacoes: e.target.value })}
+                />
+              </Campo>
+            </div>
+          </Secao>
+
+          <Secao
+            titulo="Como o valor fica dividido?"
+            descricao="A última parcela leva os centavos que sobram da divisão. As parcelas que valem são as gravadas no envio."
+          >
+            <PreviaParcelas
+              pronta={previaPronta(valorNum, parcelasNum, form.primeiro_vencimento || null)}
+              // Enquanto a prévia pedida não é a dos campos de agora (meio segundo depois de digitar), ou o
+              // banco ainda responde, a tela espera: nunca mostra a divisão de outro valor.
+              carregando={
+                previa.isFetching ||
+                previaPedida[0] !== valorNum ||
+                previaPedida[1] !== parcelasNum ||
+                previaPedida[2] !== (form.primeiro_vencimento || null)
+              }
+              parcelas={previa.data?.parcelas ?? null}
+              total={previa.data?.total ?? null}
+              erro={previa.error instanceof Error ? previa.error.message : null}
+            />
+          </Secao>
+
+          {/* Rodapé fixo: o que acontece ao enviar e as ações. */}
+          <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background px-4 py-3 md:-mx-6 md:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="max-w-2xl text-[13px] text-muted-foreground">
+                {fraseAoEnviar({
+                  souDono,
+                  nomeDono,
+                  apelido: emissora?.apelido ?? null,
+                  simulacao,
+                })}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {podeDescartar && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={ocupado}
+                    onClick={() => setDescartar(true)}
+                  >
+                    Descartar
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={ocupado}
+                  onClick={() => salvar.mutate()}
+                >
+                  {salvar.isPending ? "Salvando…" : "Salvar rascunho"}
+                </Button>
+                {motivoEnvio ? (
+                  <BotaoComMotivo
+                    rotulo={rotuloEnviar({ souDono, nomeDono })}
+                    motivo={motivoEnvio}
+                    size="sm"
+                  />
+                ) : (
+                  <Button size="sm" disabled={ocupado} onClick={clicarEnviar}>
+                    {enviar.isPending ? "Enviando…" : rotuloEnviar({ souDono, nomeDono })}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <AlertDialog open={descartar} onOpenChange={setDescartar}>
         <AlertDialogContent>
@@ -1169,6 +1200,375 @@ function Opcao({ valor, rotulo }: { valor: string; rotulo: string }) {
   );
 }
 
+/**
+ * "Por qual empresa você vai faturar?" (call de 27/10/2026): o primeiro passo de quem pede em mais de uma empresa, e o
+ * "Trocar empresa" do formulário. Um cartão por empresa, com o apelido e a razão social.
+ */
+function EscolhaEmpresa({
+  empresas,
+  atual,
+  erros,
+  aoEscolher,
+  aoVoltar,
+}: {
+  empresas: EmissoraContexto[];
+  atual: string | null;
+  erros: string[];
+  aoEscolher: (id: string) => void;
+  /** Só quando já há empresa escolhida: volta ao pedido sem trocar. */
+  aoVoltar?: () => void;
+}) {
+  return (
+    <Secao
+      titulo="Por qual empresa você vai faturar?"
+      descricao="O pedido inteiro é da empresa escolhida: clientes, projetos, serviços e o Omie em que a OS nasce."
+    >
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" role="list">
+        {empresas.map((e) => (
+          <button
+            key={e.id}
+            type="button"
+            role="listitem"
+            aria-current={e.id === atual ? "true" : undefined}
+            onClick={() => aoEscolher(e.id)}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-xl border bg-card p-4 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+              e.id === atual && "border-primary",
+            )}
+          >
+            <span className="text-base font-semibold text-foreground">{e.apelido}</span>
+            <span className="text-[13px] text-muted-foreground">{e.razao_social}</span>
+            {e.modo_omie === "simular" && (
+              <span className="text-[13px] text-muted-foreground">Omie em simulação</span>
+            )}
+          </button>
+        ))}
+      </div>
+      {[...new Set(erros)].map((m) => (
+        <MensagemErro key={m} mensagem={m} />
+      ))}
+      {aoVoltar && (
+        <div>
+          <Button variant="outline" size="sm" onClick={aoVoltar}>
+            Voltar ao pedido
+          </Button>
+        </div>
+      )}
+    </Secao>
+  );
+}
+
+const FONTE_CLIENTE: Record<ClienteDaBusca["fonte"], (apelido: string) => string> = {
+  omie: (apelido) => `cadastro do Omie da ${apelido}`,
+  portal: () => "pedido anterior no portal",
+  base: () => "base de clientes",
+};
+
+/**
+ * O campo Cliente (call de 27/10/2026): uma lista com busca pelo nome ou pelo CNPJ/CPF entre os clientes da empresa
+ * (`fat_clientes_busca`), com a saída "cliente novo" para digitar o número. Escolhido, mostra o cliente e "Trocar".
+ */
+function CampoCliente({
+  emissoraId,
+  apelido,
+  documento,
+  nome,
+  aoEscolher,
+  aoDigitar,
+  aoSairDoDigitado,
+  aoLimpar,
+}: {
+  emissoraId: string | null;
+  apelido: string;
+  documento: string;
+  nome: string;
+  aoEscolher: (c: ClienteDaBusca) => void;
+  aoDigitar: (v: string) => void;
+  aoSairDoDigitado: () => void;
+  aoLimpar: () => void;
+}) {
+  const [novo, setNovo] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+  // A busca só sai depois de a pessoa parar de digitar (300 ms).
+  const [pedido, setPedido] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setPedido(texto), 300);
+    return () => clearTimeout(t);
+  }, [texto]);
+  const busca = useClientesFaturamento(aberto ? emissoraId : null, pedido);
+  const curto = pedido.trim().length < 3;
+  const itens = busca.data?.itens ?? [];
+
+  if (novo)
+    return (
+      <div className="space-y-1.5">
+        <Input
+          id="fat-cliente"
+          value={documento}
+          autoFocus
+          autoCapitalize="characters"
+          placeholder="CNPJ ou CPF do cliente novo"
+          onChange={(e) => aoDigitar(e.target.value)}
+          onBlur={aoSairDoDigitado}
+          className="h-9"
+        />
+        <p className="text-[13px] text-muted-foreground">
+          Cliente que ainda não está no Omie: o portal cadastra no envio, com os dados da Receita.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setNovo(false);
+              aoLimpar();
+            }}
+            className="text-primary-text underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Voltar à lista
+          </button>
+        </p>
+      </div>
+    );
+
+  if (documento)
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1.5">
+        <span className="flex flex-col">
+          <span className="text-sm text-foreground">{nome || "Cliente sem nome"}</span>
+          <span className="text-[13px] text-muted-foreground">
+            {formatarDocumento(documento) ?? documento}
+          </span>
+        </span>
+        <Button id="fat-cliente" variant="outline" size="sm" onClick={aoLimpar}>
+          Trocar cliente
+        </Button>
+      </div>
+    );
+
+  return (
+    <Popover open={aberto} onOpenChange={setAberto}>
+      <PopoverTrigger asChild>
+        <Button
+          id="fat-cliente"
+          variant="outline"
+          className="h-9 w-full justify-start font-normal text-muted-foreground"
+        >
+          <Search className="size-4" aria-hidden />
+          Busque pelo nome ou pelo CNPJ/CPF
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(36rem,90vw)] p-2">
+        <label className="relative block">
+          <span className="sr-only">Buscar cliente</span>
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            autoFocus
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Nome, nome fantasia ou CNPJ/CPF"
+            className="h-9 pl-8"
+          />
+        </label>
+        <ul
+          className="mt-2 max-h-72 overflow-auto"
+          role="listbox"
+          aria-label={`Clientes da ${apelido}`}
+        >
+          {curto ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              Digite 3 letras do nome ou o começo do CNPJ/CPF.
+            </li>
+          ) : busca.isPending || (busca.isFetching && busca.isPlaceholderData) ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground" role="status">
+              Buscando…
+            </li>
+          ) : busca.error ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              {busca.error instanceof Error ? busca.error.message : "A busca não respondeu agora."}
+            </li>
+          ) : itens.length === 0 ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              Nenhum cliente da {apelido} com esse texto.
+            </li>
+          ) : (
+            itens.map((c) => (
+              <li key={c.documento}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => {
+                    aoEscolher(c);
+                    setAberto(false);
+                    setTexto("");
+                  }}
+                  className="flex w-full flex-col rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span>
+                    {c.nome}
+                    {c.fantasia && <span className="text-muted-foreground"> · {c.fantasia}</span>}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {formatarDocumento(c.documento)} · {FONTE_CLIENTE[c.fonte](apelido)}
+                  </span>
+                </button>
+              </li>
+            ))
+          )}
+          {!curto && busca.data?.mais && (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              Mostrando os {busca.data.limite} primeiros. Escreva mais do nome para achar.
+            </li>
+          )}
+          {!curto && busca.data?.fontes && !busca.data.fontes.omie && (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              O cadastro do Omie da {apelido} ainda não está no Brain: a lista traz pedidos
+              anteriores e a base de clientes.
+            </li>
+          )}
+        </ul>
+        <div className="mt-2 border-t pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              setNovo(true);
+              setAberto(false);
+              if (/^[0-9./ -]+$/.test(texto.trim())) aoDigitar(texto);
+              setTexto("");
+            }}
+            className="w-full rounded-md px-2 py-1.5 text-left text-sm text-primary-text outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Cliente novo: digitar o CNPJ ou CPF
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * O campo Projeto (call de 27/10/2026): a lista dos projetos que a empresa já usa (`fat_projetos`: lançamentos do Omie
+ * e pedidos do portal), com busca, e "usar como projeto novo" para o que ainda não existe.
+ */
+function CampoProjeto({
+  emissoraId,
+  apelido,
+  valor,
+  aoEscolher,
+}: {
+  emissoraId: string | null;
+  apelido: string;
+  valor: string;
+  aoEscolher: (v: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+  const projetos = useProjetosFaturamento(emissoraId);
+  const { itens, novo } = useMemo(
+    () => filtrarProjetos(projetos.data?.itens ?? [], texto),
+    [projetos.data, texto],
+  );
+  const MOSTRA = 50;
+  const escolher = (v: string) => {
+    aoEscolher(v);
+    setAberto(false);
+    setTexto("");
+  };
+  return (
+    <Popover open={aberto} onOpenChange={setAberto}>
+      <PopoverTrigger asChild>
+        <Button id="fat-projeto" variant="outline" className="h-9 w-full justify-start font-normal">
+          {valor ? (
+            <span className="truncate">{valor}</span>
+          ) : (
+            <span className="text-muted-foreground">Escolha ou digite o projeto</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(32rem,90vw)] p-2">
+        <label className="relative block">
+          <span className="sr-only">Buscar projeto</span>
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            autoFocus
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && novo) {
+                e.preventDefault();
+                escolher(novo);
+              }
+            }}
+            placeholder="Nome do projeto"
+            className="h-9 pl-8"
+          />
+        </label>
+        <ul
+          className="mt-2 max-h-72 overflow-auto"
+          role="listbox"
+          aria-label={`Projetos da ${apelido}`}
+        >
+          {novo && (
+            <li>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                onClick={() => escolher(novo)}
+                className="w-full rounded-md px-2 py-1.5 text-left text-sm text-primary-text outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Usar “{novo}” como projeto novo
+              </button>
+            </li>
+          )}
+          {projetos.isPending ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground" role="status">
+              Carregando os projetos da {apelido}…
+            </li>
+          ) : projetos.error ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              A lista de projetos não respondeu agora. Digite o projeto acima.
+            </li>
+          ) : itens.length === 0 && !novo ? (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              A {apelido} ainda não tem projeto na lista. Digite o projeto acima.
+            </li>
+          ) : (
+            itens.slice(0, MOSTRA).map((i) => (
+              <li key={i.projeto}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i.projeto === valor}
+                  onClick={() => escolher(i.projeto)}
+                  className="flex w-full flex-col rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span>{i.projeto}</span>
+                  {rotuloMes(i.ultimo) && (
+                    <span className="text-[13px] text-muted-foreground">
+                      Usado até {rotuloMes(i.ultimo)}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))
+          )}
+          {itens.length > MOSTRA && (
+            <li className="px-2 py-1.5 text-[13px] text-muted-foreground">
+              Mostrando {MOSTRA} de {itens.length}. Escreva parte do nome para achar.
+            </li>
+          )}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** O quadro do cliente: nome, município, situação na Receita e de onde veio (contrato, Seção 1). */
 function QuadroCliente({
   tipo,
@@ -1178,7 +1578,7 @@ function QuadroCliente({
   semEmpresa,
   erro,
 }: {
-  tipo: "pj" | "pf";
+  tipo: TipoTomador;
   buscando: boolean;
   tomador: TomadorConferido | null;
   documento: string;
@@ -1207,9 +1607,11 @@ function QuadroCliente({
   if (!tomador || normalizarDocumento(tomador.documento) !== normalizarDocumento(documento)) {
     return (
       <div className="rounded-xl border border-dashed bg-card p-3 text-[13px] text-muted-foreground">
-        {tipo === "pj"
-          ? "Com o CNPJ válido, o portal busca o cliente na base e na Receita."
-          : "PF: o portal confere o dígito; o nome é digitado."}
+        {!normalizarDocumento(documento)
+          ? "Escolhido o cliente, o portal confere a situação dele na Receita."
+          : tipo === "pj"
+            ? "Com o CNPJ completo, o portal confere o cliente na Receita."
+            : "PF: o portal confere o dígito do CPF."}
       </div>
     );
   }
@@ -1222,7 +1624,7 @@ function QuadroCliente({
   if (tipo === "pf")
     return (
       <div className="rounded-xl border bg-card p-3 text-sm text-foreground">
-        CPF válido. Digite o nome do cliente.
+        CPF válido. Confira o nome do cliente.
       </div>
     );
   const ativa = tomador.situacao === "ATIVA";

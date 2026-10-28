@@ -693,11 +693,6 @@ function Tabela({
                   </TableCell>
                   <TableCell className="min-w-[12rem] text-[13px]">
                     {textoOndeParou(i, hoje)}
-                    {i.pipefy_erro && (
-                      <span className="block text-danger">
-                        Pipefy recusou o card: &lsquo;{i.pipefy_erro}&rsquo;
-                      </span>
-                    )}
                   </TableCell>
                   <TableCell className="min-w-[10rem] text-[13px]">
                     {textoProximaAcao(i, hoje, agora)}
@@ -922,9 +917,8 @@ function ResumoParaConferir({ f }: { f: NonNullable<ReturnType<typeof useFichaPe
           .filter(Boolean)
           .join(" · ") || "—"}
       </Bloco>
-      <Bloco titulo="Departamento e observações">
-        <p>{p.departamento ?? "Sem departamento"}</p>
-        <p className="text-[13px] text-muted-foreground">{p.observacoes ?? "—"}</p>
+      <Bloco titulo="Observações">
+        <p>{p.observacoes ?? "—"}</p>
       </Bloco>
       <Bloco titulo="Dono e autor">
         {[
@@ -956,7 +950,7 @@ function ResumoParaConferir({ f }: { f: NonNullable<ReturnType<typeof useFichaPe
         ) : null}
         {/* O cliente no Omie (já existia ou cadastrado pelo portal), a OS e a nota: as linhas da Ficha. */}
         <div className="mt-2">
-          <LinhasDoOmie ficha={f} compacto soOmie />
+          <LinhasDoOmie ficha={f} compacto />
         </div>
       </Bloco>
     </div>

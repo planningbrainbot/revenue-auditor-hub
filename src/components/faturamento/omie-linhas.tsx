@@ -1,43 +1,34 @@
-import { Copy, ExternalLink, RotateCw } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
-import { useAcaoPedido } from "@/hooks/use-acao-pedido";
 import { diaSP } from "@/lib/faturamento/formato";
-import { alvoDaFicha, linhasIntegracao } from "@/lib/faturamento/ficha";
+import { linhasIntegracao } from "@/lib/faturamento/ficha";
 import type { FichaPedido } from "@/lib/faturamento/tipos";
 import { cn } from "@/lib/utils";
 
 /**
- * "Onde está no Omie e no Pipefy?": uma linha por etapa do envio, em português, a mesma na Ficha e no `Sheet`
+ * "Onde está no Omie?": uma linha por etapa do envio, em português, a mesma na Ficha e no `Sheet`
  * da Fila da tesouraria (contratos `faturamento-pedido.md` e `faturamento-tesouraria.md`).
  *
  * "Abrir no Omie" virou "Copiar número da OS": o conector não devolve um link estável da OS no Omie (só o da
  * nota), e um link montado à mão quebraria. Divergência registrada nos dois contratos (decisão do coordenador
  * de 20/10/2026).
  *
- * Card do Pipefy em erro: "Reenviar o card" na própria linha, da tesouraria (`acoes.reenviar_pipefy`); os outros
- * veem o botão desabilitado com o motivo do banco.
+ * A linha do card do Pipefy (e o "Reenviar o card") saiu na call de 27/10/2026: o portal não usa mais o Pipefy.
  */
 export function LinhasDoOmie({
   ficha,
   compacto = false,
-  soOmie = false,
   falhaEm = null,
 }: {
   ficha: FichaPedido;
   compacto?: boolean;
   /** A última leitura que falhou na empresa (`fat_contexto`), para "a leitura seguinte falhou às {hora}". */
   falhaEm?: string | null;
-  /** No `Sheet` da Fila o bloco é "No Omie": a linha do Pipefy só entra quando o card deu erro. */
-  soOmie?: boolean;
 }) {
   const hoje = diaSP(new Date()) as string;
-  const linhas = linhasIntegracao(ficha, hoje, falhaEm).filter(
-    (l) => !soOmie || l.chave !== "pipefy" || l.erro,
-  );
-  const reenvio = ficha.acoes?.reenviar_pipefy;
-  const acao = useAcaoPedido();
+  const linhas = linhasIntegracao(ficha, hoje, falhaEm);
   const os = ficha.pedido.omie.os_codigo;
   const simulado = ficha.pedido.simulacao || ficha.pedido.status === "simulado";
 
@@ -83,27 +74,6 @@ export function LinhasDoOmie({
               <BotaoComMotivo
                 rotulo="Copiar número da OS"
                 motivo={simulado ? "Em simulação não há OS no Omie" : "Ainda não há OS no Omie"}
-                variant="outline"
-                size="sm"
-              />
-            ))}
-          {l.chave === "pipefy" &&
-            l.erro &&
-            reenvio &&
-            (reenvio.pode ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={acao.isPending}
-                onClick={() => acao.mutate({ acao: "reenviar_pipefy", alvo: alvoDaFicha(ficha) })}
-              >
-                <RotateCw className="size-4" aria-hidden />
-                {acao.isPending ? "Enviando…" : "Reenviar o card"}
-              </Button>
-            ) : (
-              <BotaoComMotivo
-                rotulo="Reenviar o card"
-                motivo={reenvio.motivo ?? "Ação indisponível agora."}
                 variant="outline"
                 size="sm"
               />

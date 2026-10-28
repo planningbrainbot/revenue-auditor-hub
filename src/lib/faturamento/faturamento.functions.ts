@@ -11,10 +11,10 @@ import {
   USER_AGENT_CNPJA,
 } from "./receita";
 import type {
+  BuscaClientes,
   CatalogoServicos,
   ConfigFaturamento,
   Contexto,
-  Departamentos,
   DonoRemovido,
   DonoSalvo,
   EmissoraConfigurada,
@@ -25,6 +25,7 @@ import type {
   PedidoMudou,
   PedidoSalvo,
   PreviaParcelas,
+  ProjetosEmpresa,
   Resumo,
   ServicoAtivado,
   ServicoPadroesSalvo,
@@ -282,11 +283,33 @@ export const carregarServicosFaturamento = createServerFn({ method: "GET" })
     ),
   );
 
-/** §1.7 · As 19 opções de Departamento (as mesmas do Contas a Pagar). */
-export const carregarDepartamentosFaturamento = createServerFn({ method: "GET" })
+/**
+ * Call de 27/10/2026 · Os clientes da empresa por nome ou CNPJ/CPF, para a lista do campo Cliente (`fat_clientes_busca`:
+ * Omie da empresa, pedidos anteriores e base de clientes). Menos de 3 caracteres: lista vazia, sem consulta.
+ */
+export const buscarClientesFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(({ context }) =>
-    chamar<Departamentos>(context.supabase, "fat_departamentos", {}, "A leitura dos departamentos"),
+  .inputValidator(entrada(z.object({ emissora: uuid, texto: z.string().max(120) }).strict()))
+  .handler(({ context, data }) =>
+    chamar<BuscaClientes>(
+      context.supabase,
+      "fat_clientes_busca",
+      { p_emissora: data.emissora, p_texto: data.texto },
+      "A busca do cliente",
+    ),
+  );
+
+/** Call de 27/10/2026 · Os projetos já usados pela empresa, para a lista do campo Projeto (`fat_projetos`). */
+export const carregarProjetosFaturamento = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ emissora: uuid }).strict()))
+  .handler(({ context, data }) =>
+    chamar<ProjetosEmpresa>(
+      context.supabase,
+      "fat_projetos",
+      { p_emissora: data.emissora },
+      "A leitura dos projetos da empresa",
+    ),
   );
 
 // ------------------------------------------------------------------ Receita (CNPJá aberta)

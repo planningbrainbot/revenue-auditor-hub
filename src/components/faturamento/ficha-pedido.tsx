@@ -199,7 +199,7 @@ function Conteudo({ f, volta }: { f: FichaPedido; volta: string }) {
 
       <OQueFoiPedido f={f} />
       <Parcelas f={f} />
-      <OmieEPipefy f={f} falhaEm={falhaEm} />
+      <NoOmie f={f} falhaEm={falhaEm} />
       <LinhaDoTempo f={f} />
 
       <Procedencia fonte={procedencia.fonte} atualizadoEm={procedencia.atualizadoEm} />
@@ -276,7 +276,6 @@ function OQueFoiPedido({ f }: { f: FichaPedido }) {
                 : "—",
             ],
             ["Descrição da nota", p.descricao_nf ?? "—"],
-            ["Departamento", p.departamento ?? "—"],
             ["Observações", p.observacoes ?? "—"],
           ]}
         />
@@ -373,18 +372,17 @@ function Parcelas({ f }: { f: FichaPedido }) {
   );
 }
 
-// ------------------------------------------------------------------ Omie e Pipefy
+// ------------------------------------------------------------------ Omie
 
-function OmieEPipefy({ f, falhaEm }: { f: FichaPedido; falhaEm: string | null }) {
+/** "Onde está no Omie?". A linha e os detalhes do Pipefy saíram na call de 27/10/2026. */
+function NoOmie({ f, falhaEm }: { f: FichaPedido; falhaEm: string | null }) {
   const p = f.pedido;
   const simulado = p.simulacao || p.status === "simulado";
-  const tecnicos = [...(f.omie.envios ?? []), ...(f.pipefy.envios ?? [])].some(
-    (e) => "payload" in e || "resposta" in e,
-  );
+  const tecnicos = (f.omie.envios ?? []).some((e) => "payload" in e || "resposta" in e);
   const simuladoEm = f.eventos.find((e) => e.evento === "omie_simulado")?.em ?? p.status_em;
 
   return (
-    <Secao titulo="Onde está no Omie e no Pipefy?">
+    <Secao titulo="Onde está no Omie?">
       {simulado && (
         <div className="space-y-3 rounded-xl border bg-card p-4">
           <p className="text-sm text-foreground">
@@ -408,11 +406,11 @@ function OmieEPipefy({ f, falhaEm }: { f: FichaPedido; falhaEm: string | null })
             Detalhes técnicos
           </summary>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            O envio completo ao Omie e ao Pipefy, como o conector guardou (sem chave). Só a
-            tesouraria e a controladoria veem.
+            O envio completo ao Omie, como o conector guardou (sem chave). Só a tesouraria e a
+            controladoria veem.
           </p>
           <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs text-foreground">
-            {JSON.stringify({ omie: f.omie.envios, pipefy: f.pipefy.envios }, null, 2)}
+            {JSON.stringify({ omie: f.omie.envios }, null, 2)}
           </pre>
         </details>
       )}

@@ -4,12 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/use-auth";
 import { desembrulhar, valeTentarDeNovo } from "@/lib/faturamento/erros";
 import {
+  buscarClientesFaturamento,
   carregarConfigFaturamento,
   carregarContextoFaturamento,
-  carregarDepartamentosFaturamento,
   carregarFilaTesouraria,
   carregarPedidoFaturamento,
   carregarPedidosFaturamento,
+  carregarProjetosFaturamento,
   carregarResumoFaturamento,
   carregarServicosFaturamento,
   previaParcelasFaturamento,
@@ -129,15 +130,34 @@ export function useServicosFaturamento(emissora: string | null) {
   });
 }
 
-/** `ops.fat_departamentos`: as 19 opções do campo Departamento. */
-export function useDepartamentosFaturamento() {
+/**
+ * `ops.fat_clientes_busca`: os clientes da empresa para a lista do campo Cliente (call de 27/10/2026). Só consulta com
+ * 3 caracteres ou mais; enquanto o texto novo responde, a lista anterior fica na tela.
+ */
+export function useClientesFaturamento(emissora: string | null, texto: string) {
   const { user } = useAuth();
-  const fn = useServerFn(carregarDepartamentosFaturamento);
+  const fn = useServerFn(buscarClientesFaturamento);
+  const t = texto.trim();
   return useQuery({
-    queryKey: [...CHAVE_FATURAMENTO, "departamentos"],
-    enabled: !!user?.id,
-    queryFn: async () => desembrulhar(await fn()),
-    staleTime: 60 * 60_000,
+    queryKey: [...CHAVE_FATURAMENTO, "clientes", user?.id, emissora, t],
+    enabled: !!user?.id && !!emissora && t.length >= 3,
+    queryFn: async () =>
+      desembrulhar(await fn({ data: { emissora: emissora as string, texto: t } })),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    retry: valeTentarDeNovo,
+  });
+}
+
+/** `ops.fat_projetos`: os projetos já usados pela empresa (o campo Projeto do pedido, call de 27/10/2026). */
+export function useProjetosFaturamento(emissora: string | null) {
+  const { user } = useAuth();
+  const fn = useServerFn(carregarProjetosFaturamento);
+  return useQuery({
+    queryKey: [...CHAVE_FATURAMENTO, "projetos", user?.id, emissora],
+    enabled: !!user?.id && !!emissora,
+    queryFn: async () => desembrulhar(await fn({ data: { emissora: emissora as string } })),
+    staleTime: 5 * 60_000,
     retry: valeTentarDeNovo,
   });
 }

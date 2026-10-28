@@ -1,12 +1,12 @@
 // A Ficha do pedido (`/faturamento/pedido/$id`, contrato `docs/design/contratos/faturamento-pedido.md`):
 // as ações por situação (uma `default`, as outras `outline`, desabilitadas com o motivo que o banco manda),
-// a faixa da situação, os quatro números do resumo e as linhas "Onde está no Omie e no Pipefy?".
+// a faixa da situação, os quatro números do resumo e as linhas "Onde está no Omie?".
 //
 // Quem pode cada ação é o banco (`fat_pedido.acoes`, API.md §1.4); aqui só a ordem, o rótulo e a frase.
 // Nada soma dinheiro: os valores do resumo vêm prontos da RPC (ARQUETIPOS §4).
 //
 // Módulo puro (sem React, sem `@/`), testado em tests/faturamento-ficha.test.mjs.
-import type { AcaoFicha, EnvioOmie, EnvioPipefy, FichaPedido, Parcela, Situacao } from "./tipos.ts";
+import type { AcaoFicha, EnvioOmie, FichaPedido, Parcela, Situacao } from "./tipos.ts";
 import {
   dataCompleta,
   diaEHora,
@@ -218,13 +218,13 @@ export function resumoDaFicha(f: FichaPedido, hoje?: string): NumeroFicha[] {
   ];
 }
 
-// ------------------------------------------------------------------ Omie e Pipefy
+// ------------------------------------------------------------------ Omie
 
 export interface LinhaIntegracao {
-  chave: "cliente" | "os" | "nota" | "pipefy" | "leitura";
+  chave: "cliente" | "os" | "nota" | "leitura";
   titulo: string;
   texto: string;
-  /** Erro legível do Omie ou do Pipefy: a linha leva o tom de perigo. */
+  /** Erro legível do Omie: a linha leva o tom de perigo. */
   erro: boolean;
   link?: { href: string; rotulo: string };
 }
@@ -250,8 +250,6 @@ const OPERACAO_LEGIVEL: Record<string, string> = {
   incluir_os: "a criação da OS",
   alterar_os: "a alteração da OS",
   faturar_os: "o faturamento",
-  criar_card: "a criação do card",
-  mover_fase: "a mudança de fase do card",
 };
 
 /**
@@ -261,7 +259,7 @@ const OPERACAO_LEGIVEL: Record<string, string> = {
 function linhaParada(
   e: { status: string } | null,
   envios: { status: string; operacao: string }[],
-  destino: "Omie" | "Pipefy",
+  destino: "Omie",
 ): string | null {
   if (!e) return null;
   if (e.status === "cancelado")
@@ -281,7 +279,8 @@ function linhaPendente(e: EnvioOmie, hoje: string, rotulo: string): string {
 }
 
 /**
- * "Onde está no Omie e no Pipefy?" (contrato, mesma seção): uma linha por etapa do envio, em português.
+ * "Onde está no Omie?" (contrato, mesma seção): uma linha por etapa do envio, em português. A linha do card do Pipefy
+ * saiu na call de 27/10/2026: o portal não usa mais o Pipefy.
  * @param hoje `AAAA-MM-DD` em São Paulo.
  */
 export function linhasIntegracao(
@@ -367,41 +366,6 @@ export function linhasIntegracao(
     erroNota = true;
   }
   linhas.push({ chave: "nota", titulo: "Nota", texto: textoNota, erro: erroNota, link: linkNota });
-
-  // Pipefy
-  const cards = f.pipefy.envios ?? [];
-  const ultimo: EnvioPipefy | null = cards.length ? cards[cards.length - 1] : null;
-  const cardUrl = [...cards].reverse().find((c) => c.card_url)?.card_url ?? null;
-  let textoPipefy = "Ainda não há card: ele nasce quando o pedido entra na fila do Omie.";
-  let erroPipefy = false;
-  if (ultimo) {
-    if (ultimo.status === "erro") {
-      textoPipefy = ultimo.erro_legivel ?? "O Pipefy recusou o card.";
-      erroPipefy = true;
-    } else if (linhaParada(ultimo, cards, "Pipefy")) {
-      textoPipefy = linhaParada(ultimo, cards, "Pipefy") as string;
-    } else if (
-      ultimo.status === "simulado" ||
-      (!p.emissora.pipefy_sync && ultimo.status !== "ok")
-    ) {
-      textoPipefy = ultimo.fase
-        ? `Card montado e guardado, não enviado. Iria para a fase ${ultimo.fase}.`
-        : "Card montado e guardado, não enviado (o Pipefy está desligado para a empresa).";
-    } else if (ultimo.status === "ok") {
-      textoPipefy = ultimo.fase
-        ? `Fase ${ultimo.fase} no pipe Contas a Receber`
-        : "Card no pipe Contas a Receber";
-    } else {
-      textoPipefy = "Na fila do Pipefy.";
-    }
-  }
-  linhas.push({
-    chave: "pipefy",
-    titulo: "Card no Pipefy",
-    texto: textoPipefy,
-    erro: erroPipefy,
-    link: cardUrl ? { href: cardUrl, rotulo: "Abrir card" } : undefined,
-  });
 
   // Última leitura
   const lido = p.omie.lido_em;
