@@ -6897,3 +6897,11 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Operação diária com abas Geral | Pré-venda | Venda (o antigo Forecast). Consultoria e Cella num grupo "Parceiros" do menu.
 
 **Como:** migration `20261028150000` (`ops.monetizacao_pre_venda_atividades`, uma linha por atividade, mesmas regras do ritmo e dos atrasados; ensaio em produção bateu com os cartões). `listasDoRitmo` e `situacaoDaAtividade` em `src/lib/monetizacao/pre-venda.ts`; `ConferenciaAtividades` em `pre-venda-ritmo.tsx`. `SeletorSecao` em `seletor-base.tsx`, nos cabeçalhos do pipe 39 e do pipe 40. A `aba` da URL não mudou: os links antigos valem. Contratos: adendos de 28/10 em `monetizacao-pre-venda.md` e `monetizacao-operacao.md`; `NAVEGACAO.md` atualizado.
+
+## [2026-10-28] Atualização da base pela unidade: entrega no Ops e fatia 0 de segurança
+
+**Contexto:** PRD aprovado em 28/10/2026 (`wiki/prds/2026-10-minha-unidade-atualizacao-da-base.md`, no repo do wiki): o sócio regional propõe mudanças na Base de clientes (contatos e contato do NPS, churn, não reconheço, cliente novo) e o CS aprova antes de qualquer gravação no Pipefy, exceto o card de churn, que nasce na abertura em Contatar ASAP.
+
+**Decisão:** a entrega é no Ops, não no sistema novo (regra do dono de 23/10/2026: o sistema novo é só o broker). As decisões padrão D-01 a D-03 do guia de módulo ficam como exceção: chaves novas `edit.base_unidade` e `manage.base_pedidos`, funções `SECURITY DEFINER` no schema `ops`, tabela `ops.base_pedidos`. Stakeholder com um registro por pessoa e por cliente; contato do NPS como campo Sim/Não por registro; lançamento para todas as unidades, sem piloto.
+
+**Fatia 0, antes de qualquer escrita:** `ops.contatos` não tinha escopo de unidade e o sócio (`view.contatos`) lia os 2.859 contatos da rede. Migration `20261028160000_base_fatia0_escopo_contatos.sql`: RESTRICTIVE `escopo_unidade` em `contatos` pela unidade da empresa, `cpf` fora do grant de `authenticated`, `v_clientes_diretorio` sem grant para `authenticated` e `v_nps_regional` com chave e escopo no WHERE. Ensaio em transação desfeita (28/10): sócio de Patos de Minas de 2.859 para 40 contatos e de 334 para 32 pesquisas de NPS; `cpf` e `v_clientes_diretorio` negados; CS sem mudança (2.859 e 334). O diálogo de contatos deixa de pedir `cpf` no mesmo deploy; o código sobe antes da migration.

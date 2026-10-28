@@ -17,7 +17,6 @@ import { fmtWhatsapp, whatsappHref } from "@/lib/telefone";
 export type Contato = {
   id: number;
   nome_completo: string | null;
-  cpf: string | null;
   email: string | null;
   whatsapp: string | null;
   cargo: string | null;
@@ -49,7 +48,9 @@ export function ContatosClienteDialog({
     (async () => {
       const { data, error } = await supabase
         .from("contatos")
-        .select("id,nome_completo,cpf,email,whatsapp,cargo")
+        // Sem cpf: a coluna não tem grant para authenticated (fatia 0 do PRD
+        // de atualização da base).
+        .select("id,nome_completo,email,whatsapp,cargo")
         .eq("empresa_id", cliente.id)
         .order("nome_completo", { ascending: true });
       if (!mounted) return;
