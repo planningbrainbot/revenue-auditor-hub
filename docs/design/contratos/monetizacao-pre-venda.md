@@ -143,3 +143,10 @@ Pedido do Pedro: "tem card com atividade que tá sendo registrado como sem ativi
 - **Cartão "Atividades feitas"** (substitui "Feitas hoje"): itens da cadência marcados como feitos nos dias do período, pelo `feita_em`, de qualquer vencimento, sem o e-mail de apresentação do D0 (nasce feito na mudança de etapa). Nota: "N estavam atrasadas", as que venceram em dia anterior ao da conclusão. Fonte: `ritmo.atividades_concluidas` e `ritmo.concluidas_atrasadas` (migration `20261028120000`).
 - O gráfico "A cadência está em dia?" e "Vencidas agora" não mudam: seguem pelo vencimento.
 - Tarefa fora da cadência (follow manual, "Conseguir o contato") continua fora: o Brain só guarda as atividades que a cadência criou.
+
+## Adendo · 28/10/2026 (tarde) · Feita conta no dia em que foi feita; conferência na aba lateral
+
+- Pedido do Pedro: "a atividade feita precisa ser contada no dia que foi feita, independente de estar atrasada ou não"; "quero clicar em feitas hoje e poder auditar em uma aba lateral direita. Não quero que a tela role pra baixo".
+- **Gráfico "A cadência está em dia?":** a barra Feitas passa a contar pelo dia em que a atividade foi feita (`ritmo.atividades_concluidas`), de qualquer vencimento. Vencidas e A vencer hoje seguem pelo vencimento. Entra dia só com feitas. O cabeçalho de cada pessoa diz "N feitas · N vencidas".
+- **Aba lateral (Sheet à direita):** "Atividades feitas" e "Vencidas agora" abrem a lista das atividades, uma por linha; clicar num dia do gráfico abre as do dia (feitas no dia e as que venceram no dia e seguem abertas). Colunas: empresa (abre o card no Pipedrive), pessoa (com os dois), atividade, vencimento, feita em, situação (feita no dia, feita antes, feita com atraso, vencida, a fazer). "Vencidas agora" deixa de rolar a tela até a caixa "Atrasados na cadência", que continua na tela.
+- **Fonte:** `ops.monetizacao_pre_venda_atividades(de, ate)` (migration `20261028150000`), com as mesmas regras do ritmo e dos atrasados; o ensaio em produção bateu com os cartões (53, 54 e 1 feitas da Heloá em 26, 27 e 28/10; 49, 21 e 21 previstas; 12 vencidas agora).

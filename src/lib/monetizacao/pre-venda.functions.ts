@@ -6,11 +6,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   mensagemDeErroPreVenda,
+  normalizarAtividades,
   normalizarAtrasados,
   normalizarAvaliacoes,
   normalizarFicha,
   normalizarRitmo,
   type Atrasado,
+  type AtividadePreVenda,
   type FichaLigacao,
   type LinhaAvaliacao,
   type LinhaRitmo,
@@ -62,6 +64,20 @@ export async function lerAtrasados(context: { supabase: unknown }): Promise<Atra
     "os atrasados da cadência",
   );
   return normalizarAtrasados(data);
+}
+
+/** Cada atividade de cadência por trás dos números do Ritmo, para a aba lateral (28/10/2026). */
+export async function lerAtividades(
+  context: { supabase: unknown },
+  p: { de: string; ate: string },
+): Promise<AtividadePreVenda[]> {
+  const data = await rpc(
+    context,
+    "monetizacao_pre_venda_atividades",
+    { p_de: p.de, p_ate: p.ate },
+    "as atividades da cadência",
+  );
+  return normalizarAtividades(data);
 }
 
 /** As atividades das cadências ativas, para a visão Hoje (14/10/2026). */
@@ -117,6 +133,11 @@ export const carregarRitmoPreVenda = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(periodo)
   .handler(({ context, data }) => lerRitmo(context, data));
+
+export const carregarAtividadesPreVenda = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(periodo)
+  .handler(({ context, data }) => lerAtividades(context, data));
 
 export const carregarAtrasadosPreVenda = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

@@ -12,9 +12,12 @@ import {
   falasDoTrecho,
   faixa,
   filtrarLigacoes,
+  diaEmSaoPaulo,
   kpisRitmo,
+  listasDoRitmo,
   mensagemDeErroPreVenda,
   nomeDaPessoa,
+  normalizarAtividades,
   normalizarAtrasados,
   normalizarAvaliacoes,
   normalizarFicha,
@@ -26,6 +29,7 @@ import {
   serie,
   serieAbordagens,
   serieAtividades,
+  situacaoDaAtividade,
   situacaoDaLigacao,
   uteisAteHoje,
 } from "../src/lib/monetizacao/pre-venda.ts";
@@ -263,12 +267,127 @@ test("Ritmo: atividades feitas contam pelo dia em que foram feitas, não pelo ve
   const semana = { de: "2026-10-26", ate: "2026-10-28", hoje: "2026-10-28" };
   assert.equal(kpisRitmo(linhas, [], pessoasDoRecorte(linhas, H), semana).feitas, 107);
   assert.equal(kpisRitmo(linhas, [], pessoasDoRecorte(linhas), semana).feitas, 112);
-  // O gráfico da cadência segue pelo vencimento.
-  assert.equal(serieAtividades(linhas, H, ontem)[0].feitas, 27);
+  // No gráfico, as feitas também contam no dia em que foram feitas (28/10/2026); vencidas e a vencer, pelo vencimento.
+  const [d26, d27] = serieAtividades(linhas, H, semana);
+  assert.deepEqual([d26.feitas, d26.vencidas, d26.aVencer, d26.previstas], [53, 22, 0, 49]);
+  // Dia só com feitas (nada vencia nele) também aparece.
+  assert.deepEqual([d27.dia, d27.feitas, d27.previstas], ["2026-10-27", 54, 0]);
+});
+
+test("Ritmo: a aba lateral confere cada número, atividade por atividade (28/10/2026)", () => {
+  const agora = Date.parse("2026-10-28T13:00:00Z"); // 10h em São Paulo
+  const atv = normalizarAtividades([
+    // Venceu 23/10, feita 26/10 às 14h34: conta em 26/10, atrasada.
+    {
+      deal_id: 1,
+      empresa: "A",
+      user_id: H,
+      atividade: "D2 · Ligação · tarde",
+      vence: "2026-10-23T17:00:00+00:00",
+      feita: true,
+      feita_em: "2026-10-26T17:34:00+00:00",
+      cadencia_ativa: true,
+      url: "u1",
+    },
+    // Feita às 23h de 26/10 em São Paulo = 02h de 27/10 em UTC: conta em 26/10.
+    {
+      deal_id: 2,
+      empresa: "B",
+      user_id: H,
+      atividade: "D1 · WhatsApp · manhã",
+      vence: "2026-10-26T12:00:00+00:00",
+      feita: true,
+      feita_em: "2026-10-27T02:00:00+00:00",
+      cadencia_ativa: true,
+    },
+    // E-mail de apresentação do D0: sai sozinho, fora das feitas.
+    {
+      deal_id: 3,
+      empresa: "C",
+      user_id: H,
+      atividade: "D0 · E-mail de apresentação · manhã",
+      vence: "2026-10-26T12:00:00+00:00",
+      feita: true,
+      feita_em: "2026-10-26T12:01:00+00:00",
+      automatica: true,
+      cadencia_ativa: true,
+    },
+    // Venceu 26/10 e segue aberta: vencida agora e na barra de 26/10.
+    {
+      deal_id: 4,
+      empresa: "D",
+      user_id: H,
+      atividade: "D3 · Ligação · manhã",
+      vence: "2026-10-26T12:00:00+00:00",
+      feita: false,
+      cadencia_ativa: true,
+    },
+    // Cadência encerrada: não entra em "vencidas agora".
+    {
+      deal_id: 5,
+      empresa: "E",
+      user_id: H,
+      atividade: "D4 · Ligação · tarde",
+      vence: "2026-10-25T17:00:00+00:00",
+      feita: false,
+      cadencia_ativa: false,
+    },
+    // De outra pessoa: fora do recorte da Heloá.
+    {
+      deal_id: 6,
+      empresa: "F",
+      user_id: M,
+      atividade: "D1 · Ligação · manhã",
+      vence: "2026-10-26T12:00:00+00:00",
+      feita: true,
+      feita_em: "2026-10-26T13:00:00+00:00",
+      cadencia_ativa: true,
+    },
+    // Vence hoje à tarde: a fazer.
+    {
+      deal_id: 7,
+      empresa: "G",
+      user_id: H,
+      atividade: "D5 · Ligação · tarde",
+      vence: "2026-10-28T17:00:00+00:00",
+      feita: false,
+      cadencia_ativa: true,
+    },
+  ]);
+  const heloa = [{ id: H, nome: "Heloá" }];
+  const l = listasDoRitmo(atv, heloa, { de: "2026-10-26", ate: "2026-10-26" }, agora);
+  assert.deepEqual(
+    l.feitas.map((a) => a.deal_id),
+    [2, 1],
+    "mais recentes primeiro, sem a automática nem a de outra pessoa",
+  );
+  assert.deepEqual(
+    l.vencidasAgora.map((a) => a.deal_id),
+    [4],
+  );
+  assert.deepEqual(
+    l.doDia("2026-10-26").map((a) => a.deal_id),
+    [4, 2, 1],
+    "abertas primeiro, depois as feitas no dia",
+  );
+  assert.deepEqual(
+    l.doDia("2026-10-28").map((a) => a.deal_id),
+    [7],
+  );
+  assert.equal(situacaoDaAtividade(atv[0], agora), "feita-atrasada");
+  assert.equal(situacaoDaAtividade(atv[1], agora), "feita-no-dia");
+  assert.equal(situacaoDaAtividade(atv[3], agora), "vencida");
+  assert.equal(situacaoDaAtividade(atv[6], agora), "a-fazer");
+  assert.equal(diaEmSaoPaulo("2026-10-27T02:00:00+00:00"), "2026-10-26");
+  assert.equal(diaEmSaoPaulo(null), "");
+  assert.equal(normalizarAtividades(null).length, 0);
+  assert.equal(atv[0].automatica, false);
 });
 
 test("Ritmo: atividades por dia de uma pessoa, com o que ainda vai vencer hoje", () => {
-  const s = serieAtividades(ritmo, M, PERIODO);
+  // O dado de exemplo é anterior a 28/10 e não traz as concluídas: aqui cada feita foi feita no próprio vencimento.
+  const comConcluidas = ritmo.map((l) => ({ ...l, atividades_concluidas: l.atividades_feitas }));
+  const s = serieAtividades(comConcluidas, M, PERIODO);
   assert.deepEqual(
     s.map((x) => x.rotulo),
     ["05/10", "06/10", "07/10", "08/10", "09/10"],
@@ -385,25 +504,23 @@ test("Erro da RPC: sem acesso e função ainda não criada não viram erro de le
 
 // ── Navegação ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-test("Menu da Monetização: oito itens, Pré-venda logo depois da Operação diária, Forecast (14/10) depois da Consultoria e Cella (22/10) depois do Forecast", () => {
+test("Menu da Monetização (28/10): Operação diária sozinha, Parceiros com Consultoria e Cella, e Desenvolvimento comercial", () => {
   const area = AREAS.find((a) => a.slug === "monetizacao");
-  const itens = area.grupos.flatMap((g) => g.items);
   assert.deepEqual(
-    itens.map((i) => i.title),
+    area.grupos.map((g) => [g.label, g.items.map((i) => i.title)]),
     [
-      "Operação diária",
-      "Pré-venda",
-      "Consultoria",
-      "Forecast",
-      "Cella",
-      "Funil comercial",
-      "Abordagens",
-      "Distribuição",
+      ["Oportunidades", ["Operação diária"]],
+      ["Parceiros", ["Consultoria", "Cella"]],
+      ["Desenvolvimento comercial", ["Funil comercial", "Abordagens", "Distribuição"]],
     ],
   );
-  assert.equal(itens[1].url, "/monetizacao?aba=pre-venda");
-  assert.equal(area.grupos[0].label, "Oportunidades");
-  assert.ok(!itens.some((i) => /aba=(gravacoes|pessoas|forecast)\b/.test(i.url)));
+  const itens = area.grupos.flatMap((g) => g.items);
+  // Pré-venda e Venda (o antigo Forecast) são abas da Operação diária: os links antigos seguem válidos.
+  assert.equal(itens[0].url, "/monetizacao");
+  assert.ok(ABAS.includes("pre-venda") && ABAS.includes("fechamentos"));
+  assert.ok(
+    !itens.some((i) => /aba=(gravacoes|pessoas|forecast|pre-venda|fechamentos)\b/.test(i.url)),
+  );
   // Toda aba do menu é uma aba válida da tela.
   for (const i of itens) {
     const aba = new URLSearchParams(i.url.split("?")[1] ?? "").get("aba") ?? "operacao";

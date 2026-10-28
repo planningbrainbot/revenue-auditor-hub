@@ -21,7 +21,6 @@ import {
   ListChecks,
   MessageSquareHeart,
   MessageSquarePlus,
-  PhoneCall,
   Percent,
   Receipt,
   Scale,
@@ -569,37 +568,31 @@ export const AREAS: Area[] = [
         items: [
           // As telas pedem view.monetizacao; a Consultoria tem chave própria (22/10/2026): a Karol, closer da Consultoria,
           // tem a área com a chave dela só.
+          // Desde 28/10/2026 (pedido do Pedro) a Operação diária junta três abas: Geral (a antiga Operação), Pré-venda e
+          // Venda (o antigo Forecast). Os links `?aba=pre-venda` e `?aba=fechamentos` continuam valendo e acendem este
+          // item, que casa com /monetizacao sem parâmetro.
           {
             title: "Operação diária",
             url: "/monetizacao",
             icon: LayoutDashboard,
             chave: "view.monetizacao",
           },
-          // Pré-venda (09/10/2026, PRD aprovado): Ritmo, Aderência e Ficha numa aba só (`visao`). Gravações virou
-          // Ficha › Reuniões e Pessoas e PDI saiu (decisão 1A); os links antigos abrem a Pré-venda com aviso.
-          {
-            title: "Pré-venda",
-            url: "/monetizacao?aba=pre-venda",
-            icon: PhoneCall,
-            chave: "view.monetizacao",
-          },
+          // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
+          // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
+        ],
+      },
+      // Parceiros (28/10/2026, pedido do Pedro): as frentes tocadas com parceiro, cada uma com leitura própria.
+      {
+        label: "Parceiros",
+        items: [
           {
             title: "Consultoria",
             url: "/monetizacao?aba=handoff-consultoria",
             icon: HandCoins,
             chave: "view.consultoria",
           },
-          // Forecast (14/10/2026, call com o Paulo): data esperada de fechamento e receita do mês.
-          {
-            title: "Forecast",
-            url: "/monetizacao?aba=fechamentos",
-            icon: CalendarClock,
-            chave: "view.monetizacao",
-          },
           // Cella (22/10/2026): contratos passados à Diehl & Cella e o valor de cada tese, lidos do funil deles.
           { title: "Cella", url: "/monetizacao?aba=cella", icon: Scale, chave: "view.monetizacao" },
-          // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
-          // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
         ],
       },
       {
