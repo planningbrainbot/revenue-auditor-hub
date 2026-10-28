@@ -915,6 +915,8 @@ export const AREAS: Area[] = [
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },
           { title: "IDU", url: "/idu", icon: Activity, chave: "view.idu" },
           // Ranking aberto entre as unidades, com números, como o IDU (decisão de 28/08/2026).
+          // Apresentação e gravação de cada comitê da rede (28/10/2026).
+          { title: "Comitês", url: "/meus-comites", icon: Presentation, chave: "view.meus_comites" },
           {
             title: "Ranking da Rede",
             url: "/ranking-unidades",

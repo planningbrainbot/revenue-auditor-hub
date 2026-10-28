@@ -195,6 +195,12 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.meus_comites",
+    label: "Comitês (Minha Unidade)",
+    description: "Apresentação e gravação de cada comitê da rede (/meus-comites). Sem as notas da pesquisa.",
+    group: "Acesso",
+  },
+  {
     key: "view.ranking_unidades",
     label: "Ranking da Rede",
     description:

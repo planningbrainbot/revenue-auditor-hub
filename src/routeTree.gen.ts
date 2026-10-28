@@ -39,6 +39,7 @@ import { Route as AuthenticatedMinhasAuditoriasRouteImport } from './routes/_aut
 import { Route as AuthenticatedMinhaUnidadeRouteImport } from './routes/_authenticated/minha-unidade'
 import { Route as AuthenticatedMeusServicosRouteImport } from './routes/_authenticated/meus-servicos'
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
+import { Route as AuthenticatedMeusComitesRouteImport } from './routes/_authenticated/meus-comites'
 import { Route as AuthenticatedMeuSplitRouteImport } from './routes/_authenticated/meu-split'
 import { Route as AuthenticatedMeuFunilCacRouteImport } from './routes/_authenticated/meu-funil-cac'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
@@ -272,6 +273,12 @@ const AuthenticatedMeusRoyaltiesRoute =
   AuthenticatedMeusRoyaltiesRouteImport.update({
     id: '/meus-royalties',
     path: '/meus-royalties',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMeusComitesRoute =
+  AuthenticatedMeusComitesRouteImport.update({
+    id: '/meus-comites',
+    path: '/meus-comites',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedMeuSplitRoute = AuthenticatedMeuSplitRouteImport.update({
@@ -715,6 +722,7 @@ export interface FileRoutesByFullPath {
   '/inicio': typeof AuthenticatedInicioRoute
   '/meu-funil-cac': typeof AuthenticatedMeuFunilCacRoute
   '/meu-split': typeof AuthenticatedMeuSplitRoute
+  '/meus-comites': typeof AuthenticatedMeusComitesRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/meus-servicos': typeof AuthenticatedMeusServicosRoute
   '/minha-unidade': typeof AuthenticatedMinhaUnidadeRoute
@@ -816,6 +824,7 @@ export interface FileRoutesByTo {
   '/inicio': typeof AuthenticatedInicioRoute
   '/meu-funil-cac': typeof AuthenticatedMeuFunilCacRoute
   '/meu-split': typeof AuthenticatedMeuSplitRoute
+  '/meus-comites': typeof AuthenticatedMeusComitesRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/meus-servicos': typeof AuthenticatedMeusServicosRoute
   '/minha-unidade': typeof AuthenticatedMinhaUnidadeRoute
@@ -918,6 +927,7 @@ export interface FileRoutesById {
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/meu-funil-cac': typeof AuthenticatedMeuFunilCacRoute
   '/_authenticated/meu-split': typeof AuthenticatedMeuSplitRoute
+  '/_authenticated/meus-comites': typeof AuthenticatedMeusComitesRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/_authenticated/meus-servicos': typeof AuthenticatedMeusServicosRoute
   '/_authenticated/minha-unidade': typeof AuthenticatedMinhaUnidadeRoute
@@ -1023,6 +1033,7 @@ export interface FileRouteTypes {
     | '/inicio'
     | '/meu-funil-cac'
     | '/meu-split'
+    | '/meus-comites'
     | '/meus-royalties'
     | '/meus-servicos'
     | '/minha-unidade'
@@ -1124,6 +1135,7 @@ export interface FileRouteTypes {
     | '/inicio'
     | '/meu-funil-cac'
     | '/meu-split'
+    | '/meus-comites'
     | '/meus-royalties'
     | '/meus-servicos'
     | '/minha-unidade'
@@ -1225,6 +1237,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inicio'
     | '/_authenticated/meu-funil-cac'
     | '/_authenticated/meu-split'
+    | '/_authenticated/meus-comites'
     | '/_authenticated/meus-royalties'
     | '/_authenticated/meus-servicos'
     | '/_authenticated/minha-unidade'
@@ -1521,6 +1534,13 @@ declare module '@tanstack/react-router' {
       path: '/meus-royalties'
       fullPath: '/meus-royalties'
       preLoaderRoute: typeof AuthenticatedMeusRoyaltiesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/meus-comites': {
+      id: '/_authenticated/meus-comites'
+      path: '/meus-comites'
+      fullPath: '/meus-comites'
+      preLoaderRoute: typeof AuthenticatedMeusComitesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/meu-split': {
@@ -2092,6 +2112,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedMeuFunilCacRoute: typeof AuthenticatedMeuFunilCacRoute
   AuthenticatedMeuSplitRoute: typeof AuthenticatedMeuSplitRoute
+  AuthenticatedMeusComitesRoute: typeof AuthenticatedMeusComitesRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
   AuthenticatedMeusServicosRoute: typeof AuthenticatedMeusServicosRoute
   AuthenticatedMinhaUnidadeRoute: typeof AuthenticatedMinhaUnidadeRoute
@@ -2178,6 +2199,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedMeuFunilCacRoute: AuthenticatedMeuFunilCacRoute,
   AuthenticatedMeuSplitRoute: AuthenticatedMeuSplitRoute,
+  AuthenticatedMeusComitesRoute: AuthenticatedMeusComitesRoute,
   AuthenticatedMeusRoyaltiesRoute: AuthenticatedMeusRoyaltiesRoute,
   AuthenticatedMeusServicosRoute: AuthenticatedMeusServicosRoute,
   AuthenticatedMinhaUnidadeRoute: AuthenticatedMinhaUnidadeRoute,
