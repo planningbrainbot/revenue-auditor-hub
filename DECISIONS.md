@@ -6897,3 +6897,11 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Operação diária com abas Geral | Pré-venda | Venda (o antigo Forecast). Consultoria e Cella num grupo "Parceiros" do menu.
 
 **Como:** migration `20261028150000` (`ops.monetizacao_pre_venda_atividades`, uma linha por atividade, mesmas regras do ritmo e dos atrasados; ensaio em produção bateu com os cartões). `listasDoRitmo` e `situacaoDaAtividade` em `src/lib/monetizacao/pre-venda.ts`; `ConferenciaAtividades` em `pre-venda-ritmo.tsx`. `SeletorSecao` em `seletor-base.tsx`, nos cabeçalhos do pipe 39 e do pipe 40. A `aba` da URL não mudou: os links antigos valem. Contratos: adendos de 28/10 em `monetizacao-pre-venda.md` e `monetizacao-operacao.md`; `NAVEGACAO.md` atualizado.
+
+## [2026-10-28] Monetização: a aba lateral do Ritmo lê todas as páginas
+
+**Contexto:** conferência no ar logo depois do deploy do #134: no Mês (01/10 a 28/10), o cartão "Atividades feitas" dizia 499 e a aba lateral listava 492. A função `ops.monetizacao_pre_venda_atividades` devolvia 1.040 linhas, e o PostgREST corta a resposta em 1.000; caíam as 40 mais antigas, 7 delas feitas em 13/10. Hoje, Ontem e Semana ficam abaixo do teto e já batiam.
+
+**Decisão:** o servidor lê a função em páginas de 1.000 até vir uma incompleta (`todasAsPaginas` em `src/lib/monetizacao/pre-venda.ts`), ordenando cada página por todas as colunas que separam uma atividade da outra. Empresa + vencimento + atividade não basta: 75 cards estão em duas cadências (voltaram para a fila). Sem migration.
+
+**Como:** ensaio em produção como o Pedro, desfeito: as duas páginas somam 1.040 linhas, sem sobra nem repetição contra a chamada inteira, e 499 feitas, iguais às do ritmo.

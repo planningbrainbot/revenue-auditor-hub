@@ -215,6 +215,24 @@ export const normalizarRitmo = (linhas: unknown): LinhaRitmo[] =>
     }))
     .filter((l) => /^\d{4}-\d{2}-\d{2}$/.test(l.dia));
 
+/** O PostgREST devolve no máximo 1.000 linhas por chamada; o servidor também não passa disso. */
+export const PAGINA_POSTGREST = 1000;
+
+/**
+ * Lê uma RPC página a página até vir uma página incompleta. No mês, as atividades do Ritmo passam de 1.000 (1.040 em
+ * 28/10/2026) e a aba lateral perdia as mais antigas: o cartão dizia 499 feitas e a lista mostrava 492.
+ */
+export async function todasAsPaginas(
+  pagina: (de: number, ate: number) => Promise<unknown[]>,
+): Promise<unknown[]> {
+  const linhas: unknown[] = [];
+  for (let de = 0; ; de += PAGINA_POSTGREST) {
+    const parte = await pagina(de, de + PAGINA_POSTGREST - 1);
+    linhas.push(...parte);
+    if (parte.length < PAGINA_POSTGREST) return linhas;
+  }
+}
+
 export const normalizarAtividades = (linhas: unknown): AtividadePreVenda[] =>
   lista(linhas)
     .map(obj)
