@@ -85,6 +85,17 @@ import {
   VisaoClientes,
 } from "./regra-cliente";
 import { PainelBase } from "./painel-base";
+import {
+  AcoesBaseProvider,
+  AcoesDaConta,
+  BotaoIncluirCliente,
+  CelulaNps,
+  DeclaradosPelaUnidade,
+  MeusPedidos,
+  usePermissoesPedido,
+  useResumoContatos,
+} from "./pedidos-unidade";
+import { GRAUS_DA_META } from "@/lib/clientes/pedidos";
 import { FiltrosBase } from "./filtros-base";
 import {
   passaRecorte,
@@ -131,6 +142,11 @@ const VISOES: Record<string, { titulo: string; pergunta: string }> = {
   painel: {
     titulo: "Painel",
     pergunta: "Como está a Base em cada unidade?",
+  },
+  // Atualização da base pela unidade (28/10/2026): o que o sócio pediu e o que o CS decidiu.
+  pedidos: {
+    titulo: "Meus pedidos",
+    pergunta: "O que a unidade pediu para mudar na base, e o que o CS já decidiu?",
   },
   unidades: {
     titulo: "Contratos e churn",
@@ -188,15 +204,21 @@ export function ClientesBase() {
   const legado = LEGADO[search.view];
   const pedida = legado
     ? legado.view
-    : views.some(([v]) => v === search.view) || search.view === "unidades"
+    : views.some(([v]) => v === search.view) || ["unidades", "pedidos"].includes(search.view)
       ? search.view
       : "clientes";
+  // Pedidos da unidade (PRD de 28/10/2026): as ações aparecem para quem pode pedir e, desabilitadas, no "ver como".
+  const permsPedido = usePermissoesPedido();
+  const resumoPedidos = useResumoContatos();
+  const comAcoes = !!permsPedido.data && (permsPedido.data.abrir || permsPedido.data.ver_como);
   // Confiança, Painel e Contratos e churn pedem a chave view.clientes_painel (Pedro, 22/10/2026: o time de vendas vê
   // "somente a tela de clientes"). Sem ela, qualquer link da Base abre a tela Clientes.
   const verTudo = !perms.loading && perms.can("view.clientes_painel");
-  const view = verTudo ? pedida : "clientes";
+  const view =
+    pedida === "pedidos" ? (comAcoes ? "pedidos" : "clientes") : verTudo ? pedida : "clientes";
   // Enquanto as permissões chegam, a tela pedida não desenha: Clientes no lugar dela piscaria para quem pode ver.
-  const aguardandoPermissao = perms.loading && pedida !== "clientes";
+  const aguardandoPermissao =
+    (perms.loading && pedida !== "clientes") || (pedida === "pedidos" && permsPedido.isLoading);
   const sub = legado?.sub ?? search.sub ?? "";
   // Produtos e Listas têm página própria na Base (15/10): o link antigo abre lá, com os mesmos filtros.
   const paraMonetizacao =
@@ -482,7 +504,7 @@ export function ClientesBase() {
   const navNaPagina = !perms.loading && !perms.temArea("clientes") && verTudo;
   const nav = navNaPagina ? (
     <nav aria-label="Telas da Base" className="flex gap-1 overflow-x-auto border-b">
-      {views.map(([key, label]) => (
+      {[...views, ...(comAcoes ? [["pedidos", "Meus pedidos"]] : [])].map(([key, label]) => (
         <button
           key={key}
           type="button"
@@ -672,8 +694,20 @@ export function ClientesBase() {
     unidadesUrl.length ||
     search.sit ||
     search.base ||
+    search.nps ||
     temRecorte(recorte)
   );
+  // Cobertura do NPS (P-04): clientes de grau 3 ou 4 do topo (busca e unidade) com contato do NPS de WhatsApp válido.
+  const npsPorConta = resumoPedidos.data?.contas ?? {};
+  const daMeta = rows.filter(
+    (a) => ehCliente(a) && GRAUS_DA_META.includes(a.base?.situacao?.grau ?? 0),
+  );
+  const comNps = daMeta.filter((a) => !!npsPorConta[a.key]?.nps).length;
+  const pedidosComCs =
+    Object.values(npsPorConta).reduce((t, r) => t + r.pedidos, 0) +
+    (resumoPedidos.data?.declarados.filter((p) => p.situacao === "aberto").length ?? 0);
+  const contasClientes =
+    search.nps === "sem" ? rowsNoRecorte.filter((a) => !npsPorConta[a.key]?.nps) : rowsNoRecorte;
   // O Painel não tem busca nem origem: só a unidade e o recorte valem nele.
   const chavesDasUnidades = new Set(unidadesSelecionadas.flatMap((u) => u.account_keys));
   const contasPainel = unidadesUrl.length
@@ -692,7 +726,7 @@ export function ClientesBase() {
             : sub === "contatos"
               ? `Pessoas vinculadas às ${number(filtered.length)} contas do recorte · ${perimetro}`
               : `${number(visible.length)} contas com origem a validar ou a corrigir no Pipefy · ${perimetro}`;
-  return (
+  const pagina = (
     <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
       <PageHeader
         titulo={meta.titulo}
@@ -709,11 +743,13 @@ export function ClientesBase() {
         }
       />
       {nav}
-      {view === "clientes" ? (
+      {view === "pedidos" ? (
+        <MeusPedidos />
+      ) : view === "clientes" ? (
         <>
           <BarraFiltros>
             {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
-              Base não tem controle próprio para elas. */}
+            Base não tem controle próprio para elas. */}
             <label className="relative min-w-56 flex-1">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -748,6 +784,7 @@ export function ClientesBase() {
                   unidade: undefined,
                   sit: undefined,
                   base: undefined,
+                  nps: undefined,
                   ...buscaDoRecorte(RECORTE_VAZIO),
                 })
               }
@@ -772,8 +809,79 @@ export function ClientesBase() {
             }
           />
           <VisaoClientes
-            contas={rowsNoRecorte}
+            contas={contasClientes}
             contasBusca={rows}
+            extras={
+              comAcoes
+                ? [
+                    { cabecalho: "Contato do NPS", celula: (a) => <CelulaNps conta={a} /> },
+                    {
+                      cabecalho: "Ações",
+                      direita: true,
+                      celula: (a) => <AcoesDaConta conta={a} />,
+                    },
+                  ]
+                : undefined
+            }
+            acoesTabela={comAcoes ? <BotaoIncluirCliente /> : undefined}
+            topo={
+              comAcoes ? (
+                <>
+                  <KpiGrade colunas={2}>
+                    <KpiCard
+                      rotulo="Com contato do NPS"
+                      valor={
+                        resumoPedidos.data ? `${number(comNps)} de ${number(daMeta.length)}` : "…"
+                      }
+                      estado={
+                        resumoPedidos.data
+                          ? "ok"
+                          : resumoPedidos.error
+                            ? "indisponivel"
+                            : "nao-apurado"
+                      }
+                      meta={{
+                        valor: "80%",
+                        rotulo: "meta antes da próxima rodada",
+                        progresso: daMeta.length ? comNps / daMeta.length : 0,
+                      }}
+                      nota={`${daMeta.length ? Math.round((100 * comNps) / daMeta.length) : 0}% dos clientes com prova de cliente ou pagamento (graus 3 e 4) · ${search.nps === "sem" ? "filtro aplicado" : "ver quem está sem"}`}
+                      abrir={{
+                        rotulo: search.nps === "sem" ? "Tirar o filtro" : "Ver os sem contato",
+                        onClick: () => change({ nps: search.nps === "sem" ? undefined : "sem" }),
+                      }}
+                      className={search.nps === "sem" ? "border-primary-text" : undefined}
+                    />
+                    <KpiCard
+                      rotulo="Pedidos com o CS"
+                      valor={resumoPedidos.data ? number(pedidosComCs) : "…"}
+                      estado={
+                        resumoPedidos.data
+                          ? "ok"
+                          : resumoPedidos.error
+                            ? "indisponivel"
+                            : "nao-apurado"
+                      }
+                      nota="Contatos, churn, não reconheço e clientes declarados · o CS responde em até 2 dias úteis"
+                      abrir={{
+                        rotulo: "Meus pedidos",
+                        onClick: () => change({ view: "pedidos" }),
+                      }}
+                    />
+                  </KpiGrade>
+                  {search.nps === "sem" && (
+                    <div className="flex flex-wrap gap-2">
+                      <ChipFiltro
+                        rotulo="Contato do NPS"
+                        valor="sem contato"
+                        aoRemover={() => change({ nps: undefined })}
+                      />
+                    </div>
+                  )}
+                  <DeclaradosPelaUnidade />
+                </>
+              ) : undefined
+            }
             perfil={perfil}
             aoLimparRecorte={() => mudarRecorte(RECORTE_VAZIO)}
             busca={search.q}
@@ -806,7 +914,11 @@ export function ClientesBase() {
               disabled={!unidadesUrl.length && !temRecorte(recorte)}
               motivo={unidadesUrl.length || temRecorte(recorte) ? null : "Nenhum filtro aplicado."}
               onClick={() =>
-                change({ unidade: undefined, numero: undefined, ...buscaDoRecorte(RECORTE_VAZIO) })
+                change({
+                  unidade: undefined,
+                  numero: undefined,
+                  ...buscaDoRecorte(RECORTE_VAZIO),
+                })
               }
             >
               <X className="size-4" aria-hidden />
@@ -863,7 +975,7 @@ export function ClientesBase() {
             <>
               <BarraFiltros>
                 {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
-              Base não tem controle próprio para elas. */}
+            Base não tem controle próprio para elas. */}
                 <label className="relative min-w-56 flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -966,7 +1078,7 @@ export function ClientesBase() {
             <>
               <BarraFiltros>
                 {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
-              Base não tem controle próprio para elas. */}
+            Base não tem controle próprio para elas. */}
                 <label className="relative min-w-56 flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -1049,7 +1161,7 @@ export function ClientesBase() {
                   conta pode reunir CNPJs vinculados.
                 </p>
                 {/* Texto, não link: nenhuma visão lista a fila de envio ao Pipefy, e um link com total
-              que o destino não mostra quebra N2. Enquanto carrega, não é "0". */}
+            que o destino não mostra quebra N2. Enquanto carrega, não é "0". */}
                 <p>
                   {health.isError
                     ? "Sincronização com o Pipefy indisponível"
@@ -1393,6 +1505,7 @@ export function ClientesBase() {
       />
     </main>
   );
+  return <AcoesBaseProvider contas={data.accounts}>{pagina}</AcoesBaseProvider>;
 }
 // Os mínimos que o botão já exigia, agora ditos no diálogo (a régua não muda).
 const MIN_RESPONSAVEL = 3;

@@ -2,6 +2,7 @@
 import { TABLES, COMPANY_FIELDS, webhookRecord, mapCompany, mapContact } from './pipefy.mjs';
 import { unitName } from './domain.mjs';
 import { contractEvidence } from './omie.mjs';
+import { CONTACT, COMPANY, contactFields, matchContato, npsParaDesmarcar, churnPelaFase, cnpjMask } from './pedidos.mjs';
 type Row = Record<string, any>;
 const URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -96,6 +97,85 @@ async function outbox() {
   await db(`base_alteracoes?id=eq.${change.id}`,{status:'confirmed',confirmado_em:new Date().toISOString(),erro:null},'PATCH');return {status:'confirmed'};
  }catch(e){await db(`base_alteracoes?id=eq.${change.id}`,{status:'error',erro:(e as Error).message},'PATCH');throw e;}
 }
+// Pedidos das unidades aprovados pelo CS (PRD de 28/10/2026). Cada passo que cria registro guarda o id no
+// pedido antes do seguinte (base_pedido_marcar): repetir o envio depois de uma falha não duplica (R-09, R-19).
+const setField=(id:string,field:string,value:unknown)=>pf('mutation($id:ID!,$field:ID!,$value:[UndefinedInput]){setTableRecordFieldValue(input:{table_record_id:$id,field_id:$field,value:$value}){table_record{id}}}',{id,field,value:Array.isArray(value)?value:[value]});
+async function createRecord(table:string,title:string,fields:Row[]){
+ const b=await pf('mutation($t:ID!,$title:String,$f:[FieldValueInput]){createTableRecord(input:{table_id:$t,title:$title,fields_attributes:$f}){table_record{id}}}',{t:table,title,f:fields.filter(x=>x.field_value!==null&&x.field_value!==undefined)});
+ const id=b.createTableRecord?.table_record?.id;if(!id)throw new Error('Pipefy não devolveu o registro criado');return String(id);
+}
+async function pedidos() {
+ const p=await rpc('base_pedido_claim',{});if(!p)return {status:'idle'};
+ const ctx=p.ctx??{},prop=p.proposto??{},feito:Row={...(p.resultado??{})};
+ const marcar=async(r:Row)=>{Object.assign(feito,r);await rpc('base_pedido_marcar',{_id:p.id,_resultado:r});};
+ const tocados=new Set<string>(),empresasTocadas=new Set<string>();
+ // Cadastro em Empresas da conta: o do espelho, o já criado por este pedido, o do mesmo CNPJ, ou um novo.
+ const empresa=async(cnpj:string|null,fonte:string,unidadePf:string|null,razao:string)=>{
+  const existente=(ctx.empresas??[]).find((e:Row)=>e.pipefy_id)?.pipefy_id??feito.empresa_pipefy;
+  if(existente)return String(existente);
+  if(!cnpj)throw new Error('Cliente sem CNPJ e sem cadastro em Empresas');
+  const mesmo=await db(`empresas?cnpj=eq.${cnpj}&pipefy_record_id=not.is.null&select=pipefy_record_id&limit=1`);
+  if(mesmo.length){await marcar({empresa_pipefy:mesmo[0].pipefy_record_id});return String(mesmo[0].pipefy_record_id);}
+  const id=await createRecord(TABLES.companies,razao,[
+   {field_id:COMPANY.razao,field_value:razao},{field_id:COMPANY.cnpj,field_value:cnpjMask(cnpj)},
+   {field_id:COMPANY.fonte,field_value:fonte},unidadePf?{field_id:COMPANY.unidade,field_value:[unidadePf]}:null,
+  ].filter(Boolean) as Row[]);
+  await marcar({empresa_pipefy:id,empresa_criada:true});empresasTocadas.add(id);return id;
+ };
+ const contatoNovo=async(c:Row,empPf:string,chave:string)=>{
+  const ja=feito[chave]??matchContato(ctx.contatos??[],c)?.pipefy_id;
+  if(ja){for(const f of contactFields(c,null))await setField(String(ja),f.field_id,f.field_value);tocados.add(String(ja));return String(ja);}
+  const id=await createRecord(TABLES.contacts,c.nome,contactFields(c,empPf));
+  await marcar({[chave]:id});tocados.add(id);return id;
+ };
+ const marcarNps=async(alvo:string)=>{
+  for(const id of npsParaDesmarcar(ctx.contatos??[],alvo)){await setField(id,CONTACT.nps,'Não');tocados.add(id);}
+  await setField(alvo,CONTACT.nps,'Sim');tocados.add(alvo);
+ };
+ try{
+  const cnpj=(ctx.conta?.cnpjs??[])[0]??null,razao=ctx.conta?.nome??p.conta_nome??'Cliente';
+  const unidadePf=ctx.unidade?.pipefy_id?String(ctx.unidade.pipefy_id):null;
+  if(p.tipo==='contato_incluir'){
+   const emp=await empresa(cnpj,'Criado pelo Ops',unidadePf,razao);
+   const id=await contatoNovo(prop,emp,'contato_pipefy');if(prop.contato_nps)await marcarNps(id);
+  }else if(['contato_editar','contato_nps','contato_desativar'].includes(p.tipo)){
+   const alvo=ctx.contato?.pipefy_id;if(!alvo)throw new Error('Contato sem registro no Stakeholder');
+   if(p.tipo==='contato_editar'){for(const f of contactFields(prop,null))await setField(String(alvo),f.field_id,f.field_value);tocados.add(String(alvo));if(prop.contato_nps)await marcarNps(String(alvo));}
+   if(p.tipo==='contato_nps')await marcarNps(String(alvo));
+   if(p.tipo==='contato_desativar'){await setField(String(alvo),CONTACT.situacao,'Inativo');await setField(String(alvo),CONTACT.nps,'Não');tocados.add(String(alvo));}
+  }else if(p.tipo==='nao_reconheco'){
+   const alvos=(ctx.empresas??[]).filter((e:Row)=>e.pipefy_id).map((e:Row)=>String(e.pipefy_id));
+   if(!alvos.length)alvos.push(await empresa(cnpj,'Criado pelo Ops',unidadePf,razao));
+   for(const id of alvos){
+    if(prop.motivo==='nunca')await setField(id,COMPANY.situacao,'Não é cliente');
+    else if(prop.motivo==='outra_unidade'){const destino=ctx.destino_unidade?.pipefy_id;if(!destino)throw new Error('Unidade de destino sem vínculo no Pipefy');await setField(id,COMPANY.unidade,[String(destino)]);}
+    empresasTocadas.add(id);
+   }
+  }else if(p.tipo==='cliente_incluir'){
+   const emp=await empresa(prop.cnpj,'Declarado pela unidade',unidadePf,prop.razao_social);
+   for(const f of ctx.filhos??[]){const id=await contatoNovo(f.proposto,emp,`contato_pipefy_${f.id}`);if(f.proposto?.contato_nps)await marcarNps(id);}
+  }else throw new Error('Tipo de pedido sem envio');
+  // Relê o que mudou para o espelho refletir na hora; cliente declarado novo ganha a fonte no espelho.
+  for(const id of empresasTocadas){const r=await ingestOne(id,'companies');
+   if(p.tipo==='cliente_incluir'&&feito.empresa_criada&&r.empresa_id)await db(`empresas?id=eq.${r.empresa_id}`,{fonte_cadastro:'Declarado pela unidade'},'PATCH');}
+  for(const id of tocados)await ingestOne(id,'contacts');
+  if(p.conta_key)await rpc('base_carteira_refresh',{_keys:[p.conta_key]});
+  await rpc('base_pedido_resultado',{_id:p.id,_ok:true,_erro:null,_resultado:feito});
+  return {status:'concluido',tipo:p.tipo};
+ }catch(e){await rpc('base_pedido_resultado',{_id:p.id,_ok:false,_erro:(e as Error).message,_resultado:feito});throw e;}
+}
+// Churn (R-13): o pedido acompanha a fase do card no pipe Tratativas.
+async function churnFollow() {
+ const abertos:Row[]=await rpc('base_pedidos_churn_abertos',{});let mudou=0;
+ for(const a of abertos.slice(0,20)){
+  const card=(await pf('query($id:ID!){card(id:$id){id current_phase{id}}}',{id:a.card}).catch(()=>({card:undefined}))).card;
+  if(card===undefined)continue;
+  const fim=churnPelaFase(card);if(!fim)continue;
+  await rpc('base_pedido_churn_fase',{_id:a.id,_concluido:fim.concluido,_motivo:fim.motivo});mudou++;
+ }
+ return {status:'ok',abertos:abertos.length,mudou};
+}
+const passo=async(f:()=>Promise<Row>)=>{try{return await f();}catch(e){return {status:'error',error:(e as Error).message};}};
 async function omieContracts() {
  const job=await rpc('base_omie_claim',{});if(!job)return {status:'idle'};
  const jobPath=`base_omie_jobs?aplicativo=eq.${encodeURIComponent(job.aplicativo)}&lease=eq.${job.lease}`;
@@ -134,12 +214,16 @@ Deno.serve(async(req:Request)=>{
   if((service||scheduled)&&body.action==='drain'){
    const start=Date.now(),results:Row[]=[];
    for(let i=0;i<10&&Date.now()-start<45000;i++){
-    try{const result=await outbox();results.push(result);if(result.status==='idle')break;}
+    try{const result=await outbox();const pedido=await passo(pedidos);results.push({...result,pedido});if(result.status==='idle'&&pedido.status==='idle')break;}
     catch(e){results.push({status:'error',error:(e as Error).message});break;}
    }
    return response({processed:results.length,results});
   }
-  if((service||scheduled)&&body.action==='tick')return response({sync:await reconcile(),outbox:await outbox()});
+  if((service||scheduled)&&body.action==='tick'){
+   // Cada passo falha sozinho: um erro no espelho não segura os pedidos das unidades, e vice-versa.
+   const sync=await passo(reconcile),fila=await passo(outbox),pedido=await passo(pedidos),churn=await passo(churnFollow);
+   return response({sync,outbox:fila,pedidos:pedido,churn});
+  }
   const event=webhookRecord(body,[TABLES.companies,TABLES.contacts]);
   if(!event)return response({error:'Evento fora do contrato'},400);
   const source=event.table===TABLES.companies?'companies':'contacts';

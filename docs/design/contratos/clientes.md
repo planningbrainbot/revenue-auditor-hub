@@ -168,3 +168,23 @@ Pedido do Pedro (27/10): a Ana Paula precisa ver na tela, por link, os números 
 - **Confiança (graus):** abaixo da barra, "De onde vem a certeza dos N clientes": um cartão por sinal (contrato ativo no Omie, pagamento nos últimos 90 dias, contrato ou título antigo no Omie, negócio ganho no Pipedrive, só na base do Pipefy, só a tag Cliente), com o número e a régua no title. O clique filtra a lista (`sinal` na URL) e dá o título da tabela; a faixa da barra e o sinal não se somam.
 - **Texto da barra:** diz quantas empresas do recorte não são clientes pela regra e ficam fora da Base.
 - **N2:** a soma dos cartões é o total de "Clientes pela regra" da barra.
+
+## Adendo 28/10/2026 · A unidade atualiza a base (contatos, churn, não reconheço, cliente novo)
+
+PRD `wiki/prds/2026-10-minha-unidade-atualizacao-da-base.md` (aprovado em 28/10), protótipo claude.ai/artifact/4hb4AeG83Z2aNWiVnSxKX4. Pedido do dono em 28/10 ("construa e publique as demais partes"), que vale como "contrato ok" deste adendo. Arquétipos: Clientes segue Lista/Relatório; Meus pedidos e Pedidos das unidades são Fila de trabalho.
+
+**Quem vê:** as ações aparecem para quem tem `edit.base_unidade` (área Minha Unidade). No "ver como" aparecem desabilitadas, com o motivo escrito (a simulação é só leitura, 22/09). Quem não pede (time de vendas, admin sem simulação) vê a tela Clientes como antes.
+
+**Clientes (sócio):**
+- Dois cartões abaixo do resumo: **Com contato do NPS** ("n de N", régua P-04: clientes de grau 3 e 4 no recorte do topo; barra contra a meta de 80%; o clique liga o filtro `nps=sem`) e **Pedidos com o CS** (abre Meus pedidos).
+- Filtro `nps=sem` na URL, com etiqueta removível; "Limpar filtros" tira.
+- Tabela ganha **Contato do NPS** (nome e número, ou "Sem contato do NPS"; selos de pedido com o CS) e **Ações** (botão Contatos e menu ⋯ com Ver e editar contatos, Informar churn, Não reconheço este cliente). Inativos não têm as colunas.
+- **Incluir cliente** no cabeçalho da tabela. **Declarados pela unidade**: seção própria acima da tabela, fora dos cartões e dos totais (R-18).
+- **Contatos**: painel lateral (`Sheet`) com os contatos ativos, o contato do NPS marcado, aviso quando o cliente está sem contato do NPS ou sem cadastro; Incluir, Editar, Marcar como contato do NPS e Desativar abrem pedido. Pedido aberto aparece no próprio cartão do contato (borda tracejada).
+- Diálogos: contato (nome, cargo da lista do Stakeholder, WhatsApp pela R-07, e-mail, "é o contato do NPS"); desativar (motivo da lista); churn (data, categoria, relato; avisa que abre a tratativa na hora); não reconheço (nunca foi, outra unidade, mesma empresa de outra linha); incluir cliente (CNPJ, consulta à Receita pelo servidor, unidade quando a pessoa tem mais de uma, cliente desde).
+
+**Meus pedidos** (`/clientes?view=pedidos`, entrada no topo para quem chega por Minha Unidade): pedido, cliente, o que muda, situação (com o motivo da recusa ou do erro) e Cancelar no pedido aberto de quem abriu.
+
+**Pedidos das unidades** (`/clientes/pedidos`, item no menu da área Base de clientes com `manage.base_pedidos`; decidir exige ainda o papel CS, diretor ou admin): abas Para decidir, Em andamento (aprovados gravando, erros, churn com o CS) e Decididos (90 dias), na URL (`aba`); filtros de tipo e unidade; destaque "Mais de 2 dias úteis" (P-03) e "Mudou desde o pedido" (R-05). "Analisar" abre antes, agora e pedido, a correção opcional do contato e o motivo da recusa (10 letras ou mais). Churn não tem botão: link para a tratativa.
+
+**Não entra:** editar razão social, CNPJ, regime ou segmento pela unidade; fusão de linhas ("mesma empresa" só registra, a dedup segue com a matriz); disparo do NPS (n8n, P-02).

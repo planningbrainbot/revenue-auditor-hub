@@ -350,6 +350,13 @@ export const AREAS: Area[] = [
           },
           { title: "Produtos", url: "/clientes/produtos", icon: Package, area: "monetizacao" },
           { title: "Listas", url: "/clientes/listas", icon: ListChecks, area: "monetizacao" },
+          // Atualização da base pela unidade (28/10/2026): a fila do CS com o que as unidades pediram.
+          {
+            title: "Pedidos das unidades",
+            url: "/clientes/pedidos",
+            icon: ClipboardCheck,
+            chave: "manage.base_pedidos",
+          },
         ],
       },
     ],

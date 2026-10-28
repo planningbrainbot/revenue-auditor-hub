@@ -89,6 +89,8 @@ export type BuscaClientes = {
   sub?: "validar" | "gates" | "contatos";
   /** Clientes: só Base Antiga ou só Base Nova (o resumo do topo). Ausente = as duas. */
   base?: "antiga" | "nova";
+  /** Clientes: "sem" = só os clientes sem contato do NPS (atualização da base pela unidade, 28/10/2026). */
+  nps?: "sem";
   /** Monetização › Produtos: "carteira" abre a carteira da unidade; ausente = por produto. */
   secao?: "carteira";
   status: string;
@@ -192,6 +194,7 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
     sinal: umDe(SINAIS, s.sinal),
     sub: umDe(["validar", "gates", "contatos"], s.sub),
     base: umDe(["antiga", "nova"], s.base),
+    nps: umDe(["sem"], s.nps),
     secao: umDe(["carteira"], s.secao),
     status: texto(s.status),
     unidade: lista(s.unidade),

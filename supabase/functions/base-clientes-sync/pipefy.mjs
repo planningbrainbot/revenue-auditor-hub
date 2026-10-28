@@ -5,6 +5,7 @@ export const COMPANY_FIELDS = {
   raz_o_social: 'razao_social', cnpj: 'cnpj', segmento: 'segmento', unidade: 'unidade',
   regime_tribut_rio: 'regime_tributario', e_mail_fiscal: 'email_fiscal', telefone_corporativo: 'telefone',
   erp: 'erp', origem_da_base: 'origem_da_base', id_pipedrive_deal: 'pipedrive_id', origem: 'origem_venda',
+  situa_o_do_cadastro: 'situacao_cadastro',
 };
 export const CONTACT_FIELDS = { nome_completo: 'nome_completo', cpf: 'cpf', e_mail_direto: 'email', whatsapp: 'whatsapp', cargo: 'cargo' };
 
@@ -42,5 +43,8 @@ export function mapContact(record, schemaIds) {
   const by = values(record), schema = new Set(schemaIds), fields = {};
   for (const [id, column] of Object.entries(CONTACT_FIELDS)) if (schema.has(id)) fields[column] = plain(by.get(id));
   if (!fields.nome_completo) fields.nome_completo = String(record.title ?? '').trim() || null;
+  // Campos de 28/10 (atualização da base pela unidade): viram as marcas booleanas do espelho.
+  if (schema.has('contato_do_nps')) fields.contato_nps = plain(by.get('contato_do_nps')) === 'Sim';
+  if (schema.has('situa_o_do_contato')) fields.ativo = plain(by.get('situa_o_do_contato')) !== 'Inativo';
   return { id: String(record.id), updatedAt: record.updated_at ?? record.created_at ?? null, fields, companyRefs: connect(by.get('empresa')) };
 }

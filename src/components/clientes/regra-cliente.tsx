@@ -322,6 +322,8 @@ export function LocalDaConta({ p }: { p: PerfilRecorte }) {
 }
 
 /** A tabela das telas da Base: nome e CNPJ, e as colunas pedidas. A linha abre a ficha. */
+export type ColunaExtra = { cabecalho: string; celula: (a: Conta) => ReactNode; direita?: boolean };
+
 export function TabelaContas({
   contas,
   colunas,
@@ -332,6 +334,7 @@ export function TabelaContas({
   subtitulo,
   acoes,
   perfil,
+  extras = [],
 }: {
   contas: Conta[];
   colunas: Coluna[];
@@ -343,6 +346,8 @@ export function TabelaContas({
   acoes?: ReactNode;
   /** Região, segmento e porte de cada conta (`perfilRecorte`): obrigatório com as colunas local, segmento e porte. */
   perfil?: (a: Conta) => PerfilRecorte;
+  /** Colunas de quem chama, depois das da regra (contato do NPS e ações da unidade, 28/10/2026). */
+  extras?: ColunaExtra[];
 }) {
   const paginas = Math.max(1, Math.ceil(contas.length / POR_PAGINA));
   const atual = Math.min(pagina, paginas);
@@ -375,6 +380,11 @@ export function TabelaContas({
               {cols.map((c) => (
                 <th key={c} className="px-4 py-3">
                   {cabecalho[c]}
+                </th>
+              ))}
+              {extras.map((x) => (
+                <th key={x.cabecalho} className={cn("px-4 py-3", x.direita && "text-right")}>
+                  {x.cabecalho}
                 </th>
               ))}
             </tr>
@@ -423,6 +433,14 @@ export function TabelaContas({
                     )}
                   </td>
                 ))}
+                {extras.map((x) => (
+                  <td
+                    key={x.cabecalho}
+                    className={cn("px-4 py-3 align-top", x.direita && "text-right")}
+                  >
+                    {x.celula(a)}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -452,6 +470,9 @@ export function VisaoClientes({
   pagina,
   aoMudarPagina,
   aoAbrir,
+  extras,
+  acoesTabela,
+  topo,
 }: {
   /** As contas da busca e da unidade, já no recorte de região, porte e segmento. */
   contas: Conta[];
@@ -469,6 +490,10 @@ export function VisaoClientes({
   pagina: number;
   aoMudarPagina: (p: number) => void;
   aoAbrir: (a: Conta) => void;
+  /** Colunas da unidade (contato do NPS, ações) e o que vai no topo da tabela e acima dela. */
+  extras?: ColunaExtra[];
+  acoesTabela?: ReactNode;
+  topo?: ReactNode;
 }) {
   const clientes = useMemo(() => contas.filter(ehCliente).sort(porCerteza), [contas]);
   const ex = useMemo(() => contas.filter(ehExCliente).sort(porCerteza), [contas]);
@@ -529,6 +554,7 @@ export function VisaoClientes({
           />
         ))}
       </KpiGrade>
+      {topo}
       {buscando && foraDaLista.length > 0 && (
         <div className="space-y-2">
           {foraDaLista.map((a) => {
@@ -591,6 +617,8 @@ export function VisaoClientes({
           contas={lista}
           colunas={["certeza", "unidade", "local", "segmento", "porte", "reuniao"]}
           perfil={perfil}
+          extras={sit === "ex" ? undefined : extras}
+          acoes={acoesTabela}
           pagina={pagina}
           aoMudarPagina={aoMudarPagina}
           aoAbrir={aoAbrir}
