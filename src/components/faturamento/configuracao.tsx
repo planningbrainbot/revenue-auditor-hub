@@ -218,7 +218,6 @@ export function ConfiguracaoFaturamento({ busca }: { busca: BuscaConfig }) {
                 <TableHead className="num text-right">Solicitantes</TableHead>
                 <TableHead className="num text-right">Serviços liberados</TableHead>
                 <TableHead>Omie</TableHead>
-                <TableHead>Pipefy</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -261,11 +260,6 @@ export function ConfiguracaoFaturamento({ busca }: { busca: BuscaConfig }) {
                       <span title={selo.detalhe ?? undefined}>
                         <StatusBadge tom={selo.tom}>{selo.rotulo}</StatusBadge>
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge tom={e.pipefy_sync ? "sucesso" : "neutro"}>
-                        {e.pipefy_sync ? "Ligado" : "Desligado"}
-                      </StatusBadge>
                     </TableCell>
                   </TableRow>
                 );
@@ -315,11 +309,7 @@ function FichaDaEmpresa({ e, config }: { e: EmissoraConfig; config: ConfigFatura
       </SheetHeader>
       <Pessoas e={e} config={config} />
       <Servicos e={e} />
-      <OmieEPipefy
-        e={e}
-        podeGravar={config.pode_gravar_omie}
-        podeLigarPipefy={config.pode_ligar_pipefy ?? true}
-      />
+      <ComOOmie e={e} podeGravar={config.pode_gravar_omie} />
     </div>
   );
 }
@@ -872,7 +862,7 @@ function LinhaServico({ s, apelido }: { s: ServicoConfig; apelido: string }) {
   );
 }
 
-// ---------- Seção 3: Omie e Pipefy
+// ---------- Seção 3: Omie (o Pipefy saiu do portal na call de 27/10/2026)
 
 function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
@@ -885,25 +875,13 @@ function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 
 const SO_ATIVADORES = "Só quem está na lista de ativadores do portal (hoje, o Pedro)";
 
-function OmieEPipefy({
-  e,
-  podeGravar,
-  podeLigarPipefy,
-}: {
-  e: EmissoraConfig;
-  podeGravar: boolean;
-  podeLigarPipefy: boolean;
-}) {
+function ComOOmie({ e, podeGravar }: { e: EmissoraConfig; podeGravar: boolean }) {
   const configurarFn = useServerFn(configurarEmissoraFaturamento);
-  const [confirmar, setConfirmar] = useState<null | "gravar" | "simular" | "pipefy">(null);
+  const [confirmar, setConfirmar] = useState<null | "gravar" | "simular">(null);
   const mudarEmissora = useMudanca(
-    async (dados: {
-      modoOmie?: "simular" | "gravar";
-      pipefySync?: boolean;
-      faturaPor?: FaturaPor;
-    }) => desembrulhar(await configurarFn({ data: { emissora: e.id, ...dados } })),
-    (r) =>
-      `${r.apelido}: Omie ${r.modo_omie === "gravar" ? "gravando" : "em simulação"} · Pipefy ${r.pipefy_sync ? "ligado" : "desligado"}.`,
+    async (dados: { modoOmie?: "simular" | "gravar"; faturaPor?: FaturaPor }) =>
+      desembrulhar(await configurarFn({ data: { emissora: e.id, ...dados } })),
+    (r) => `${r.apelido}: Omie ${r.modo_omie === "gravar" ? "gravando" : "em simulação"}.`,
   );
   // "Os {n} pedidos simulados continuam simulados" (contrato): o total de `fat_pedidos` com simulação, só
   // quando o diálogo de gravar abre.
@@ -931,7 +909,7 @@ function OmieEPipefy({
         : "Ainda não lida";
 
   return (
-    <Secao titulo={`Como a ${e.apelido} fala com o Omie e com o Pipefy?`}>
+    <Secao titulo={`Como a ${e.apelido} fala com o Omie?`}>
       <div className="divide-y rounded-xl border bg-card">
         <Linha rotulo="Fatura por">
           <Select
@@ -987,36 +965,6 @@ function OmieEPipefy({
             {e.modo_omie === "gravar" ? "Gravando" : "Simulação"}
           </StatusBadge>
         </Linha>
-        <Linha rotulo="Criar e mover cards no Pipefy">
-          {!e.tem_chave ? (
-            <BotaoComMotivo
-              rotulo={e.pipefy_sync ? "Ligado" : "Desligado"}
-              motivo={semChave}
-              variant="outline"
-              size="sm"
-            />
-          ) : !e.pipefy_sync && !podeLigarPipefy ? (
-            // Desligar continua com a controladoria; ligar é só dos ativadores.
-            <BotaoComMotivo
-              rotulo="Desligado"
-              motivo={`${SO_ATIVADORES} liga o Pipefy (trava da E1)`}
-              variant="outline"
-              size="sm"
-            />
-          ) : (
-            <Switch
-              checked={e.pipefy_sync}
-              disabled={mudarEmissora.isPending}
-              onCheckedChange={(v) =>
-                v ? setConfirmar("pipefy") : mudarEmissora.mutate({ pipefySync: false })
-              }
-              aria-label={`Criar e mover cards no Pipefy para a ${e.apelido}`}
-            />
-          )}
-          <StatusBadge tom={e.pipefy_sync ? "sucesso" : "neutro"}>
-            {e.pipefy_sync ? "Ligado" : "Desligado"}
-          </StatusBadge>
-        </Linha>
       </div>
 
       <AlertDialog open={!!confirmar} onOpenChange={(abre) => !abre && setConfirmar(null)}>
@@ -1025,34 +973,22 @@ function OmieEPipefy({
             <AlertDialogTitle>
               {confirmar === "gravar"
                 ? `Ligar a gravação no Omie da ${e.apelido}?`
-                : confirmar === "simular"
-                  ? `Voltar a ${e.apelido} para a simulação?`
-                  : `Ligar o Pipefy para a ${e.apelido}?`}
+                : `Voltar a ${e.apelido} para a simulação?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmar === "gravar"
                 ? `A partir de agora, todo pedido da ${e.apelido} que receber o OK cria cliente e OS de verdade no Omie da ${e.apelido}, e o Faturar da tesouraria emite nota. ${fraseSimulados}`
-                : confirmar === "simular"
-                  ? `Os próximos envios da ${e.apelido} voltam a ser simulados. O que já foi ao Omie fica lá.`
-                  : `Cada pedido novo da ${e.apelido} passa a criar um card no pipe Contas a Receber e a mover a fase a cada mudança (OS criada, faturado, recebido). Os pedidos já enviados não ganham card.`}
+                : `Os próximos envios da ${e.apelido} voltam a ser simulados. O que já foi ao Omie fica lá.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() =>
-                mudarEmissora.mutate(
-                  confirmar === "pipefy"
-                    ? { pipefySync: true }
-                    : { modoOmie: confirmar === "gravar" ? "gravar" : "simular" },
-                )
+                mudarEmissora.mutate({ modoOmie: confirmar === "gravar" ? "gravar" : "simular" })
               }
             >
-              {confirmar === "gravar"
-                ? "Gravar no Omie"
-                : confirmar === "simular"
-                  ? "Voltar para a simulação"
-                  : "Ligar o Pipefy"}
+              {confirmar === "gravar" ? "Gravar no Omie" : "Voltar para a simulação"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

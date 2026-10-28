@@ -204,18 +204,15 @@ export function textoProximaAcao(item: ItemFila, hoje: string, agora: Date): str
     case "confirmar_cancelamento":
       return `Confirmar cancelamento${a.desde ? ` · pedido em ${diaMes(a.desde)}` : ""}`;
     default:
-      if (item.pipefy_erro) return "Reenviar o card do Pipefy";
       return item.status === "faturado" ? "Faturado" : "—";
   }
 }
 
-export type BotaoFila =
-  "conferir" | "faturar" | "reenviar" | "confirmar_cancelamento" | "reenviar_pipefy";
+export type BotaoFila = "conferir" | "faturar" | "reenviar" | "confirmar_cancelamento";
 
 /**
- * O botão da linha: Conferir, Faturar, Reenviar ou Confirmar cancelamento. Na fila do Omie não tem botão. Sem
- * nenhum desses e com o card do Pipefy em erro, "Reenviar o card" (o `Sheet` também o oferece, na linha do
- * Pipefy, quando a linha já tem outro botão).
+ * O botão da linha: Conferir, Faturar, Reenviar ou Confirmar cancelamento. Na fila do Omie não tem botão. O
+ * "Reenviar o card" do Pipefy saiu na call de 27/10/2026: o portal não usa mais o Pipefy.
  */
 export function botaoDaLinha(item: ItemFila): BotaoFila | null {
   if (item.faturando) return null;
@@ -230,7 +227,7 @@ export function botaoDaLinha(item: ItemFila): BotaoFila | null {
     case "cancelamento_pedido":
       return "confirmar_cancelamento";
     default:
-      return item.pipefy_erro ? "reenviar_pipefy" : null;
+      return null;
   }
 }
 
@@ -239,7 +236,6 @@ export const ROTULO_BOTAO: Record<BotaoFila, string> = {
   faturar: "Faturar",
   reenviar: "Reenviar",
   confirmar_cancelamento: "Confirmar cancelamento",
-  reenviar_pipefy: "Reenviar o card",
 };
 
 /** Há filtro de tabela (fora a empresa e o pedido aberto)? */

@@ -136,3 +136,8 @@ Ordem: empresas com pedido no portal primeiro, depois por apelido. Inativas (AGR
 - [ ] Definição de pronto de `docs/design/README.md` cumprida
 - [ ] DOC e PIS configuradas pela tela antes do primeiro pedido da E1 (donos, gestor, serviços liberados)
 - [ ] "Gravar no Omie" testado com a controladoria (desabilitado com o motivo) e com o admin (diálogo com o efeito); nada ligado sem o "pode ativar" do Pedro
+
+## Mudanças da call de 27/10/2026
+Decisões confirmadas pelo Pedro em 28/10/2026. Valem sobre o que está acima.
+
+1. **O Pipefy saiu do portal.** Sai a coluna "Pipefy" da tabela das empresas e o switch "Criar e mover cards no Pipefy" do painel. A Seção 3 vira "Como a {empresa} fala com o Omie?" (Fatura por, Chave do Omie, Conta corrente padrão, Gravar no Omie). A coluna `pipefy_sync` fica no banco, desligada em todas.

@@ -245,7 +245,7 @@ test("resumo: antes da nota, recebido e atraso são não apurados; o próximo ve
   );
 });
 
-test("Omie e Pipefy em simulação: o que iria, sem OS e card só montado", () => {
+test("Omie em simulação: o que iria, sem OS; o Pipefy não tem linha (call de 27/10/2026)", () => {
   const f = ficha({
     pedido: { status: "simulado", simulacao: true },
     omie: {
@@ -298,7 +298,9 @@ test("Omie e Pipefy em simulação: o que iria, sem OS e card só montado", () =
     linhas.os,
     "Seria criada com o código FAT-2026-000012; o envio daria erro: serviço não encontrado no Omie da DOC",
   );
-  assert.equal(linhas.pipefy, "Card montado e guardado, não enviado. Iria para a fase Faturar.");
+  // O envio do Pipefy guardado antes da call de 27/10/2026 não aparece: a linha saiu do portal.
+  assert.equal(linhas.pipefy, undefined);
+  assert.deepEqual(Object.keys(linhas), ["cliente", "os", "nota", "leitura"]);
   assert.equal(linhas.leitura, "Pedido simulado: não há situação no Omie para ler.");
   const iria = Object.fromEntries(oQueIriaAoOmie(f).map((l) => [l.rotulo, l.valor]));
   assert.equal(iria["Código do pedido no Omie"], "FAT-2026-000012");
@@ -492,7 +494,7 @@ test("envios bloqueados e cancelados (revisão de 20/10/2026): parado com o moti
   });
   const c = Object.fromEntries(linhasIntegracao(cancelado, HOJE).map((x) => [x.chave, x.texto]));
   assert.equal(c.nota, "Não foi ao Omie: o pedido foi cancelado antes do envio.");
-  assert.equal(c.pipefy, "Não foi ao Pipefy: o pedido foi cancelado antes do envio.");
+  assert.equal(c.pipefy, undefined);
 });
 
 test("em atraso: a nota conta as parcelas (a situação do banco; sem ela, vencida antes de hoje e não paga)", () => {

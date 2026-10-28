@@ -151,3 +151,10 @@ Os do Resumo, acima. Nenhum outro número nesta tela.
 - [ ] Definição de pronto de `docs/design/README.md` cumprida
 - [ ] Ciclo inteiro em simulação na DOC (T2): cada situação da tabela aberta na Ficha com o papel certo e com um papel errado (botão desabilitado com o motivo)
 - [ ] CA-09 por chamada direta a `ops.fat_pedido` com dono de outra empresa
+
+## Mudanças da call de 27/10/2026
+Decisões confirmadas pelo Pedro em 28/10/2026. Valem sobre o que está acima.
+
+1. **O Pipefy saiu do portal.** A seção vira **"Onde está no Omie?"**: sai a linha "Card no Pipefy" (e o "Reenviar o card"), e os "Detalhes técnicos" mostram só o envio ao Omie. Envio do Pipefy guardado antes da call não aparece. No banco, `receita.fat_transicao` só monta envio do Pipefy quando a empresa tem o Pipefy ligado, e nenhuma tem.
+   - Por quê: "Card no Pipefy, Pipefy a gente pode tirar daqui" (Daniel); o portal já guarda a situação de cada pedido. Isto substitui a decisão 4 da Ana (15/10: manter o Pipefy como controle dos estados).
+2. **Departamento saiu** de "O que foi pedido?".
