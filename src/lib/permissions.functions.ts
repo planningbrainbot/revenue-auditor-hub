@@ -303,6 +303,12 @@ export const KNOWN_PERMISSIONS: {
     group: "Administração",
   },
   {
+    key: "view.admin.comites",
+    label: "Ver comitês da rede",
+    description: "Apresentação, gravação e notas da pesquisa de cada comitê (/comites).",
+    group: "Administração",
+  },
+  {
     key: "view.admin.uso",
     label: "Ver uso do Brain",
     description: "Horas, telas e horários de uso do Ops por pessoa (/uso-brain).",

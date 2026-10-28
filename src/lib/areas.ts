@@ -51,6 +51,7 @@ import {
   ListTodo,
   SquareKanban,
   Tags,
+  Presentation,
 } from "lucide-react";
 
 /**
@@ -966,6 +967,13 @@ export const AREAS: Area[] = [
           { title: "Equipes", url: "/equipe", icon: UsersRound },
           // Quem usa o Ops, quanto e em quais telas (PRD 2026-10-ops-uso-do-brain).
           { title: "Uso do Brain", url: "/uso-brain", icon: Activity, chave: "view.admin.uso" },
+          // Apresentação, gravação e notas de cada comitê (PRD 2026-10-ops-comites-da-rede).
+          {
+            title: "Comitês da rede",
+            url: "/comites",
+            icon: Presentation,
+            chave: "view.admin.comites",
+          },
           // A EXCEÇÃO de que o tipo `Item` fala, e o único item da Administração
           // que declara área própria. A fronteira do MENU diz "isto é
           // administração"; a fronteira de CONFIANÇA diz outra coisa: quem

@@ -6964,3 +6964,19 @@ depois do "contrato ok" de `docs/design/contratos/uso-brain.md`.
 **Contexto:** pedido do dono em 28/10: "consegue incluir também ativos em tempo real" na `/uso-brain`.
 
 **Decisão:** função nova `ops.uso_brain_agora(p_gap_min)` (migration `20261028120000_uso_brain_agora.sql`), mesma chave `view.admin.uso` e mesma tabela; nenhum dado novo coletado. "Agora" = minuto ativo nos últimos 2 minutos (a coleta bate a cada 60 s, então 2 min cobrem o atraso sem manter quem saiu na lista). Mostra a tela atual e o início da sessão (regra de 15 min do painel). A tela recarrega o bloco a cada 30 s, só com a aba visível; o filtro de super admins vale para ele também.
+
+## [2026-10-28] Comitês da rede: uma tela para apresentação, gravação e notas, e a pesquisa passa a dizer de qual comitê é
+
+**Contexto:** o dono pediu "um lugar que vejo ppt, gravação da reunião e
+respostas" e depois "crie uma página no ops que traga as notas e o ppt e qual
+comitê foi". A pesquisa de satisfação dos comitês (formulário
+`comite-pesquisa-planning17.vercel.app`) gravava sem dizer o comitê e, desde o
+corte de 12/09, ainda apontava para o banco antigo.
+
+**Decisão:** tabela `ops.comites` com um código por comitê, que vai no endereço
+do QR (`?c=<codigo>`); coluna `comite_codigo` nas respostas; a chave pública só
+insere para comitê com pesquisa aberta (`ops.comite_pesquisa_aberta`); ler exige
+`view.admin.comites`, só admin na v1. Apresentação por link e/ou arquivo no
+bucket privado `comites` (até 50 MB); gravação só como link (uma reunião de 50
+min passa de 1 GB). Tela `/comites` no menu Administração. PRD
+`wiki/prds/2026-10-ops-comites-da-rede.md`.

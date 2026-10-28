@@ -53,6 +53,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
 import { Route as AuthenticatedDreCaixaRouteImport } from './routes/_authenticated/dre-caixa'
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
+import { Route as AuthenticatedComitesRouteImport } from './routes/_authenticated/comites'
 import { Route as AuthenticatedCockpitCooRouteImport } from './routes/_authenticated/cockpit-coo'
 import { Route as AuthenticatedCockpitCeoRouteImport } from './routes/_authenticated/cockpit-ceo'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
@@ -350,6 +351,11 @@ const AuthenticatedDisparosWhatsappRoute =
     path: '/disparos-whatsapp',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedComitesRoute = AuthenticatedComitesRouteImport.update({
+  id: '/comites',
+  path: '/comites',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCockpitCooRoute = AuthenticatedCockpitCooRouteImport.update({
   id: '/cockpit-coo',
   path: '/cockpit-coo',
@@ -694,6 +700,7 @@ export interface FileRoutesByFullPath {
   '/clientes': typeof AuthenticatedClientesRoute
   '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/cockpit-coo': typeof AuthenticatedCockpitCooRoute
+  '/comites': typeof AuthenticatedComitesRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
@@ -794,6 +801,7 @@ export interface FileRoutesByTo {
   '/clientes': typeof AuthenticatedClientesRoute
   '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/cockpit-coo': typeof AuthenticatedCockpitCooRoute
+  '/comites': typeof AuthenticatedComitesRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
@@ -895,6 +903,7 @@ export interface FileRoutesById {
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/_authenticated/cockpit-coo': typeof AuthenticatedCockpitCooRoute
+  '/_authenticated/comites': typeof AuthenticatedComitesRoute
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/_authenticated/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
@@ -999,6 +1008,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/cockpit-ceo'
     | '/cockpit-coo'
+    | '/comites'
     | '/disparos-whatsapp'
     | '/dre-caixa'
     | '/dre-partners'
@@ -1099,6 +1109,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/cockpit-ceo'
     | '/cockpit-coo'
+    | '/comites'
     | '/disparos-whatsapp'
     | '/dre-caixa'
     | '/dre-partners'
@@ -1199,6 +1210,7 @@ export interface FileRouteTypes {
     | '/_authenticated/clientes'
     | '/_authenticated/cockpit-ceo'
     | '/_authenticated/cockpit-coo'
+    | '/_authenticated/comites'
     | '/_authenticated/disparos-whatsapp'
     | '/_authenticated/dre-caixa'
     | '/_authenticated/dre-partners'
@@ -1607,6 +1619,13 @@ declare module '@tanstack/react-router' {
       path: '/disparos-whatsapp'
       fullPath: '/disparos-whatsapp'
       preLoaderRoute: typeof AuthenticatedDisparosWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/comites': {
+      id: '/_authenticated/comites'
+      path: '/comites'
+      fullPath: '/comites'
+      preLoaderRoute: typeof AuthenticatedComitesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cockpit-coo': {
@@ -2058,6 +2077,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedCockpitCeoRoute: typeof AuthenticatedCockpitCeoRoute
   AuthenticatedCockpitCooRoute: typeof AuthenticatedCockpitCooRoute
+  AuthenticatedComitesRoute: typeof AuthenticatedComitesRoute
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
   AuthenticatedDreCaixaRoute: typeof AuthenticatedDreCaixaRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
@@ -2142,6 +2162,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedCockpitCeoRoute: AuthenticatedCockpitCeoRoute,
   AuthenticatedCockpitCooRoute: AuthenticatedCockpitCooRoute,
+  AuthenticatedComitesRoute: AuthenticatedComitesRoute,
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
   AuthenticatedDreCaixaRoute: AuthenticatedDreCaixaRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
