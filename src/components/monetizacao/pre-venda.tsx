@@ -15,11 +15,13 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   classificarErroPreVenda,
   type Atrasado,
+  type AtividadePreVenda,
   type FichaLigacao,
   type LinhaAvaliacao,
   type LinhaRitmo,
 } from "@/lib/monetizacao/pre-venda";
 import {
+  carregarAtividadesPreVenda,
   carregarAtrasadosPreVenda,
   carregarAvaliacaoPreVenda,
   carregarAvaliacoesPreVenda,
@@ -81,6 +83,7 @@ export function PainelPreVenda({
   quem,
   ritmo,
   atrasados,
+  atividades,
   avaliacoes,
   ficha,
   escopo,
@@ -94,6 +97,8 @@ export function PainelPreVenda({
   quem: string;
   ritmo: Consulta<LinhaRitmo[]>;
   atrasados: Consulta<Atrasado[]>;
+  /** Cada atividade por trás dos números do Ritmo, para a aba lateral (28/10/2026); a prévia de captura não traz. */
+  atividades?: Consulta<AtividadePreVenda[]>;
   avaliacoes: Consulta<LinhaAvaliacao[]>;
   ficha: (deal: number) => Promise<FichaLigacao>;
   escopo: string;
@@ -106,6 +111,7 @@ export function PainelPreVenda({
       <RitmoPreVenda
         ritmo={ritmo}
         atrasados={atrasados}
+        atividades={atividades}
         periodo={periodo}
         pessoa={busca.responsavel}
         quem={quem}
@@ -151,6 +157,7 @@ export function VisaoPreVenda({
   const visao = visaoDa(busca);
   const ritmoFn = useServerFn(carregarRitmoPreVenda);
   const atrasadosFn = useServerFn(carregarAtrasadosPreVenda);
+  const atividadesFn = useServerFn(carregarAtividadesPreVenda);
   const avaliacoesFn = useServerFn(carregarAvaliacoesPreVenda);
   const fichaFn = useServerFn(carregarAvaliacaoPreVenda);
   const intervalo = { de: periodo.de, ate: periodo.ate };
@@ -166,6 +173,12 @@ export function VisaoPreVenda({
   const qAtrasados = useQuery({
     queryKey: ["monetizacao-pre-venda-atrasados", user?.id],
     queryFn: () => atrasadosFn(),
+    enabled: !!user && visao === "ritmo",
+    ...comum,
+  });
+  const qAtividades = useQuery({
+    queryKey: ["monetizacao-pre-venda-atividades", user?.id, intervalo.de, intervalo.ate],
+    queryFn: () => atividadesFn({ data: intervalo }),
     enabled: !!user && visao === "ritmo",
     ...comum,
   });
@@ -194,6 +207,7 @@ export function VisaoPreVenda({
       quem={quem}
       ritmo={consulta(qRitmo)}
       atrasados={consulta(qAtrasados)}
+      atividades={consulta(qAtividades)}
       avaliacoes={consulta(qAvaliacoes)}
       ficha={(deal) => fichaFn({ data: { deal } })}
       escopo={user?.id ?? "anonimo"}

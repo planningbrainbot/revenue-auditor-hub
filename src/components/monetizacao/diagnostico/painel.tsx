@@ -38,16 +38,17 @@ import { Field, inputClass } from "../common";
 import { diaUtilAnterior, segundaDaSemana } from "@/lib/monetizacao/feriados";
 import { SeletorVisaoPreVenda, visaoDa } from "../pre-venda";
 import { Segmentado } from "../pre-venda-comum";
-import { SeletorBase } from "../seletor-base";
+import { SeletorBase, SeletorSecao } from "../seletor-base";
 import { AvisoPrevia, ddmm, useListaDeCards } from "./comum";
 import { ForecastDiagnostico } from "./forecast";
 import { OperacaoDiagnostico } from "./operacao";
 import { PERGUNTAS_DIAG, PreVendaDiagnostico } from "./pre-venda";
 
+// Pré-venda e Venda são abas da Operação diária desde 28/10/2026.
 const TITULO: Record<string, string> = {
   operacao: "Operação diária",
-  "pre-venda": "Pré-venda",
-  fechamentos: "Forecast",
+  "pre-venda": "Operação diária",
+  fechamentos: "Operação diária",
 };
 
 export function PainelDiagnostico({
@@ -116,6 +117,7 @@ function Seletores({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <SeletorSecao busca={busca} mudarBusca={mudarBusca} />
       <SeletorBase busca={busca} mudarBusca={mudarBusca} />
       {busca.aba === "pre-venda" && <SeletorVisaoPreVenda busca={busca} mudarBusca={mudarBusca} />}
     </div>

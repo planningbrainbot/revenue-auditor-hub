@@ -110,10 +110,12 @@ Planning People (people)
   Desenvolvimento .... Avaliação · PDI
   A rede ............. Cadastro · Clima · Adoção por unidade
 Monetização (monetizacao)
-  Oportunidades ...... Operação diária · Pré-venda · Consultoria   (/monetizacao?aba=…)   [Fila Cella aposentada em
+  Oportunidades ...... Operação diária (/monetizacao), com três abas desde 28/10: Geral (`aba=operacao`), Pré-venda
+                       (`aba=pre-venda`) e Venda (`aba=fechamentos`, o antigo Forecast)   [Fila Cella aposentada em
                        24/09; Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day em 09/10:
                        o link antigo abre a Operação diária com aviso, N14. Pré-venda (09/10) tem três visões em
                        `?visao=`: Ritmo, Aderência e Ficha]
+  Parceiros .......... Consultoria · Cella (/monetizacao?aba=…)   [grupo próprio desde 28/10]
   Desenv. comercial .. Funil comercial · Abordagens · Distribuição (/monetizacao?aba=…)   [Gravações virou Pré-venda ›
                        Ficha › Reuniões e Pessoas e PDI saiu em 09/10; os links antigos abrem a Pré-venda com aviso]
 Broker (broker)

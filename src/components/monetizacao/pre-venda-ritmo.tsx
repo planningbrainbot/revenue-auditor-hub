@@ -1,7 +1,7 @@
 // Pré-venda › Ritmo: "Quem está no ritmo da cadência?" Arquétipo Visão geral (ARQUETIPOS.md §1): quatro cartões de uma
 // informação cada, a caixa de atenção (atrasados na cadência, uma linha por card) e dois gráficos. Sem meta (Paulo,
 // 08/10): o tracejado das abordagens é a média do período.
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { CircleCheck, ExternalLink } from "lucide-react";
 import {
   Bar,
@@ -15,7 +15,31 @@ import {
   YAxis,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { EstadoVazio, KpiCard, KpiGrade, Secao, StatusBadge } from "@/components/planning";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   CORES_SERIE,
   COR_NEGATIVO,
@@ -30,13 +54,17 @@ import {
 import {
   ddmm,
   kpisRitmo,
+  listasDoRitmo,
   ordenarAtrasados,
   pessoasDoRecorte,
   primeiroNome,
   serie,
   serieAbordagens,
   serieAtividades,
+  situacaoDaAtividade,
+  type AtividadePreVenda,
   type Atrasado,
+  type ListasRitmo,
   type LinhaRitmo,
   type Pessoa,
 } from "@/lib/monetizacao/pre-venda";
@@ -55,17 +83,21 @@ const VISIVEIS = 5;
 export function RitmoPreVenda({
   ritmo,
   atrasados,
+  atividades,
   periodo,
   pessoa,
   quem,
 }: {
   ritmo: Consulta<LinhaRitmo[]>;
   atrasados: Consulta<Atrasado[]>;
+  /** Cada atividade por trás dos números, para a aba lateral; a prévia de captura não traz. */
+  atividades?: Consulta<AtividadePreVenda[]>;
   periodo: { de: string; ate: string; hoje: string };
   pessoa?: number;
   quem: string;
 }) {
-  const caixa = useRef<HTMLElement>(null);
+  // Conferência numa aba lateral, sem rolar a tela (28/10/2026, pedido do Pedro).
+  const [conferencia, setConferencia] = useState<Conferencia | null>(null);
   const estado = estadoDaLeitura({
     consultas: [ritmo, atrasados],
     fonte: "ritmo e atrasados da pré-venda",
@@ -91,13 +123,18 @@ export function RitmoPreVenda({
       />
     );
 
-  const irParaCaixa = () => {
-    caixa.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    caixa.current?.focus({ preventScroll: true });
-  };
+  const conferir = (titulo: string, descricao: string, itens: Conferencia["itens"]) =>
+    setConferencia({ titulo, descricao, itens });
 
   return (
     <div className="space-y-6">
+      <ConferenciaAtividades
+        conferencia={conferencia}
+        atividades={atividades}
+        pessoas={pessoas}
+        periodo={periodo}
+        fechar={() => setConferencia(null)}
+      />
       <KpiGrade colunas={4}>
         <KpiCard
           rotulo="Abordagens por dia útil"
@@ -121,6 +158,15 @@ export function RitmoPreVenda({
                 ? `${INT.format(k.feitasAtrasadas)} estavam atrasadas`
                 : "nenhuma atrasada"
           }
+          abrir={{
+            rotulo: "Conferir",
+            onClick: () =>
+              conferir(
+                `Atividades feitas · ${quem}`,
+                `feitas de ${periodoTexto}, pelo dia em que foram marcadas como feitas; o e-mail de apresentação do D0 sai sozinho e fica fora`,
+                (l) => l.feitas,
+              ),
+          }}
         />
         <KpiCard
           rotulo="Vencidas agora"
@@ -128,7 +174,19 @@ export function RitmoPreVenda({
           tom={k.vencidasAgora > 0 ? "perigo" : "sucesso"}
           tomRotulo={k.vencidasAgora > 0 ? undefined : "em dia"}
           nota={k.vencidasAgora > 0 ? `em ${plural(k.cardsAtrasados, "card", "cards")}` : undefined}
-          abrir={k.vencidasAgora > 0 ? { onClick: irParaCaixa, rotulo: "Ver os cards" } : undefined}
+          abrir={
+            k.vencidasAgora > 0
+              ? {
+                  rotulo: "Conferir",
+                  onClick: () =>
+                    conferir(
+                      `Vencidas agora · ${quem}`,
+                      "atividades das cadências em curso que já venceram e não foram feitas, as mais antigas primeiro",
+                      (l) => l.vencidasAgora,
+                    ),
+                }
+              : undefined
+          }
         />
         <KpiCard
           rotulo="Ligações atendidas"
@@ -143,7 +201,6 @@ export function RitmoPreVenda({
       </KpiGrade>
 
       <CaixaAtrasados
-        ref={caixa}
         atrasados={ordenarAtrasados(atr.filter((a) => pessoas.some((p) => p.id === a.user_id)))}
         mostrarPessoa={pessoas.length > 1}
       />
@@ -204,7 +261,7 @@ export function RitmoPreVenda({
 
       <Secao
         titulo="A cadência está em dia?"
-        descricao="Atividades da cadência pelo dia de vencimento: feitas, vencidas e as que ainda vencem hoje."
+        descricao="Feitas: pelo dia em que foram feitas, de qualquer vencimento. Vencidas e a vencer hoje: pelo dia do vencimento. Clique num dia para conferir."
       >
         <LegendaAtividades />
         <div
@@ -213,7 +270,19 @@ export function RitmoPreVenda({
           }
         >
           {pessoas.map((p) => (
-            <AtividadesDaPessoa key={p.id} pessoa={p} linhas={linhas} periodo={periodo} />
+            <AtividadesDaPessoa
+              key={p.id}
+              pessoa={p}
+              linhas={linhas}
+              periodo={periodo}
+              abrirDia={(dia) =>
+                conferir(
+                  `${primeiroNome(p.nome)} · ${ddmm(dia)}`,
+                  "feitas no dia, de qualquer vencimento, e as que venceram no dia e seguem abertas",
+                  (l) => l.doDia(dia).filter((a) => a.user_id === p.id),
+                )
+              }
+            />
           ))}
         </div>
       </Secao>
@@ -225,22 +294,15 @@ export function RitmoPreVenda({
 function CaixaAtrasados({
   atrasados,
   mostrarPessoa,
-  ref,
 }: {
   atrasados: Atrasado[];
   mostrarPessoa: boolean;
-  ref: React.Ref<HTMLElement>;
 }) {
   const [todos, setTodos] = useState(false);
   const total = atrasados.reduce((s, a) => s + a.vencidas, 0);
   const visiveis = todos ? atrasados : atrasados.slice(0, VISIVEIS);
   return (
-    <section
-      ref={ref}
-      tabIndex={-1}
-      aria-labelledby="titulo-atrasados"
-      className="scroll-mt-4 rounded-xl border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <section aria-labelledby="titulo-atrasados" className="rounded-xl border bg-card">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-3">
         <h2 id="titulo-atrasados" className="text-sm font-semibold text-foreground">
           Atrasados na cadência
@@ -335,32 +397,44 @@ function AtividadesDaPessoa({
   pessoa,
   linhas,
   periodo,
+  abrirDia,
 }: {
   pessoa: Pessoa;
   linhas: LinhaRitmo[];
   periodo: { de: string; ate: string; hoje: string };
+  abrirDia: (dia: string) => void;
 }) {
   const pontos = serieAtividades(linhas, pessoa.id, periodo);
   const feitas = pontos.reduce((s, x) => s + x.feitas, 0);
-  const previstas = pontos.reduce((s, x) => s + x.previstas, 0);
+  const vencidas = pontos.reduce((s, x) => s + x.vencidas, 0);
   return (
     <section className="rounded-xl border bg-card p-4" aria-label={`Cadência de ${pessoa.nome}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">{pessoa.nome}</h3>
-        {previstas > 0 && (
+        {pontos.length > 0 && (
           <span className="num text-[13px] text-muted-foreground">
-            {INT.format(feitas)} de {INT.format(previstas)} feitas
+            {plural(feitas, "feita", "feitas")} · {plural(vencidas, "vencida", "vencidas")}
           </span>
         )}
       </div>
       {pontos.length === 0 ? (
         <p className="mt-6 pb-6 text-center text-[13px] text-muted-foreground">
-          Nenhuma atividade da cadência venceu no período.
+          Nenhuma atividade da cadência venceu nem foi feita no período.
         </p>
       ) : (
         <div className="mt-2 h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={pontos} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
+            <BarChart
+              data={pontos}
+              margin={{ top: 8, right: 8, bottom: 0, left: -24 }}
+              role="img"
+              aria-label={`Cadência de ${pessoa.nome} por dia; clique num dia para conferir as atividades`}
+              className="cursor-pointer"
+              onClick={(e: { activePayload?: { payload?: { dia?: string } }[] }) => {
+                const dia = e?.activePayload?.[0]?.payload?.dia;
+                if (dia) abrirDia(dia);
+              }}
+            >
               <CartesianGrid {...gradeProps} />
               <XAxis {...eixoProps} dataKey="rotulo" minTickGap={8} />
               <YAxis {...eixoProps} allowDecimals={false} />
@@ -385,5 +459,137 @@ function AtividadesDaPessoa({
         </div>
       )}
     </section>
+  );
+}
+
+// ── Conferência ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** O que a aba lateral mostra: um número do Ritmo aberto em atividades, uma por linha. */
+type Conferencia = {
+  titulo: string;
+  descricao: string;
+  itens: (l: ListasRitmo) => AtividadePreVenda[];
+};
+
+const SITUACAO: Record<
+  ReturnType<typeof situacaoDaAtividade>,
+  { tom: TomStatus; rotulo: string }
+> = {
+  "feita-no-dia": { tom: "sucesso", rotulo: "Feita no dia" },
+  "feita-antes": { tom: "sucesso", rotulo: "Feita antes" },
+  "feita-atrasada": { tom: "atencao", rotulo: "Feita com atraso" },
+  vencida: { tom: "perigo", rotulo: "Vencida" },
+  "a-fazer": { tom: "neutro", rotulo: "A fazer" },
+};
+
+const QUANDO = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+/** "26/10 14:34", no horário de São Paulo. */
+const quando = (iso: string | null) => (iso ? QUANDO.format(new Date(iso)).replace(",", "") : "—");
+
+/**
+ * Aba lateral de conferência (28/10/2026, Pedro: "quero clicar em feitas hoje e poder auditar em uma aba lateral
+ * direita"): as atividades por trás do número, com o card do Pipedrive, o vencimento e a hora em que foi feita.
+ */
+function ConferenciaAtividades({
+  conferencia,
+  atividades,
+  pessoas,
+  periodo,
+  fechar,
+}: {
+  conferencia: Conferencia | null;
+  atividades?: Consulta<AtividadePreVenda[]>;
+  pessoas: Pessoa[];
+  periodo: { de: string; ate: string };
+  fechar: () => void;
+}) {
+  const agora = Date.now();
+  const itens =
+    conferencia && atividades?.data
+      ? conferencia.itens(listasDoRitmo(atividades.data, pessoas, periodo, agora))
+      : [];
+  const mostrarPessoa = pessoas.length > 1;
+  return (
+    <Sheet open={!!conferencia} onOpenChange={(o) => !o && fechar()}>
+      <SheetContent className="flex w-full flex-col gap-4 overflow-y-auto sm:max-w-4xl">
+        <SheetHeader className="pr-8">
+          <SheetTitle>{conferencia?.titulo}</SheetTitle>
+          <SheetDescription>
+            {atividades?.data ? `${plural(itens.length, "atividade", "atividades")} · ` : ""}
+            {conferencia?.descricao} · clique na empresa para abrir o card no Pipedrive
+          </SheetDescription>
+        </SheetHeader>
+        {!atividades ? (
+          <EstadoVazio titulo="A lista das atividades não vem nesta prévia" />
+        ) : atividades.erro ? (
+          <EstadoErro
+            detalhe={`Fonte: atividades da cadência. ${atividades.erro.message}`}
+            tentarNovamente={atividades.tentarNovamente}
+          />
+        ) : !atividades.data ? (
+          <Carregando variante="tabela" />
+        ) : !itens.length ? (
+          <EstadoVazio titulo="Nenhuma atividade neste número" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa</TableHead>
+                {mostrarPessoa && <TableHead>Pessoa</TableHead>}
+                <TableHead>Atividade</TableHead>
+                <TableHead className="text-right">Vencimento</TableHead>
+                <TableHead className="text-right">Feita em</TableHead>
+                <TableHead>Situação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {itens.map((a, i) => {
+                const sit = SITUACAO[situacaoDaAtividade(a, agora)];
+                return (
+                  <TableRow key={`${a.deal_id}-${a.vence}-${a.atividade}-${i}`}>
+                    <TableCell className="max-w-[240px]">
+                      {a.url ? (
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex max-w-full items-center gap-1 rounded-sm font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <span className="truncate">{a.empresa}</span>
+                          <ExternalLink
+                            className="size-4 shrink-0 text-muted-foreground"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                        </a>
+                      ) : (
+                        <span className="font-medium text-foreground">{a.empresa}</span>
+                      )}
+                    </TableCell>
+                    {mostrarPessoa && <TableCell>{primeiroNome(a.pessoa)}</TableCell>}
+                    <TableCell>{a.atividade}</TableCell>
+                    <TableCell className="num whitespace-nowrap text-right">
+                      {quando(a.vence)}
+                    </TableCell>
+                    <TableCell className="num whitespace-nowrap text-right">
+                      {a.feita ? quando(a.feita_em) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tom={sit.tom}>{sit.rotulo}</StatusBadge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }

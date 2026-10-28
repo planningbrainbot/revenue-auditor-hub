@@ -182,3 +182,9 @@ desenhar o seu com elas.
 - **Hoje:** os abertos agora nas etapas do nível, do dono do recorte. "Em Stand by hoje" e a Fila do funil por unidade seguem a mesma regra.
 - A coorte, o "+N de abordagem anterior" e os perdidos não mudam: continuam pelo ator do movimento.
 - Revê as linhas "Funil · Hoje" (sem filtro de dono) e "Fila" (pipe inteiro) do contrato e do adendo de 01/10.
+
+## Adendo · 28/10/2026 · Operação diária com três abas; Parceiros no menu
+
+- Pedido do Pedro: "coloca operação, pré-venda, forecast na tela de operação (geral | pré-venda | venda). Divide consultoria e cella numa subdivisão de parceiros".
+- A Operação diária ganha um seletor de abas no topo, antes do seletor de base: **Geral** (a antiga Operação, `aba=operacao`), **Pré-venda** (`aba=pre-venda`) e **Venda** (o antigo Forecast, `aba=fechamentos`). As três levam o título "Operação diária"; a pergunta continua a de cada aba. Trocar de aba mantém base, período, pessoa e produto.
+- Menu da Monetização: Oportunidades (Operação diária) · Parceiros (Consultoria, Cella) · Desenvolvimento comercial. Os links antigos `?aba=pre-venda` e `?aba=fechamentos` seguem valendo e acendem a Operação diária.

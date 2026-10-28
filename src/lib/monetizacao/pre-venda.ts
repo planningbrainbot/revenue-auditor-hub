@@ -57,6 +57,26 @@ export interface Atrasado {
   url: string | null;
 }
 
+/**
+ * `ops.monetizacao_pre_venda_atividades(de, ate)` (28/10/2026): cada atividade de cadência que entra num número do
+ * Ritmo, para a aba lateral de conferência. Instantes em ISO (UTC).
+ */
+export interface AtividadePreVenda {
+  deal_id: number;
+  empresa: string;
+  user_id: number | null;
+  pessoa: string;
+  /** "D3 · Ligação · tarde". */
+  atividade: string;
+  vence: string | null;
+  feita: boolean;
+  feita_em: string | null;
+  /** E-mail de apresentação do D0: sai sozinho na mudança de etapa e fica fora das feitas. */
+  automatica: boolean;
+  cadencia_ativa: boolean;
+  url: string | null;
+}
+
 export interface BlocoAvaliado {
   chave: string;
   titulo: string;
@@ -194,6 +214,23 @@ export const normalizarRitmo = (linhas: unknown): LinhaRitmo[] =>
       concluidas_atrasadas: num(l.concluidas_atrasadas),
     }))
     .filter((l) => /^\d{4}-\d{2}-\d{2}$/.test(l.dia));
+
+export const normalizarAtividades = (linhas: unknown): AtividadePreVenda[] =>
+  lista(linhas)
+    .map(obj)
+    .map((l) => ({
+      deal_id: num(l.deal_id),
+      empresa: texto(l.empresa) ?? `Card ${num(l.deal_id)}`,
+      user_id: numOuNulo(l.user_id),
+      pessoa: nomeDaPessoa(numOuNulo(l.user_id), l.pessoa),
+      atividade: texto(l.atividade) ?? "Atividade da cadência",
+      vence: texto(l.vence),
+      feita: l.feita === true,
+      feita_em: texto(l.feita_em),
+      automatica: l.automatica === true,
+      cadencia_ativa: l.cadencia_ativa === true,
+      url: texto(l.url),
+    }));
 
 export const normalizarAtrasados = (linhas: unknown): Atrasado[] =>
   lista(linhas)
@@ -522,23 +559,30 @@ export function serieAbordagens(linhas: LinhaRitmo[], pessoas: Pessoa[], p: Peri
 export interface PontoAtividade {
   dia: string;
   rotulo: string;
+  /** Feitas no dia, de qualquer vencimento (28/10/2026, Pedro: "contada no dia que foi feita"). */
   feitas: number;
+  /** Venceram no dia e seguem abertas. */
   vencidas: number;
   /** Previstas no dia que ainda não venceram nem foram feitas (o turno da tarde de hoje). */
   aVencer: number;
+  /** Venceram no dia (feitas ou não). */
   previstas: number;
 }
 
-/** Atividades da cadência de uma pessoa por dia de vencimento: feitas, vencidas e a vencer. Só dias com previsão. */
+/**
+ * Atividades da cadência de uma pessoa por dia: feitas pelo dia em que foram feitas; vencidas e a vencer pelo
+ * vencimento. Só dias com alguma previsão ou alguma feita.
+ */
 export function serieAtividades(
   linhas: LinhaRitmo[],
   pessoa: number,
   p: Periodo,
 ): PontoAtividade[] {
-  const porDia = new Map<string, PontoAtividade>();
+  // `noVencimento`: as do dia que já foram feitas, em qualquer dia; só serve para achar o que ainda vai vencer.
+  const porDia = new Map<string, PontoAtividade & { noVencimento: number }>();
   for (const l of linhas) {
-    if (l.user_id !== pessoa || l.dia < p.de || l.dia > p.ate || l.atividades_previstas <= 0)
-      continue;
+    if (l.user_id !== pessoa || l.dia < p.de || l.dia > p.ate) continue;
+    if (l.atividades_previstas <= 0 && l.atividades_concluidas <= 0) continue;
     const x = porDia.get(l.dia) ?? {
       dia: l.dia,
       rotulo: ddmm(l.dia),
@@ -546,15 +590,79 @@ export function serieAtividades(
       vencidas: 0,
       aVencer: 0,
       previstas: 0,
+      noVencimento: 0,
     };
-    x.feitas += l.atividades_feitas;
+    x.feitas += l.atividades_concluidas;
+    x.noVencimento += l.atividades_feitas;
     x.vencidas += l.atividades_vencidas;
     x.previstas += l.atividades_previstas;
     porDia.set(l.dia, x);
   }
   return [...porDia.values()]
-    .map((x) => ({ ...x, aVencer: Math.max(0, x.previstas - x.feitas - x.vencidas) }))
+    .map(({ noVencimento, ...x }) => ({
+      ...x,
+      aVencer: Math.max(0, x.previstas - noVencimento - x.vencidas),
+    }))
     .sort((a, b) => a.dia.localeCompare(b.dia));
+}
+
+/** Dia de São Paulo (UTC−3 o ano todo desde 2019) de um instante ISO; "" sem instante. */
+export const diaEmSaoPaulo = (iso: string | null): string => {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) : "";
+};
+
+/** Como a atividade aparece na conferência: feita no dia, com atraso ou antes; vencida; a fazer. */
+export type SituacaoAtividade =
+  "feita-no-dia" | "feita-atrasada" | "feita-antes" | "vencida" | "a-fazer";
+
+export function situacaoDaAtividade(a: AtividadePreVenda, agora: number): SituacaoAtividade {
+  const vence = diaEmSaoPaulo(a.vence);
+  if (a.feita) {
+    const feita = diaEmSaoPaulo(a.feita_em);
+    if (!feita || !vence || feita === vence) return "feita-no-dia";
+    return vence < feita ? "feita-atrasada" : "feita-antes";
+  }
+  return a.vence && Date.parse(a.vence) < agora ? "vencida" : "a-fazer";
+}
+
+export interface ListasRitmo {
+  /** Feitas no período, pelo dia em que foram feitas, sem o e-mail automático; mais recentes primeiro. */
+  feitas: AtividadePreVenda[];
+  /** Cadência ativa, não feitas e já vencidas: o que "Vencidas agora" soma; mais antigas primeiro. */
+  vencidasAgora: AtividadePreVenda[];
+  /** A barra de um dia do gráfico: feitas no dia e as que venceram no dia e seguem abertas. */
+  doDia: (dia: string) => AtividadePreVenda[];
+}
+
+/** As listas da aba lateral do Ritmo, no recorte de pessoas, com as mesmas regras dos cartões e do gráfico. */
+export function listasDoRitmo(
+  atividades: AtividadePreVenda[],
+  pessoas: Pessoa[],
+  p: Pick<Periodo, "de" | "ate">,
+  agora: number,
+): ListasRitmo {
+  const ids = new Set(pessoas.map((x) => x.id));
+  const doRecorte = atividades.filter((a) => a.user_id !== null && ids.has(a.user_id));
+  const feitaNo = (a: AtividadePreVenda) =>
+    a.feita && !a.automatica ? diaEmSaoPaulo(a.feita_em) : "";
+  const recentes = (a: AtividadePreVenda, b: AtividadePreVenda) =>
+    (b.feita_em ?? "").localeCompare(a.feita_em ?? "");
+  return {
+    feitas: doRecorte
+      .filter((a) => {
+        const d = feitaNo(a);
+        return !!d && d >= p.de && d <= p.ate;
+      })
+      .sort(recentes),
+    vencidasAgora: doRecorte
+      .filter((a) => a.cadencia_ativa && !a.feita && !!a.vence && Date.parse(a.vence) < agora)
+      .sort((a, b) => (a.vence ?? "").localeCompare(b.vence ?? "")),
+    doDia: (dia) =>
+      doRecorte
+        .filter((a) => feitaNo(a) === dia || (!a.feita && diaEmSaoPaulo(a.vence) === dia))
+        .sort((a, b) => Number(a.feita) - Number(b.feita) || recentes(a, b)),
+  };
 }
 
 /** Atrasados em ordem de trabalho: mais vencidas primeiro; empate, o card mais adiantado na cadência. */

@@ -6886,3 +6886,14 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 **Decisão (Pedro, 28/10, "2a"):** o cartão passa a contar as atividades concluídas no período pela hora em que foram marcadas como feitas, de qualquer vencimento, e diz quantas estavam atrasadas. O gráfico continua pelo vencimento.
 
 **Como:** migration `20261028120000`: `ops.monetizacao_pre_venda_ritmo` ganha `atividades_concluidas` e `concluidas_atrasadas` (drop/create, mesmas permissões), pelo `feita_em` de `ops.monetizacao_cadencia.atividades`, sem o `d0-manha-email` (99 dos 125 feitos foram marcados até 15 min depois da entrada do card: sai sozinho). Atrasada = vencimento em dia anterior ao da conclusão, no fuso de São Paulo. Ensaio em produção desfeito: Heloá 53/41 em 26/10 e 54/35 em 27/10; colunas antigas idênticas. App: `kpisRitmo.feitas` e `feitasAtrasadas`; função antiga sem as colunas dá zero.
+
+## [2026-10-28] Monetização: feita conta no dia em que foi feita, conferência em aba lateral e Operação diária com três abas
+
+**Contexto:** depois do cartão "Atividades feitas" (mesmo dia), o Pedro pediu três coisas: a atividade feita contada no dia em que foi feita em todo lugar, independente de atraso (o gráfico ainda contava pelo vencimento); clicar no número e conferir numa aba lateral direita, sem a tela rolar até uma lista; e o menu reorganizado.
+
+**Decisão (Pedro, 28/10):**
+- Gráfico do Ritmo: Feitas pelo dia em que foram feitas; Vencidas e A vencer seguem pelo vencimento (são fatos do vencimento).
+- Conferência em `Sheet` à direita para "Atividades feitas", "Vencidas agora" e o clique num dia do gráfico. "Vencidas agora" não rola mais até a caixa de atrasados.
+- Operação diária com abas Geral | Pré-venda | Venda (o antigo Forecast). Consultoria e Cella num grupo "Parceiros" do menu.
+
+**Como:** migration `20261028150000` (`ops.monetizacao_pre_venda_atividades`, uma linha por atividade, mesmas regras do ritmo e dos atrasados; ensaio em produção bateu com os cartões). `listasDoRitmo` e `situacaoDaAtividade` em `src/lib/monetizacao/pre-venda.ts`; `ConferenciaAtividades` em `pre-venda-ritmo.tsx`. `SeletorSecao` em `seletor-base.tsx`, nos cabeçalhos do pipe 39 e do pipe 40. A `aba` da URL não mudou: os links antigos valem. Contratos: adendos de 28/10 em `monetizacao-pre-venda.md` e `monetizacao-operacao.md`; `NAVEGACAO.md` atualizado.

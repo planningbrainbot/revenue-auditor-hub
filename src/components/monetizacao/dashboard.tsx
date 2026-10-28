@@ -51,7 +51,7 @@ import {
   VisaoPreVenda,
   visaoDa,
 } from "./pre-venda";
-import { SeletorBase } from "./seletor-base";
+import { SeletorBase, SeletorSecao } from "./seletor-base";
 import {
   ABAS,
   ABAS_COM_BASE,
@@ -105,11 +105,14 @@ import { cn } from "@/lib/utils";
 export { ABAS };
 export type { Aba };
 
-/** Título = rótulo do item do menu (`areas.ts`); pergunta = contrato de cada aba (N1). */
+/**
+ * Título = rótulo do item do menu (`areas.ts`); pergunta = contrato de cada aba (N1). Pré-venda e Venda (o antigo
+ * Forecast) são abas da Operação diária desde 28/10/2026 e levam o título dela.
+ */
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
-  "pre-venda": "Pré-venda",
-  fechamentos: "Forecast",
+  "pre-venda": "Operação diária",
+  fechamentos: "Operação diária",
   "handoff-consultoria": "Consultoria",
   cella: "Cella",
   funil: "Funil comercial",
@@ -610,6 +613,7 @@ export function DashboardMonetizacao({
       >
         {ABAS_COM_BASE.includes(aba) ? (
           <div className="flex flex-wrap items-center gap-2">
+            <SeletorSecao busca={busca} mudarBusca={mudarBusca} />
             <SeletorBase busca={busca} mudarBusca={mudarBusca} />
             {aba === "pre-venda" && <SeletorVisaoPreVenda busca={busca} mudarBusca={mudarBusca} />}
           </div>
