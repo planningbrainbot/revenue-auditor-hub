@@ -30,7 +30,6 @@ const COR_STATUS = ["bg-muted-foreground", "bg-info", "bg-warning", "bg-danger"]
 const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const brl = (n: number) => "R$ " + nf2.format(n);
-const brl0 = (n: number) => "R$ " + nf0.format(n);
 /** `AAAA-MM-DD` em `dd/mm/aaaa`, sem passar por `Date` (meia-noite UTC vira o dia anterior). */
 const dia = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4);
 const DIA_SEM = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
@@ -281,24 +280,24 @@ function Semana({
     tom = "neutro";
     titulo = `Informe o saldo em conta para saber se os próximos ${N} dias fecham`;
     linhas.push(
-      `Digite no campo acima o saldo que está no banco hoje (${dia(HOJE)}). A pagar até ${fimTxt}: ${brl0(pagarSem)}.` +
+      `Digite no campo acima o saldo que está no banco hoje (${dia(HOJE)}). A pagar até ${fimTxt}: ${brl(pagarSem)}.` +
         (guardado && guardado.hoje !== HOJE
-          ? ` Último saldo informado: ${brl0(guardado.v)} em ${dia(guardado.hoje)}.`
+          ? ` Último saldo informado: ${brl(guardado.v)} em ${dia(guardado.hoje)}.`
           : ""),
     );
   } else if (furo) {
     tom = "perigo";
     titulo = "Saldo não cobre: falta dinheiro a partir de " + diaCurto(furo);
-    linhas.push(`No pior dia faltam ${brl0(-minimo!)} para pagar tudo o que vence até ${fimTxt}.`);
+    linhas.push(`No pior dia faltam ${brl(-minimo!)} para pagar tudo o que vence até ${fimTxt}.`);
     if (!comReceber && recSem > 0)
       linhas.push(
-        `${brl0(recSem)} a receber vencem no período; ligue “Contar recebimentos previstos” para ver se resolvem.`,
+        `${brl(recSem)} a receber vencem no período; ligue “Contar recebimentos previstos” para ver se resolvem.`,
       );
   } else if (comReceber && furoSem) {
     tom = "atencao";
     titulo = "Cobre só se os recebimentos previstos entrarem";
     linhas.push(
-      `Só com o que está em conta, falta dinheiro a partir de ${diaCurto(furoSem)}. Sobra ${brl0(saldoFim!)} em ${fimTxt} contando os recebimentos.`,
+      `Só com o que está em conta, falta dinheiro a partir de ${diaCurto(furoSem)}. Sobra ${brl(saldoFim!)} em ${fimTxt} contando os recebimentos.`,
     );
   } else {
     tom = "sucesso";
@@ -306,13 +305,13 @@ function Semana({
       ? `O saldo em conta cobre os próximos ${N} dias`
       : `Nada a pagar nos próximos ${N} dias`;
     linhas.push(
-      `Depois de pagar ${brl0(pagarSem)}, sobram ${brl0(saldoFim!)} em ${fimTxt}` +
+      `Depois de pagar ${brl(pagarSem)}, sobram ${brl(saldoFim!)} em ${fimTxt}` +
         (comReceber ? ", contando os recebimentos previstos." : ", sem contar nada a receber."),
     );
   }
   if (CX && ATRASO && !comAtraso)
     linhas.push(
-      `Não entram na conta os ${brl0(ATRASO)} em atraso dos últimos 30 dias (botão “Incluir atrasados”).`,
+      `Não entram na conta os ${brl(ATRASO)} em atraso dos últimos 30 dias (botão “Incluir atrasados”).`,
     );
   const CAIXA_AVISO: Record<TomStatus, string> = {
     sucesso: "border-l-success bg-success-soft",
@@ -421,7 +420,7 @@ function Semana({
                 if (comAtrasoEstado && diaSel === "atraso") setDiaSel(null);
               }}
             >
-              {comAtrasoEstado ? "Tirar atrasados" : "Incluir atrasados"} ({brl0(ATRASO)})
+              {comAtrasoEstado ? "Tirar atrasados" : "Incluir atrasados"} ({brl(ATRASO)})
             </Button>
           )}
         </div>
@@ -445,25 +444,25 @@ function Semana({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Resumo
           k="Saldo em conta hoje"
-          v={CX ? brl0(saldo!) : "não informado"}
+          v={CX ? brl(saldo!) : "não informado"}
           s={CX ? "informado por você" : ""}
           neg={CX && saldo! < 0}
         />
         <Resumo
           k={`A pagar em ${N} dias`}
-          v={brl0(pagarSem)}
+          v={brl(pagarSem)}
           s={
             comAtraso
-              ? `inclui ${brl0(ATRASO)} já em atraso`
+              ? `inclui ${brl(ATRASO)} já em atraso`
               : ATRASO
-                ? `fora ${brl0(ATRASO)} em atraso`
+                ? `fora ${brl(ATRASO)} em atraso`
                 : `${nTitulos} títulos`
           }
         />
         <Resumo
           k={`Saldo previsto em ${fimTxt}`}
-          v={CX ? brl0(saldoFim!) : "não informado"}
-          s={comReceber ? `com ${brl0(recSem)} a receber` : "sem contar recebimentos"}
+          v={CX ? brl(saldoFim!) : "não informado"}
+          s={comReceber ? `com ${brl(recSem)} a receber` : "sem contar recebimentos"}
           neg={CX && saldoFim! < 0}
         />
       </div>
@@ -491,7 +490,7 @@ function Semana({
                   Em atraso
                 </span>
                 <span className="truncate text-base font-semibold tabular-nums">
-                  {brl0(ATRASO)}
+                  {brl(ATRASO)}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {titulosDe((r) => r[2] === I_ATRASO).length} títulos · sai hoje
@@ -512,9 +511,9 @@ function Semana({
                   {diaCurto(d)}
                 </span>
                 <span className="truncate text-base font-semibold tabular-nums">
-                  {brl0(pagoDia.get(d) ?? 0)}
+                  {brl(pagoDia.get(d) ?? 0)}
                 </span>
-                <span className="text-xs">pago{atr ? ` · ${brl0(atr)} atrasou` : ""}</span>
+                <span className="text-xs">pago{atr ? ` · ${brl(atr)} atrasou` : ""}</span>
               </button>
             );
           }
@@ -539,7 +538,7 @@ function Semana({
                 )}
               </span>
               <span className="truncate text-base font-semibold tabular-nums">
-                {v ? brl0(v) : "—"}
+                {v ? brl(v) : "—"}
               </span>
               <span className="text-xs text-muted-foreground">
                 {n ? `${n} ${n === 1 ? "título" : "títulos"}` : "nada vence"}
@@ -551,7 +550,7 @@ function Semana({
                 />
               </span>
               {comReceber && rec > 0 && (
-                <span className="font-mono text-xs text-success">+ {brl0(rec)} entra</span>
+                <span className="font-mono text-xs text-success">+ {brl(rec)} entra</span>
               )}
               {CX && s != null && (
                 <span className="mt-auto border-t pt-1.5 text-[10.5px] leading-tight text-muted-foreground">
@@ -562,7 +561,7 @@ function Semana({
                       s < 0 ? "font-semibold text-danger" : "text-foreground",
                     )}
                   >
-                    {brl0(s)}
+                    {brl(s)}
                   </span>
                 </span>
               )}
@@ -710,19 +709,19 @@ function Tiles({ HOJE, rows }: { HOJE: string; rows: LinhaSaida[] }) {
     <KpiGrade colunas={3}>
       <KpiCard
         rotulo="Atrasado"
-        valor={brl0(soma(atraso))}
+        valor={brl(soma(atraso))}
         tom={atraso.length ? "perigo" : undefined}
         nota={`${titulos(atraso)} títulos · mais antigo há ${diasAtraso} dias`}
       />
       <KpiCard
         rotulo="Vence hoje"
-        valor={brl0(soma(hoje))}
+        valor={brl(soma(hoje))}
         tom={hoje.length ? "atencao" : undefined}
         nota={`${titulos(hoje)} títulos · ${dia(HOJE)}`}
       />
       <KpiCard
         rotulo="Próximos 30 dias"
-        valor={brl0(soma(prox))}
+        valor={brl(soma(prox))}
         tom="info"
         nota={`${titulos(prox)} títulos · até ${dia(lim30)}`}
       />
@@ -749,7 +748,7 @@ function EmAberto({ D, HOJE, rows }: { D: SaidasOmie; HOJE: string; rows: LinhaS
           <h2 className="text-base font-semibold text-foreground">Em aberto</h2>
           <p className="text-sm text-muted-foreground">
             {linhas.length
-              ? `${linhas.length} títulos somando ${brl0(soma)}: vencidos nos últimos 30 dias, vencendo hoje e com vencimento até ${dia(lim30)}`
+              ? `${linhas.length} títulos somando ${brl(soma)}: vencidos nos últimos 30 dias, vencendo hoje e com vencimento até ${dia(lim30)}`
               : "Nada vencido nem a vencer nos próximos 30 dias neste recorte."}
           </p>
         </div>
