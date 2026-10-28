@@ -15,6 +15,7 @@ PRD: `wiki/prds/2026-10-ops-uso-do-brain.md` (repo AI Projects). Modelo: a tela 
 ## Números
 | Número (rótulo exato) | Definição | Unidade de contagem | Fonte e régua | Frescor | Drill-down (destino) | O destino bate? |
 |---|---|---|---|---|---|---|
+| Agora no Ops (28/10/2026) | pessoas com minuto ativo nos últimos 2 minutos, com a tela atual e o início da sessão; recarrega a cada 30 s; respeita o filtro de super admins | pessoa | `ops.uso_minutos` via `ops.uso_brain_agora` | 30 s | detalhe da pessoa | sim |
 | Ativos na semana | pessoas com ≥ 1 minuto na semana escolhida | pessoa | `ops.uso_minutos` via `ops.uso_brain_painel` | tempo real | ranking filtrado pela semana | sim |
 | % ativos | Ativos na semana ÷ pessoas com acesso ao Ops (`produto_acesso`), "N de M" no rodapé | % | idem + `public.produto_acesso` | tempo real | lista "Sem uso na semana" | sim |
 | Horas na semana | soma dos minutos ativos da semana ÷ 60 | hora | idem | tempo real | ranking | sim |
@@ -32,7 +33,8 @@ PRD: `wiki/prds/2026-10-ops-uso-do-brain.md` (repo AI Projects). Modelo: a tela 
 | Vazio (sem dado na fonte) | nenhum minuto registrado ainda (primeiros dias após a publicação) | `EstadoVazio`: "O uso começou a ser registrado em dd/mm. Os números aparecem conforme o time navega." |
 | Vazio por filtro | pessoa ou semana sem uso | `EstadoVazio total={n}` |
 | Parcial / não apurado | semana corrente ainda aberta | rótulo "semana em andamento" no seletor |
-| Fonte indisponível / erro | falha na função | `EstadoErro` com "ops.uso_brain_painel" |
+| Fonte indisponível / erro | falha na função | `EstadoErro` com "ops.uso_brain_painel" (ou "ops.uso_brain_agora" só no bloco Agora no Ops) |
+| Ninguém online | nenhum minuto nos últimos 2 minutos | `EstadoVazio` "Ninguém usando o Ops agora" no bloco |
 | Sem acesso | sem `view.admin.uso` | `EstadoSemAcesso oQueFalta="view.admin.uso"` |
 
 ## Filtros na URL (N7)

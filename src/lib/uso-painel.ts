@@ -38,6 +38,17 @@ export type Painel = {
   historico: Historico[];
 };
 
+// ops.uso_brain_agora: quem teve minuto ativo nos últimos 2 minutos.
+export type Online = {
+  user_id: string;
+  email: string;
+  nome: string | null;
+  papeis: string | null;
+  rota: string;
+  ultimo: string;
+  desde: string;
+};
+
 export type LinhaPessoa = {
   membro: Membro;
   minutosSemana: number;

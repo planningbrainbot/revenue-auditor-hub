@@ -40,6 +40,7 @@ import {
   segundaDaSemana,
   somarDias,
   type LinhaPessoa,
+  type Online,
   type Painel,
 } from "@/lib/uso-painel";
 
@@ -266,6 +267,11 @@ function UsoBrain() {
 
   return (
     <Moldura filtros={filtros}>
+      <AgoraNoOps
+        comAdmins={comAdmins}
+        abrir={(userId) => nav({ search: (s: Busca) => ({ ...s, pessoa: userId }) })}
+      />
+
       <KpiGrade colunas={4}>
         <KpiCard rotulo="Ativos na semana" valor={NUM.format(r.ativos)} unidade="pessoas" />
         <KpiCard
@@ -409,6 +415,71 @@ function UsoBrain() {
         )}
       </Secao>
     </Moldura>
+  );
+}
+
+// Quem está no Ops agora: minuto ativo nos últimos 2 minutos (regra em
+// ops.uso_brain_agora). Recarrega a cada 30 s só com a aba visível.
+function AgoraNoOps({ comAdmins, abrir }: { comAdmins: boolean; abrir: (userId: string) => void }) {
+  const q = useQuery({
+    queryKey: ["uso-brain-agora"],
+    queryFn: async (): Promise<Online[]> => {
+      const { data, error } = await db.rpc("uso_brain_agora", {
+        p_gap_min: INTERVALO_SESSAO_MIN,
+      });
+      if (error) throw new Error(error.message);
+      return data as Online[];
+    },
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  const online = (q.data ?? []).filter(
+    (o) => comAdmins || !(o.papeis ?? "").split(",").includes("admin"),
+  );
+
+  return (
+    <Secao
+      titulo={`Agora no Ops${q.data ? ` · ${NUM.format(online.length)}` : ""}`}
+      descricao="Quem teve minuto ativo nos últimos 2 minutos. Atualiza sozinho a cada 30 segundos."
+    >
+      {q.isLoading ? (
+        <Carregando variante="tabela" linhas={2} />
+      ) : q.isError ? (
+        <EstadoErro
+          titulo="Não deu para ver quem está online"
+          detalhe={`Fonte: ops.uso_brain_agora. ${(q.error as Error).message}`}
+          tentarNovamente={() => q.refetch()}
+        />
+      ) : online.length === 0 ? (
+        <EstadoVazio titulo="Ninguém usando o Ops agora" />
+      ) : (
+        <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {online.map((o) => (
+            <li key={o.user_id}>
+              <button
+                type="button"
+                onClick={() => abrir(o.user_id)}
+                className="flex w-full items-start gap-3 rounded-lg border bg-card p-3 text-left hover:bg-muted/50"
+              >
+                <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-success" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{o.nome ?? o.email}</span>
+                  <span
+                    className="block truncate font-mono text-xs text-muted-foreground"
+                    title={o.rota}
+                  >
+                    {o.rota}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  desde {hora(o.desde)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Secao>
   );
 }
 

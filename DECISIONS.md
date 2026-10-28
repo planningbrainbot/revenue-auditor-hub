@@ -6943,3 +6943,9 @@ Entrega em duas fatias: coleta primeiro (a tela nasce vazia sem ela), tela
 depois do "contrato ok" de `docs/design/contratos/uso-brain.md`.
 
 **Pendente:** retenção de 13 meses (job no n8n) e somar o Growth (v2).
+
+## [2026-10-28] Uso do Brain: bloco "Agora no Ops" (ativos em tempo real)
+
+**Contexto:** pedido do dono em 28/10: "consegue incluir também ativos em tempo real" na `/uso-brain`.
+
+**Decisão:** função nova `ops.uso_brain_agora(p_gap_min)` (migration `20261028120000_uso_brain_agora.sql`), mesma chave `view.admin.uso` e mesma tabela; nenhum dado novo coletado. "Agora" = minuto ativo nos últimos 2 minutos (a coleta bate a cada 60 s, então 2 min cobrem o atraso sem manter quem saiu na lista). Mostra a tela atual e o início da sessão (regra de 15 min do painel). A tela recarrega o bloco a cada 30 s, só com a aba visível; o filtro de super admins vale para ele também.
