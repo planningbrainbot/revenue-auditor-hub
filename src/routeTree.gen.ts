@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as PilotoCockpitCeoRouteImport } from './routes/piloto.cockpit-ceo'
+import { Route as AuthenticatedUsoBrainRouteImport } from './routes/_authenticated/uso-brain'
 import { Route as AuthenticatedUnidadesRouteImport } from './routes/_authenticated/unidades'
 import { Route as AuthenticatedSimuladorCaixaRouteImport } from './routes/_authenticated/simulador-caixa'
 import { Route as AuthenticatedRoyaltiesRouteImport } from './routes/_authenticated/royalties'
@@ -146,6 +147,11 @@ const PilotoCockpitCeoRoute = PilotoCockpitCeoRouteImport.update({
   id: '/piloto/cockpit-ceo',
   path: '/piloto/cockpit-ceo',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedUsoBrainRoute = AuthenticatedUsoBrainRouteImport.update({
+  id: '/uso-brain',
+  path: '/uso-brain',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedUnidadesRoute = AuthenticatedUnidadesRouteImport.update({
   id: '/unidades',
@@ -716,6 +722,7 @@ export interface FileRoutesByFullPath {
   '/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/unidades': typeof AuthenticatedUnidadesRouteWithChildren
+  '/uso-brain': typeof AuthenticatedUsoBrainRoute
   '/piloto/cockpit-ceo': typeof PilotoCockpitCeoRoute
   '/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
@@ -812,6 +819,7 @@ export interface FileRoutesByTo {
   '/rede-realizado': typeof AuthenticatedRedeRealizadoRoute
   '/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
+  '/uso-brain': typeof AuthenticatedUsoBrainRoute
   '/piloto/cockpit-ceo': typeof PilotoCockpitCeoRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
@@ -913,6 +921,7 @@ export interface FileRoutesById {
   '/_authenticated/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/_authenticated/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/_authenticated/unidades': typeof AuthenticatedUnidadesRouteWithChildren
+  '/_authenticated/uso-brain': typeof AuthenticatedUsoBrainRoute
   '/piloto/cockpit-ceo': typeof PilotoCockpitCeoRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
@@ -1015,6 +1024,7 @@ export interface FileRouteTypes {
     | '/royalties'
     | '/simulador-caixa'
     | '/unidades'
+    | '/uso-brain'
     | '/piloto/cockpit-ceo'
     | '/admin/acessos-financeiro'
     | '/admin/credenciais'
@@ -1111,6 +1121,7 @@ export interface FileRouteTypes {
     | '/rede-realizado'
     | '/reforma-tributaria'
     | '/simulador-caixa'
+    | '/uso-brain'
     | '/piloto/cockpit-ceo'
     | '/'
     | '/admin/acessos-financeiro'
@@ -1211,6 +1222,7 @@ export interface FileRouteTypes {
     | '/_authenticated/royalties'
     | '/_authenticated/simulador-caixa'
     | '/_authenticated/unidades'
+    | '/_authenticated/uso-brain'
     | '/piloto/cockpit-ceo'
     | '/_authenticated/'
     | '/_authenticated/admin/acessos-financeiro'
@@ -1331,6 +1343,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/piloto/cockpit-ceo'
       preLoaderRoute: typeof PilotoCockpitCeoRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/uso-brain': {
+      id: '/_authenticated/uso-brain'
+      path: '/uso-brain'
+      fullPath: '/uso-brain'
+      preLoaderRoute: typeof AuthenticatedUsoBrainRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/unidades': {
       id: '/_authenticated/unidades'
@@ -2054,6 +2073,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRoyaltiesRoute: typeof AuthenticatedRoyaltiesRouteWithChildren
   AuthenticatedSimuladorCaixaRoute: typeof AuthenticatedSimuladorCaixaRoute
   AuthenticatedUnidadesRoute: typeof AuthenticatedUnidadesRouteWithChildren
+  AuthenticatedUsoBrainRoute: typeof AuthenticatedUsoBrainRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminAcessosFinanceiroRoute: typeof AuthenticatedAdminAcessosFinanceiroRoute
   AuthenticatedAdminCredenciaisRoute: typeof AuthenticatedAdminCredenciaisRoute
@@ -2137,6 +2157,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRoyaltiesRoute: AuthenticatedRoyaltiesRouteWithChildren,
   AuthenticatedSimuladorCaixaRoute: AuthenticatedSimuladorCaixaRoute,
   AuthenticatedUnidadesRoute: AuthenticatedUnidadesRouteWithChildren,
+  AuthenticatedUsoBrainRoute: AuthenticatedUsoBrainRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminAcessosFinanceiroRoute:
     AuthenticatedAdminAcessosFinanceiroRoute,

@@ -14,6 +14,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
+import { useRegistrarUso } from "@/lib/uso";
 import { temSenhaProvisoria } from "@/lib/senha-provisoria";
 import { areasDoCaminho, AREAS, casaComCaminho, type Area, type Item } from "@/lib/areas";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
@@ -106,6 +107,9 @@ function AuthenticatedLayout() {
   useEffect(() => {
     void garantirSessoesIrmas();
   }, []);
+
+  // Minuto ativo no Ops, para a tela /uso-brain.
+  useRegistrarUso(pathname);
 
   async function handleSignOut() {
     await supabase.auth.signOut();

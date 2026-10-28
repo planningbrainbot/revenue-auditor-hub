@@ -6925,3 +6925,27 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 - Contratos: seções "Mudanças da call de 27/10/2026" em `faturamento-novo.md`, `faturamento-pedido.md`, `faturamento-tesouraria.md` e `faturamento-configuracao.md`.
 
 **Status:** banco aplicado. O app está no PR e não foi publicado (o Pedro publica). Até o deploy, o app no ar continua com o formulário antigo, que segue funcionando: as funções novas são aditivas, e o pedido novo só deixa de ganhar a linha "card montado e guardado" do Pipefy. Simulação, acessos e o recorrente ficam fora deste PR.
+## [2026-10-27] Uso do Brain no Ops (/uso-brain): coleta por minuto ativo
+
+**Contexto:** pedido do dono: "preciso de uma página dessa no brain ops", apontando
+para `/growth/uso-brain`. O Ops não registrava uso nenhum, só `last_sign_in_at`.
+PRD `wiki/prds/2026-10-ops-uso-do-brain.md` (AI Projects), aprovado em 27/10 com:
+só admin vê (chave `view.admin.uso`, área Administração), só o uso do Ops na v1
+(somar o Growth depois), sócios de unidade também são medidos.
+
+**Decisão:** mesmo desenho do Growth (`growth.uso_minutos` + `uso_brain_painel`),
+em `ops.uso_minutos` + `ops.registrar_uso` + `ops.uso_brain_painel`, com quatro
+diferenças de propósito: chave por `user_id` (sem e-mail na tabela); minuto do
+relógio do servidor; rota normalizada no banco (sem query, ids viram `:id`);
+"ver como" não grava. Minuto conta só com aba visível e interação no último
+minuto (`src/lib/uso-regra.ts`). O registro vive no layout `_authenticated`.
+Entrega em duas fatias: coleta primeiro (a tela nasce vazia sem ela), tela
+depois do "contrato ok" de `docs/design/contratos/uso-brain.md`.
+
+**Pendente:** retenção de 13 meses (job no n8n) e somar o Growth (v2).
+
+## [2026-10-28] Uso do Brain: bloco "Agora no Ops" (ativos em tempo real)
+
+**Contexto:** pedido do dono em 28/10: "consegue incluir também ativos em tempo real" na `/uso-brain`.
+
+**Decisão:** função nova `ops.uso_brain_agora(p_gap_min)` (migration `20261028120000_uso_brain_agora.sql`), mesma chave `view.admin.uso` e mesma tabela; nenhum dado novo coletado. "Agora" = minuto ativo nos últimos 2 minutos (a coleta bate a cada 60 s, então 2 min cobrem o atraso sem manter quem saiu na lista). Mostra a tela atual e o início da sessão (regra de 15 min do painel). A tela recarrega o bloco a cada 30 s, só com a aba visível; o filtro de super admins vale para ele também.

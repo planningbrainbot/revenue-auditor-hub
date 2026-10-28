@@ -957,6 +957,8 @@ export const AREAS: Area[] = [
           { title: "Perfis e áreas", url: "/admin/permissoes", icon: UserCog },
           // A mesma tela que admin e sócio abrem pelo rodapé; aqui com todas as áreas.
           { title: "Equipes", url: "/equipe", icon: UsersRound },
+          // Quem usa o Ops, quanto e em quais telas (PRD 2026-10-ops-uso-do-brain).
+          { title: "Uso do Brain", url: "/uso-brain", icon: Activity, chave: "view.admin.uso" },
           // A EXCEÇÃO de que o tipo `Item` fala, e o único item da Administração
           // que declara área própria. A fronteira do MENU diz "isto é
           // administração"; a fronteira de CONFIANÇA diz outra coisa: quem
