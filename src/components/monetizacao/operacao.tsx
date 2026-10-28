@@ -172,7 +172,10 @@ const REGRAS: [string, string][] = [
     "Etapas somadas",
     "O Gatilho, encerrado em 01/10, conta como Qualificação (a antiga Conexão). O Stand by conta como Levantamento com sócio realizado só se o card passou por Agendado antes (desde 14/10).",
   ],
-  ["Fila", "A fila são os cards que estiveram na Base elegível em algum momento do período."],
+  [
+    "Fila",
+    "A fila são os cards do pré-vendedor escolhido que estiveram na Base elegível em algum momento do período: os que já esperavam e os que chegaram.",
+  ],
   [
     "Re-abordagem",
     "Card que volta para a Base e sai de novo conta como abordado de novo no ritmo e no gráfico (desde 14/10). A volta desfeita em menos de 30 minutos não conta.",
@@ -183,7 +186,7 @@ const REGRAS: [string, string][] = [
   ],
   [
     "Hoje",
-    "A coluna Hoje mostra quantos estão na etapa agora, no pipe inteiro, e não entra na taxa.",
+    "A coluna Hoje mostra quantos cards do pré-vendedor escolhido estão na etapa agora, e não entra na taxa.",
   ],
   [
     "Dias úteis",
@@ -367,9 +370,9 @@ export function FunilOperacao({
       </div>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
         Cards abordados no período, cada um contado até a etapa mais adiantada a que chegou. Taxa: a
-        etapa ÷ a de cima. Hoje: o pipe inteiro agora, {INT.format(abertos)} abertos, fora da taxa.
-        "+N de abordagem anterior": cards abordados antes que chegaram à etapa no período, fora da
-        conta.
+        etapa ÷ a de cima. Fila e Hoje: os cards do recorte, {INT.format(abertos)} abertos agora,
+        fora da taxa. "+N de abordagem anterior": cards abordados antes que chegaram à etapa no
+        período, fora da conta.
       </p>
       {recorte && (
         <p className="mt-2 text-xs font-medium text-foreground">

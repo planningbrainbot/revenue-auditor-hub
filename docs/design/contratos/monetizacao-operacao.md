@@ -174,3 +174,11 @@ desenhar o seu com elas.
 - A visão Hoje saiu do seletor da Pré-venda nas duas bases, a pedido do Pedro. A fila do dia fica no Forecast. O padrão passa a ser o Ritmo (`visao` ausente = Ritmo). O componente da visão Hoje continua no repositório, sem rota.
 - Os atalhos de período ganham "Ontem" e "Semana". "Ontem" é o dia útil anterior: na segunda, a sexta, e na volta de feriado, o último dia útil. "Semana" vai da segunda-feira até hoje.
 - O atalho fica aceso quando o início e o fim batem com ele.
+
+## Adendo · 27/10/2026 · Fila e Hoje seguem o pré-vendedor
+
+- Pedido do Pedro: "preciso que o filtro de responsável se aplique a essa coluna da direita". A Heloá via, no recorte dela em 26/10, 34 na Fila · Base elegível, e só 22 eram dela (16 já esperavam, 4 chegaram no dia e 2 voltaram); os outros 12 eram do Matheus.
+- **Fila:** os cards do dono do recorte que estiveram na Base elegível em algum momento do período. Com "Pré-venda (os dois)", os cards do Matheus e da Heloá; sem recorte de pré-venda, o pipe inteiro.
+- **Hoje:** os abertos agora nas etapas do nível, do dono do recorte. "Em Stand by hoje" e a Fila do funil por unidade seguem a mesma regra.
+- A coorte, o "+N de abordagem anterior" e os perdidos não mudam: continuam pelo ator do movimento.
+- Revê as linhas "Funil · Hoje" (sem filtro de dono) e "Fila" (pipe inteiro) do contrato e do adendo de 01/10.

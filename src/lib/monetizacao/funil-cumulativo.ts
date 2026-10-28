@@ -12,7 +12,8 @@
  *   em que o card ficou 30 minutos ou mais, de onde avançou ou em que terminou; um toque desfeito em minutos não
  *   conta. Ganho no período é o nível acima de todos.
  * - Contagem da etapa: cards da coorte com nível maior ou igual ao dela. Só desce, e é sempre inteira.
- * - Fila: cards que estiveram na Base elegível em algum momento do período (já estavam lá no início ou entraram).
+ * - Fila: cards que estiveram na Base elegível em algum momento do período (já estavam lá no início ou entraram), do
+ *   dono do recorte (27/10/2026).
  * - Taxa: contagem da etapa ÷ contagem da etapa de cima.
  *
  * Datas de evento (`date`) já vêm no fuso de São Paulo; instantes (`at`) são comparados como instante, nunca como
@@ -300,7 +301,7 @@ export interface LinhaCumulativa extends NivelRegua {
   contagem: number;
   /** Contagem ÷ a da linha de cima. `undefined` na primeira linha; `null` quando a de cima é zero. */
   taxa?: number | null;
-  /** Abertos agora nas etapas do nível, pipe inteiro (só o filtro de produto). `null` em Ganho. */
+  /** Abertos agora nas etapas do nível, do dono do recorte e do produto do filtro. `null` em Ganho. */
   hoje: Negocio[] | null;
   /** Etapas somadas, com quantos estão nelas agora. */
   somadasHoje: { nome: string; hoje: number }[];
@@ -318,7 +319,7 @@ export interface FunilCumulativo {
   avancosAnteriores: AvancoAnterior[];
   /** Perdidos no período por quem marcou a perda (`lost_by`, carga v6). `null` antes da carga v4. */
   perdidos: Negocio[] | null;
-  /** Abertos agora no pipe (filtro de produto). */
+  /** Abertos agora no pipe, do dono do recorte e do produto do filtro. */
   abertos: number;
 }
 
@@ -348,7 +349,10 @@ const doProduto = (cards: Negocio[], f: Pick<Filtro, "product">) =>
 export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): FunilCumulativo {
   const regua = reguaDoPipe(stages);
   const pool = doProduto(cards, f);
-  const fila = pool.filter((c) => naFila(c, f, regua));
+  // Fila e Hoje são estoque, não movimento: com o filtro de pré-vendedor, contam os cards de que ele é dono (27/10/2026,
+  // pedido do Pedro). Antes eram o pipe inteiro, e o recorte da Heloá em 26/10 mostrava 34 na fila, dos quais 22 dela.
+  const doDono = pool.filter((c) => doResponsavel(f, c.owner_id));
+  const fila = doDono.filter((c) => naFila(c, f, regua));
   const nivelDoCard = new Map<number, number>();
   const coorte: Negocio[] = [];
   for (const c of pool) {
@@ -359,7 +363,7 @@ export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): F
     const teto = paraNoLevantamento(c, f.product) ? regua.nivelDe.realizada : undefined;
     nivelDoCard.set(c.id, teto === undefined ? nivel : Math.min(nivel, teto));
   }
-  const abertos = pool.filter((c) => c.status === "open");
+  const abertos = doDono.filter((c) => c.status === "open");
   const linhas: LinhaCumulativa[] = regua.niveis.map((n) => {
     const doNivel = n.nivel === 0 ? fila : coorte.filter((c) => nivelDoCard.get(c.id)! >= n.nivel);
     return {

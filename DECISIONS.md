@@ -6868,3 +6868,13 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 **Decisão:** a Confiança ganha, abaixo da barra, "De onde vem a certeza dos N clientes": o sinal mais forte de cada cliente, um por conta, nesta ordem: contrato ativo no Omie; pagamento nos últimos 90 dias (grau 4 sem contrato ativo); contrato ou título antigo no Omie; negócio ganho no Pipedrive; só na base do Pipefy; só a tag Cliente do Omie. Cada cartão filtra a lista (`sinal` na URL; escolher sinal limpa a faixa e vice-versa). O texto da barra diz quantas empresas do recorte não são clientes pela regra e ficaram fora da Base. Nenhuma régua muda.
 
 **Como:** `sinalDoCliente`/`contarSinais` em `src/lib/clientes/regra-cliente.ts`, lendo `situacao.criterios`, `situacao.grau` e `prova.contrato_ativo`; `CertezaPorSinal` em `regra-cliente.tsx`. Conferido com o código real sobre a carteira de Curitiba (27/10, depois do recálculo): 340 · 57 · 20 · 78 · 4 · 0 e 1.426 fora. A Ana Paula já tinha `view.clientes_painel` e escopo de todas as unidades.
+
+## [2026-10-27] Operação da Monetização: Fila e Hoje do funil seguem o filtro de pré-vendedor
+
+**Contexto:** a Heloá não reconheceu os números do próprio dia. No recorte dela, com "Ontem" (26/10), o funil mostrava 34 na Fila · Base elegível e a coluna Hoje com o pipe inteiro (Realizado 11, Proposta enviada 6), mas ela tem 22 na fila e 1 em Realizado. As duas contagens usavam só o filtro de produto e de unidade (contrato de 01/10: "pipe inteiro").
+
+**Decisão (Pedro, 27/10):** o filtro de pré-vendedor vale para a coluna Hoje. A Fila segue junto, pelo mesmo motivo: as duas são estoque, e estoque é do dono do card.
+
+**Como:** `funilCumulativo` filtra fila e abertos por `doResponsavel(f, c.owner_id)`. A coorte, os avanços de abordagem anterior e os perdidos seguem pelo ator do movimento (régua v6). Teste em `tests/monetizacao-cumulativo.test.mjs`. Contrato: adendo de 27/10 em `docs/design/contratos/monetizacao-operacao.md`.
+
+**Fica para decisão:** a Pré-venda › Ritmo conta a cadência pelo vencimento, e o cartão "Feitas hoje" some com "Ontem". Em 26/10 a Heloá concluiu 53 atividades da cadência e só 10 venciam no dia; a tela mostrava 16 de 49 no dia 26. `ops.monetizacao_cadencia` guarda `feita_em`, então dá para contar "feitas no período" pela conclusão. Proposta entregue ao Pedro, sem código até o "contrato ok".
