@@ -808,7 +808,7 @@ function descricaoDaAba(
         return `Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
       const visao = visaoDa(v.busca);
       if (visao === "ritmo")
-        return `Pipe 39 · pré-venda: ${v.responsavel} · ${v.periodo} · abordagem = card que começou no dia; atividade = item da cadência pelo vencimento; ligação = discada pelo ramal Api4Com`;
+        return `Pipe 39 · pré-venda: ${v.responsavel} · ${v.periodo} · abordagem = card que saiu da Base no dia; atividades feitas = pelo dia em que foram marcadas, sem o e-mail de apresentação; cadência em dia = pelo vencimento; ligação = discada pelo ramal Api4Com`;
       if (visao === "aderencia")
         return `Ligações avaliadas, a atendida mais longa de cada card (60 s ou mais) · ${v.responsavel} · ${v.periodo} · % de aderência ao script de 09/10`;
       return `Uma ligação por card do pipe 39, a atendida mais longa (60 s ou mais) · ${v.responsavel} · ${v.periodo} · ligação`;

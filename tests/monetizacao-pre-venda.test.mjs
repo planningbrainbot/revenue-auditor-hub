@@ -222,8 +222,9 @@ test("Ritmo: sábado trabalhado entra no gráfico, mas não na conta de dias út
 
 test("Ritmo: cadência de hoje, vencidas agora e ligações atendidas", () => {
   const k = kpisRitmo(ritmo, atrasados, pessoasDoRecorte(ritmo), PERIODO);
-  assert.equal(k.feitasHoje, 14);
-  assert.equal(k.previstasHoje, 30);
+  // A função antiga não traz as concluídas: zero, não erro.
+  assert.equal(k.feitas, 0);
+  assert.equal(k.feitasAtrasadas, 0);
   assert.equal(k.vencidasAgora, 17);
   assert.equal(k.cardsAtrasados, 9);
   assert.equal(k.discadas, 73);
@@ -237,6 +238,33 @@ test("Ritmo: cadência de hoje, vencidas agora e ligações atendidas", () => {
   assert.equal(kh.cardsAtrasados, 3);
   // Sem ligação, a taxa é ausente, não zero.
   assert.equal(kpisRitmo([], [], pessoasDoRecorte([]), PERIODO).taxaAtendidas, null);
+});
+
+test("Ritmo: atividades feitas contam pelo dia em que foram feitas, não pelo vencimento (28/10/2026)", () => {
+  // O dia 26/10 da Heloá: 53 feitas, 41 atrasadas, e só 27 das 49 que venciam no dia estão feitas.
+  const linhas = normalizarRitmo([
+    {
+      dia: "2026-10-26",
+      user_id: H,
+      atividades_previstas: 49,
+      atividades_feitas: 27,
+      atividades_vencidas: 22,
+      atividades_concluidas: "53",
+      concluidas_atrasadas: "41",
+    },
+    { dia: "2026-10-27", user_id: H, atividades_concluidas: 54, concluidas_atrasadas: 35 },
+    { dia: "2026-10-27", user_id: M, atividades_concluidas: 5, concluidas_atrasadas: 0 },
+  ]);
+  const ontem = { de: "2026-10-26", ate: "2026-10-26", hoje: "2026-10-28" };
+  const k = kpisRitmo(linhas, [], pessoasDoRecorte(linhas, H), ontem);
+  assert.equal(k.feitas, 53);
+  assert.equal(k.feitasAtrasadas, 41);
+  // Semana: soma os dias; os dois pré-vendedores somam as pessoas.
+  const semana = { de: "2026-10-26", ate: "2026-10-28", hoje: "2026-10-28" };
+  assert.equal(kpisRitmo(linhas, [], pessoasDoRecorte(linhas, H), semana).feitas, 107);
+  assert.equal(kpisRitmo(linhas, [], pessoasDoRecorte(linhas), semana).feitas, 112);
+  // O gráfico da cadência segue pelo vencimento.
+  assert.equal(serieAtividades(linhas, H, ontem)[0].feitas, 27);
 });
 
 test("Ritmo: atividades por dia de uma pessoa, com o que ainda vai vencer hoje", () => {

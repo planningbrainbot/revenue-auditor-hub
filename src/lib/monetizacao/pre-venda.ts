@@ -36,6 +36,13 @@ export interface LinhaRitmo {
   ligacoes: number;
   ligacoes_atendidas: number;
   minutos_falados: number;
+  /**
+   * Atividades da cadência marcadas como feitas no dia, de qualquer vencimento, sem o e-mail de apresentação do D0
+   * (28/10/2026). As três de cima contam pelo vencimento.
+   */
+  atividades_concluidas: number;
+  /** Das concluídas no dia, as que venceram num dia anterior. */
+  concluidas_atrasadas: number;
 }
 
 /** `ops.monetizacao_pre_venda_atrasados()`: card com cadência ativa e ao menos uma atividade vencida e não feita. */
@@ -183,6 +190,8 @@ export const normalizarRitmo = (linhas: unknown): LinhaRitmo[] =>
       ligacoes: num(l.ligacoes),
       ligacoes_atendidas: num(l.ligacoes_atendidas),
       minutos_falados: num(l.minutos_falados),
+      atividades_concluidas: num(l.atividades_concluidas),
+      concluidas_atrasadas: num(l.concluidas_atrasadas),
     }))
     .filter((l) => /^\d{4}-\d{2}-\d{2}$/.test(l.dia));
 
@@ -562,8 +571,13 @@ export interface KpisRitmo {
   uteis: number;
   /** Abordagens ÷ dias úteis até hoje; `null` sem dia útil decorrido. */
   porDiaUtil: number | null;
-  feitasHoje: number;
-  previstasHoje: number;
+  /**
+   * Atividades feitas no período, pelo dia em que foram feitas (28/10/2026). Era "Feitas hoje", pelo vencimento, e com
+   * "Ontem" o cartão ficava sem número: a Heloá fez 53 em 26/10 e só 10 venciam no dia.
+   */
+  feitas: number;
+  /** Das feitas, as que venceram antes do dia em que foram feitas. */
+  feitasAtrasadas: number;
   vencidasAgora: number;
   cardsAtrasados: number;
   discadas: number;
@@ -583,7 +597,6 @@ export function kpisRitmo(
     (l) => l.user_id !== null && ids.has(l.user_id) && l.dia >= p.de && l.dia <= p.ate,
   );
   const soma = (k: keyof LinhaRitmo, ls = doRecorte) => ls.reduce((s, l) => s + Number(l[k]), 0);
-  const hoje = doRecorte.filter((l) => l.dia === p.hoje);
   const atr = atrasados.filter((a) => a.user_id !== null && ids.has(a.user_id));
   const abordagens = soma("abordagens");
   const uteis = uteisAteHoje(p.de, p.ate, p.hoje);
@@ -593,8 +606,8 @@ export function kpisRitmo(
     abordagens,
     uteis,
     porDiaUtil: uteis ? abordagens / uteis : null,
-    feitasHoje: soma("atividades_feitas", hoje),
-    previstasHoje: soma("atividades_previstas", hoje),
+    feitas: soma("atividades_concluidas"),
+    feitasAtrasadas: soma("concluidas_atrasadas"),
     vencidasAgora: atr.reduce((s, a) => s + a.vencidas, 0),
     cardsAtrasados: atr.length,
     discadas,

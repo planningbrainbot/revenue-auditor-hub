@@ -6878,3 +6878,11 @@ unidades (`convidarParaFinanceiro`, guarda pela mesma chave).
 **Como:** `funilCumulativo` filtra fila e abertos por `doResponsavel(f, c.owner_id)`. A coorte, os avanços de abordagem anterior e os perdidos seguem pelo ator do movimento (régua v6). Teste em `tests/monetizacao-cumulativo.test.mjs`. Contrato: adendo de 27/10 em `docs/design/contratos/monetizacao-operacao.md`.
 
 **Fica para decisão:** a Pré-venda › Ritmo conta a cadência pelo vencimento, e o cartão "Feitas hoje" some com "Ontem". Em 26/10 a Heloá concluiu 53 atividades da cadência e só 10 venciam no dia; a tela mostrava 16 de 49 no dia 26. `ops.monetizacao_cadencia` guarda `feita_em`, então dá para contar "feitas no período" pela conclusão. Proposta entregue ao Pedro, sem código até o "contrato ok".
+
+## [2026-10-28] Pré-venda › Ritmo: atividades feitas pelo dia em que foram feitas
+
+**Contexto:** o Ritmo contava a cadência pelo vencimento. Com "Ontem", o cartão "Feitas hoje" ficava sem número e o gráfico de 26/10 mostrava 16 de 49 para a Heloá, que concluiu 53 atividades da cadência naquele dia (41 atrasadas de 20 a 23/10, 10 do dia e 2 adiantadas).
+
+**Decisão (Pedro, 28/10, "2a"):** o cartão passa a contar as atividades concluídas no período pela hora em que foram marcadas como feitas, de qualquer vencimento, e diz quantas estavam atrasadas. O gráfico continua pelo vencimento.
+
+**Como:** migration `20261028120000`: `ops.monetizacao_pre_venda_ritmo` ganha `atividades_concluidas` e `concluidas_atrasadas` (drop/create, mesmas permissões), pelo `feita_em` de `ops.monetizacao_cadencia.atividades`, sem o `d0-manha-email` (99 dos 125 feitos foram marcados até 15 min depois da entrada do card: sai sozinho). Atrasada = vencimento em dia anterior ao da conclusão, no fuso de São Paulo. Ensaio em produção desfeito: Heloá 53/41 em 26/10 e 54/35 em 27/10; colunas antigas idênticas. App: `kpisRitmo.feitas` e `feitasAtrasadas`; função antiga sem as colunas dá zero.
