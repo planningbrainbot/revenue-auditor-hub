@@ -77,7 +77,6 @@ export function RitmoPreVenda({
   const pessoas = pessoasDoRecorte([...linhas, ...atr], pessoa);
   const k = kpisRitmo(linhas, atr, pessoas, periodo);
   const abordagens = serieAbordagens(linhas, pessoas, periodo);
-  const temHoje = periodo.de <= periodo.hoje && periodo.hoje <= periodo.ate;
   const periodoTexto = `${ddmm(periodo.de)} a ${ddmm(periodo.ate)}`;
   const nada =
     !atr.some((a) => pessoas.some((p) => p.id === a.user_id)) &&
@@ -110,12 +109,18 @@ export function RitmoPreVenda({
               : `${INT.format(k.abordagens)} em ${plural(k.uteis, "dia útil", "dias úteis")}`
           }
         />
+        {/* Pelo dia em que a atividade foi feita, de qualquer vencimento (28/10/2026); o gráfico da cadência segue
+            pelo vencimento. */}
         <KpiCard
-          rotulo="Feitas hoje"
-          valor={INT.format(k.feitasHoje)}
-          unidade={`de ${INT.format(k.previstasHoje)} previstas`}
-          estado={temHoje ? "ok" : "nao-apurado"}
-          nota={temHoje ? undefined : "o período não inclui hoje"}
+          rotulo="Atividades feitas"
+          valor={INT.format(k.feitas)}
+          nota={
+            k.feitas === 0
+              ? "nenhuma atividade da cadência feita no período"
+              : k.feitasAtrasadas > 0
+                ? `${INT.format(k.feitasAtrasadas)} estavam atrasadas`
+                : "nenhuma atrasada"
+          }
         />
         <KpiCard
           rotulo="Vencidas agora"

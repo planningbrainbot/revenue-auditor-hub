@@ -136,3 +136,10 @@ Pedido do Pedro: "tem card com atividade que tá sendo registrado como sem ativi
 - A visão Hoje saiu do seletor da Pré-venda nas duas bases, a pedido do Pedro. A fila do dia fica no Forecast. O padrão passa a ser o Ritmo (`visao` ausente = Ritmo). O componente da visão Hoje continua no repositório, sem rota.
 - Os atalhos de período ganham "Ontem" e "Semana". "Ontem" é o dia útil anterior: na segunda, a sexta, e na volta de feriado, o último dia útil. "Semana" vai da segunda-feira até hoje.
 - O atalho fica aceso quando o início e o fim batem com ele.
+
+## Adendo · 28/10/2026 · Atividades feitas pelo dia em que foram feitas
+
+- Decisão do Pedro ("2a"). A Heloá concluiu 53 atividades da cadência em 26/10, e só 10 venciam no dia. Com "Ontem", o cartão "Feitas hoje" ficava sem número e o gráfico do dia mostrava 16 de 49: ela não via o próprio dia.
+- **Cartão "Atividades feitas"** (substitui "Feitas hoje"): itens da cadência marcados como feitos nos dias do período, pelo `feita_em`, de qualquer vencimento, sem o e-mail de apresentação do D0 (nasce feito na mudança de etapa). Nota: "N estavam atrasadas", as que venceram em dia anterior ao da conclusão. Fonte: `ritmo.atividades_concluidas` e `ritmo.concluidas_atrasadas` (migration `20261028120000`).
+- O gráfico "A cadência está em dia?" e "Vencidas agora" não mudam: seguem pelo vencimento.
+- Tarefa fora da cadência (follow manual, "Conseguir o contato") continua fora: o Brain só guarda as atividades que a cadência criou.

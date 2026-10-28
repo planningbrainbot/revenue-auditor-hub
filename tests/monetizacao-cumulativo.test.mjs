@@ -251,6 +251,37 @@ test("Coorte é de quem tirou o card da Base; a fila compara instantes, não tex
   );
 });
 
+test("Fila e Hoje seguem o dono do recorte; sem pré-vendedor, o pipe inteiro (27/10/2026)", () => {
+  const H = 28897937;
+  const base = mv(274, "2026-08-20 12:00:00");
+  // Na Base e em Abordagem: um card de cada pré-vendedor. A Heloá em 26/10 via 34 na fila, 22 dela.
+  const filaM = card({ moves: [base] });
+  const filaH = card({ moves: [mv(274, "2026-08-20 12:00:00", H)], owner_id: H });
+  const abordM = card({ moves: [base, mv(276, "2026-08-25 13:00:00")] });
+  const abordH = card({ moves: [base, mv(276, "2026-08-25 13:00:00", H)], owner_id: H });
+  const cards = [filaM, filaH, abordM, abordH];
+  const doM = funilCumulativo(cards, ST, SET);
+  assert.deepEqual(
+    doM.fila.map((c) => c.id),
+    [filaM.id],
+  );
+  assert.deepEqual(
+    linhaDa(doM, "abordagem").hoje.map((c) => c.id),
+    [abordM.id],
+  );
+  assert.equal(doM.abertos, 2);
+  const osDois = funilCumulativo(cards, ST, { ...SET, owner: null, owners: [M, H] });
+  assert.equal(osDois.fila.length, 2);
+  assert.equal(linhaDa(osDois, "abordagem").hoje.length, 2);
+  // Card de outro dono (closer) só aparece sem recorte de pré-venda.
+  const doCloser = card({ moves: [base], owner_id: 24813890 });
+  assert.equal(
+    funilCumulativo([...cards, doCloser], ST, { ...SET, owner: null, owners: [M, H] }).fila.length,
+    2,
+  );
+  assert.equal(funilCumulativo([...cards, doCloser], ST, TOTAL).fila.length, 3);
+});
+
 test("Ganho fora da coorte e perdidos de quem marcou ficam à parte da taxa", () => {
   const base = mv(274, "2026-07-20 12:00:00");
   const agosto = card({
