@@ -172,6 +172,25 @@ test("AC10/11: campo esvaziado na fonte vira nulo; campo que não existe no sche
   assert.equal(Object.hasOwn(result.fields, "regime_tributario"), false);
   assert.equal(result.unit.id, 1);
 });
+test("Unidade que o espelho não conhece fica com o rótulo do Pipefy, nunca com o id do registro", () => {
+  const r = mapCompany(
+    {
+      id: "pf-daga",
+      title: "Empresa sintética",
+      record_fields: [{ field: { id: "unidade" }, value: '["Itaúna"]', array_value: ["1436672203"] }],
+    },
+    ["unidade"],
+    units,
+  );
+  assert.equal(r.unit.status, "unknown");
+  assert.equal(r.fields.unidade, "Itaúna");
+  const semRotulo = mapCompany(
+    { id: "x", title: "y", record_fields: [{ field: { id: "unidade" }, array_value: ["1436672203"] }] },
+    ["unidade"],
+    units,
+  );
+  assert.equal(semRotulo.fields.unidade, null);
+});
 test("AC02/10: vínculo de contato usa ID da empresa e deixa múltiplos vínculos explícitos", () => {
   const r = mapContact(
     {

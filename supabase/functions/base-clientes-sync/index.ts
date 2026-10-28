@@ -53,6 +53,7 @@ async function ingestOne(id:string,kind:string) {
  const [record,fields,dictionary]=await Promise.all([read(id,TABLES[kind as keyof typeof TABLES]),schema(TABLES[kind as keyof typeof TABLES]),kind==='companies'?units():Promise.resolve([])]);
  if(!record){await rpc('base_pipefy_ausente',{_fonte:kind==='companies'?'pipefy_empresa':'pipefy_contato',_registro:id,_at:at});return {status:'absent'};}
  const result=(await rpc('base_ingest_lote',{_registros:[mapped(record,kind,fields,dictionary,at)]}))[0];
+ if(result?.status==='error')throw new Error(`Registro ${id} recusado pelo banco: ${result.erro}`);
  if(kind==='companies'&&result.empresa_id)await rpc('base_refresh_cadastro',{_empresa:result.empresa_id});
  return result;
 }

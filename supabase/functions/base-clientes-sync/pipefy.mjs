@@ -30,8 +30,11 @@ export function mapCompany(record, schemaIds, units) {
   if (schema.has('unidade')) {
     const raw = connect(by.get('unidade'));
     unit = resolveUnit(raw, units);
-    // Valor desconhecido não é substituído por cidade, Omie ou primeiro rótulo arbitrário.
-    fields.unidade = unit.status === 'resolved' ? unit.name : raw.length ? raw.join(' / ') : null;
+    // Valor desconhecido não é substituído por cidade, Omie ou primeiro rótulo arbitrário. Fica o rótulo que o Pipefy
+    // mostra (o `value` do conector), nunca o id do registro: id cru em `unidade` quebra a regra empresas_unidade_nao_e_id
+    // e, num lote, travava a reconciliação inteira (Móveis DAGA, unidade Itaúna, de 21/09 a 28/10/2026).
+    const rotulos = fieldValues(by.get('unidade')?.value).filter((v) => !/^\d{3,}$/.test(v));
+    fields.unidade = unit.status === 'resolved' ? unit.name : rotulos.length ? rotulos.join(' / ') : null;
   }
   const cnpj = normalizeCnpj(fields.cnpj);
   // CNPJ inválido é evidência a corrigir na origem, não um documento fabricado pelo espelho.
