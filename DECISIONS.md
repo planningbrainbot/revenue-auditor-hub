@@ -7024,3 +7024,34 @@ Pedido do RH de Maceió (29/10/2026): o Cadastrar de um terceiro ficava apagado 
 
 **Decisão:** botão na própria aba, gerando o PDF no navegador com o período do filtro e os mesmos números da tela (sem nova consulta, para o PDF nunca divergir do que se vê). Conteúdo: regras, resumo por mês e todas as vendas, cliente a cliente, com a fonte da data de assinatura e se conta no mês e na safra. O logo e as cores dos PDFs saíram de `royalties-demonstrativo.ts` para `src/lib/pdf-marca.ts`, para o PDF do ROAS não carregar a biblioteca de planilha.
 
+## [2026-10-29] Portal de Faturamento, E2 (recorrente): as quatro regras do primeiro ciclo e as duas telas aprovadas
+
+**Contexto:** na call de 27/10/2026 o Daniel pediu um pré-faturamento mensal dos contratos recorrentes, com o dono de cada cliente confirmando antes de virar nota; a Ana Carvalhais propôs confirmar só as exceções; a Ludmilla combinou desligar até 31/10 o faturamento automático de contrato no Omie. Leitura do Omie de 15/10 (`e0/levantamento.json`): 1.024 contratos ativos e em dia em nov/26 (R$ 5,75 mi/mês); 112 faturam no dia 1, 180 entre 1 e 10/11 (R$ 1,24 mi), 730 no dia 15 (R$ 4,28 mi). O banco não tem o sócio dono de cada cliente (`app.clientes_servico.dono` vazia).
+
+**Decisões do Pedro (29/10, múltipla escolha):**
+1. A automação do Omie só é desligada em 11/11, não em 31/10: os 180 contratos de 1 a 10/11 saem como hoje, e o portal assume no corte de 13/11.
+2. Cada contrato nasce com os donos da empresa que fatura (`fat_donos`), e o dono repassa ao sócio certo pela tela; o repasse vale para os meses seguintes.
+3. O dono responde só o que mudou (contrato novo, valor diferente do faturado no mês anterior, vence no mês, faturou no mês anterior e sumiu). O resto fatura sozinho. Linha com mudança sem resposta até o prazo não fatura (regra 2 da spec com o ajuste da Ana de 20/10).
+4. No primeiro ciclo a tesouraria fatura no Omie pela lista do corte; o Brain só fatura sozinho depois de um ciclo sem diferença. Alteração de contrato no Omie (valor, vigência, encerramento) também fica com a tesouraria na v1.
+
+**Telas:** "Contrato ok" do Pedro em 29/10 para `docs/design/contratos/faturamento-contratos.md` (Contratos do mês, Fila de trabalho, dono e gestor) e `docs/design/contratos/faturamento-corte.md` (Lista do corte, Fila de trabalho, tesouraria).
+
+**Dia do corte:** o dia de faturamento do contrato no Omie, ou o dia útil anterior quando cai em fim de semana ou feriado nacional; a resposta do dono fecha às 23:59 do dia útil anterior ao corte.
+
+**Como (29/10):**
+- Banco único: migrations `20261029180000_portal_faturamento_recorrente` e `20261029190000_portal_faturamento_recorrente_inicio`, aplicadas e registradas. Gate `supabase/gates/20261029_portal_faturamento_recorrente.sql` passou com a migration, com o rollback e depois de aplicar.
+  - `integracoes.omie_contratos_vigentes` guarda também dia de faturamento, tipo, vencimento, projeto, categoria, nome do cliente e itens. Agora entram os contratos de vigência a partir do 1º dia do mês anterior, em qualquer situação: é o que deixa ver o "faturou e sumiu". O aviso de contrato em outra empresa continua filtrando os vigentes no banco.
+  - `integracoes.omie_notas_contrato`: NFS-e ligadas pelo `nCodigoContrato` e recibos (OS com `cTipoFat` REC, ligados pelo `nCodCtr` ou pelo número do contrato do mesmo cliente). Período: do 1º dia do mês anterior até hoje. Jobs às 6h30, e às 12h e 16h em dia útil.
+  - `receita.fat_competencias`, uma linha por contrato e mês. É gerada de hora em hora (`receita.fat_competencias_atualizar`) e só a partir de nov/2026: em 29/10 o job criaria outubro, que a automação do Omie já faturou. A linha só acompanha o Omie enquanto está aberta e sem resposta. Situação, valor a faturar, instrução e o depois do corte são calculados na leitura (`receita.fat_comp_linhas`).
+  - `receita.fat_contrato_donos` guarda o repasse; `receita.fat_feriados` guarda os feriados nacionais de 2026 e 2027.
+  - O primeiro ciclo (`receita.fat_recorrente_inicio()` = 11/11/2026) marca como automação do Omie os contratos vigentes que faturam antes dessa data. O que sumiu com faturamento antes dela vai ao corte de 11/11.
+- Conector `faturamento-omie` v2 (publicado em 29/10): `ListarContratos` com os itens, nome do cliente, `ListarProjetos` (o Omie pagina de 100 em 100 mesmo pedindo 500) e a operação nova `sincronizar_notas`. Só leitura no Omie.
+- Telas `/faturamento/contratos` e `/faturamento/corte`, com os itens novos no menu: "Contratos do mês", no grupo Contratos, e "Lista do corte", na Tesouraria.
+
+**Divergências do contrato registradas:**
+- A linha da automação do Omie aparece como "Automação do Omie" até a nota ser lida, e não como "Faturado pelo Omie": antes da nota, não dá para afirmar que faturou.
+- O dono pode responder também uma linha sem mudança, por exemplo para ajustar ou não faturar um honorário renegociado que ainda não está no Omie. O botão "Responder" aparece só nas linhas que precisam de resposta; nas outras, a resposta fica no `Sheet`.
+- "Ajustar o valor deste mês" tem a opção "vale também para os próximos meses". Com ela, a Lista do corte mostra à tesouraria a instrução de mudar o valor do contrato no Omie.
+- "Cliente saiu" vale para qualquer linha: não fatura e manda encerrar no Omie.
+
+**Status:** banco e conector no ar; telas no PR, sem deploy até o ok do Pedro.

@@ -4,6 +4,7 @@ import {
   BookUser,
   BookmarkCheck,
   Building2,
+  CalendarCheck,
   CalendarClock,
   ClipboardCheck,
   Coins,
@@ -689,12 +690,25 @@ export const AREAS: Area[] = [
         ],
       },
       {
+        // Recorrente (E2, 29/10/2026; contratos faturamento-contratos.md e faturamento-corte.md): o dono responde
+        // o contrato que mudou no mês; a tesouraria fatura pela Lista do corte.
+        label: "Contratos",
+        items: [{ title: "Contratos do mês", url: "/faturamento/contratos", icon: CalendarCheck }],
+      },
+      {
         label: "Tesouraria",
         items: [
           {
             title: "Fila da tesouraria",
             url: "/faturamento/tesouraria",
             icon: ListChecks,
+            area: "faturamento_tesouraria",
+            chave: "edit.faturamento_tesouraria",
+          },
+          {
+            title: "Lista do corte",
+            url: "/faturamento/corte",
+            icon: ClipboardList,
             area: "faturamento_tesouraria",
             chave: "edit.faturamento_tesouraria",
           },
@@ -919,7 +933,12 @@ export const AREAS: Area[] = [
           { title: "IDU", url: "/idu", icon: Activity, chave: "view.idu" },
           // Ranking aberto entre as unidades, com números, como o IDU (decisão de 28/08/2026).
           // Apresentação e gravação de cada comitê da rede (28/10/2026).
-          { title: "Comitês", url: "/meus-comites", icon: Presentation, chave: "view.meus_comites" },
+          {
+            title: "Comitês",
+            url: "/meus-comites",
+            icon: Presentation,
+            chave: "view.meus_comites",
+          },
           {
             title: "Ranking da Rede",
             url: "/ranking-unidades",

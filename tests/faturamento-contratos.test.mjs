@@ -39,6 +39,12 @@ test("montagem: nCodCtr, número, cliente, situação, vigência em ISO e valor"
     vigencia_inicial: "2026-01-01",
     vigencia_final: "2026-12-31",
     valor_mensal: 1234.57,
+    dia_faturamento: null,
+    tipo_faturamento: null,
+    dia_vencimento: null,
+    codigo_projeto: null,
+    categoria: null,
+    itens: [],
   });
   assert.equal(contratoDoOmie(cab({})).vigencia_final, null);
 });
@@ -150,8 +156,10 @@ const contexto = (f, modo, extra = {}) => {
   };
 };
 
-test("casamento: vigentes de todas as páginas, clientes em lotes de 50, o que falta pelo ConsultarCliente", async () => {
-  // 120 contratos em 2 páginas: 1..110 vigentes (cliente = contrato), 111..115 vencidos, 116..120 suspensos.
+test("casamento: recentes de todas as páginas, clientes em lotes de 50, o que falta pelo ConsultarCliente", async () => {
+  // 120 contratos em 2 páginas: 1..110 vigentes (cliente = contrato), 111..115 vencidos antes do mês anterior,
+  // 116..120 suspensos sem vigência final. Desde o recorrente (29/10/2026) o espelho guarda os recentes em qualquer
+  // situação (o aviso de contrato filtra os vigentes no banco); o vencido antes de 01/09 fica de fora.
   const todos = Array.from({ length: 120 }, (_, i) => {
     const n = i + 1;
     return cab({
@@ -159,12 +167,13 @@ test("casamento: vigentes de todas as páginas, clientes em lotes de 50, o que f
       cNumCtr: `C-${n}`,
       nCodCli: n,
       cCodSit: n > 115 ? "90" : "10",
-      dVigFinal: n > 110 && n <= 115 ? "01/10/2026" : "",
+      dVigFinal: n > 110 && n <= 115 ? "31/08/2026" : "",
     });
   });
   const clientes = {};
-  for (let c = 1; c <= 110; c++)
-    if (c !== 7 && c !== 8) clientes[c] = `${String(10000000 + c).padStart(8, "0")}000191`;
+  for (let c = 1; c <= 120; c++)
+    if (c !== 7 && c !== 8 && (c <= 110 || c > 115))
+      clientes[c] = `${String(10000000 + c).padStart(8, "0")}000191`;
   clientes[3] = "12.ABC.345/01DE-35"; // alfanumérico, com máscara
   clientes[4] = "1234"; // inválido: fica de fora
   const f = omieContratos({
@@ -186,7 +195,7 @@ test("casamento: vigentes de todas as páginas, clientes em lotes de 50, o que f
     const lotes = f.chamadas.filter((c) => c.metodo === "ListarClientesResumido");
     assert.deepEqual(
       lotes.map((c) => c.param.clientesPorCodigo.length),
-      [LOTE_CLIENTES, LOTE_CLIENTES, 10],
+      [LOTE_CLIENTES, LOTE_CLIENTES, 15],
     );
     assert.deepEqual(
       f.chamadas
@@ -198,13 +207,21 @@ test("casamento: vigentes de todas as páginas, clientes em lotes de 50, o que f
     assert.equal(aplicados[0].emissora, PAC);
     assert.equal(
       enviados.length,
-      108,
-      "110 vigentes menos o de documento inválido e o sem cadastro",
+      113,
+      "110 vigentes e 5 suspensos, menos o de documento inválido e o sem cadastro",
     );
     assert.equal(enviados.find((c) => c.codigo_contrato === 3).documento, "12ABC34501DE35");
     assert.equal(enviados.find((c) => c.codigo_contrato === 7).documento, "52998224725");
-    assert.ok(!enviados.some((c) => c.codigo_contrato > 110), "vencido e suspenso ficam de fora");
+    assert.ok(
+      !enviados.some((c) => c.codigo_contrato > 110 && c.codigo_contrato <= 115),
+      "vencido antes do mês anterior fica de fora",
+    );
+    assert.ok(
+      enviados.some((c) => c.codigo_contrato === 116),
+      "suspenso recente entra: o banco filtra o aviso",
+    );
     assert.equal(r.resposta.vigentes, 110);
+    assert.equal(r.resposta.recentes, 115);
     assert.equal(r.resposta.sem_documento, 2);
     assert.equal(r.resposta.lidos, 120);
   }

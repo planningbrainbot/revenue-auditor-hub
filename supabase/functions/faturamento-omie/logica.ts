@@ -23,7 +23,7 @@
 //    indisponível, sem derrubar as outras.
 // 5. **Chave** só em memória: nunca em resposta, log ou erro (o texto de erro do Omie passa por limpeza).
 
-export const VERSAO = "faturamento-omie-v1-2026-10-20";
+export const VERSAO = "faturamento-omie-v2-2026-10-29";
 export const OMIE_BASE = "https://app.omie.com.br/api/v1";
 
 /** Pausa mínima entre duas chamadas da mesma chave (o E0 leu 170 vezes com 1,1 s sem nenhum bloqueio). */
@@ -47,13 +47,22 @@ export const ETAPA_OS = "50";
 export const ESPERA_POS_FATURAR_MS = 4000;
 /** Teto de páginas do catálogo (50 por página; a maior emissora tem 42 serviços). */
 export const MAX_PAGINAS_CATALOGO = 20;
-/** Leitura dos contratos (CA-04): páginas de 100 (a PAC tem 13), lotes de 50 clientes por código, teto de consultas
- * avulsas, e a folga mínima da rodada para começar (a PAC leva ~50 s; sem a folga, volta para a próxima rodada). */
+/** Leitura dos contratos (CA-04 e recorrente): páginas de 100 (a PAC tem 13), lotes de 50 clientes por código, teto
+ * de consultas avulsas, e a folga mínima da rodada para começar (a PAC levava ~50 s; com os itens e os projetos, mais;
+ * sem a folga, volta para a próxima rodada). */
 export const POR_PAGINA_CONTRATOS = 100;
 export const MAX_PAGINAS_CONTRATOS = 40;
 export const LOTE_CLIENTES = 50;
 export const MAX_CONSULTAS_AVULSAS = 20;
-export const FOLGA_CONTRATOS_MS = 70_000;
+export const FOLGA_CONTRATOS_MS = 85_000;
+/** Projetos (geral/projetos), para o nome do "grupo" do contrato: a PAC tem 541. O Omie pagina de 100 em 100 mesmo
+ * pedindo mais (lido em 29/10/2026: com 500, a página 1 traz 500 e as seguintes repetem de 100 em 100). */
+export const POR_PAGINA_PROJETOS = 100;
+export const MAX_PAGINAS_PROJETOS = 20;
+/** Notas e recibos de contrato (recorrente): páginas de 100, dois meses da PAC (~800 notas) em ~8 páginas. */
+export const POR_PAGINA_NOTAS = 100;
+export const MAX_PAGINAS_NOTAS = 40;
+export const FOLGA_NOTAS_MS = 60_000;
 
 /** Métodos que só leem. Em simulação, só estes passam. */
 export const LEITURAS: ReadonlySet<string> = new Set([
@@ -72,6 +81,7 @@ export const LEITURAS: ReadonlySet<string> = new Set([
   "ListarNFSEs",
   "ListarContratos",
   "ConsultarContrato",
+  "ListarProjetos",
 ]);
 /** Escritas que o conector faz em gravação. Qualquer outro método é recusado nos dois modos. */
 export const ESCRITAS: ReadonlySet<string> = new Set([
@@ -89,6 +99,7 @@ export const OPERACOES = [
   "consultar_status",
   "sincronizar_servicos",
   "sincronizar_contratos",
+  "sincronizar_notas",
 ] as const;
 
 const ACAO: Record<string, string> = {
@@ -99,6 +110,7 @@ const ACAO: Record<string, string> = {
   consultar_status: "a leitura da situação da OS",
   sincronizar_servicos: "a leitura do catálogo de serviços",
   sincronizar_contratos: "a leitura dos contratos",
+  sincronizar_notas: "a leitura das notas de contrato",
 };
 
 export type Modo = "simular" | "gravar";
@@ -792,6 +804,8 @@ export type Contexto = {
   receitaCnpj?: (cnpj: string) => Promise<any | null>;
   /** ops.fat_conector_contratos_aplicar: substitui os contratos vigentes da emissora. */
   contratosAplicar?: (emissora: string, contratos: any[]) => Promise<any>;
+  /** ops.fat_conector_notas_aplicar: substitui as notas de contrato da emissora no período. */
+  notasAplicar?: (emissora: string, de: string, ate: string, notas: any[]) => Promise<any>;
   /** Quanto falta para o fim da rodada (ms). */
   restaMs?: () => number;
 };
@@ -1336,10 +1350,29 @@ async function sincronizarServicos(envio: any, ctx: Contexto): Promise<Resultado
   });
 }
 
-/** Um contrato do ListarContratos (servicos/contrato) → o que a tabela de contratos vigentes guarda. */
+/** Itens do contrato (itensContrato, com cExibirProdutos "S"): serviço, quantidade e valores. */
+export function itensDoContrato(c: any) {
+  return (Array.isArray(c?.itensContrato) ? c.itensContrato : []).map((i: any) => {
+    const cab = i?.itemCabecalho ?? {};
+    const total = Number(cab.valorTotal);
+    const unit = Number(cab.valorUnit);
+    return {
+      servico: cortar(i?.itemDescrServ?.descrCompleta, 200) || null,
+      codigo_servico: num(cab.codServico) ? String(cab.codServico) : null,
+      quantidade: Number.isFinite(Number(cab.quant)) ? Number(cab.quant) : null,
+      valor_unitario: Number.isFinite(unit) ? centavos(unit) : null,
+      valor_total: Number.isFinite(total) ? centavos(total) : null,
+    };
+  });
+}
+
+/** Um contrato do ListarContratos (servicos/contrato) → o que o espelho de contratos guarda. */
 export function contratoDoOmie(c: any) {
   const cab = c?.cabecalho ?? {};
+  const adic = c?.infAdic ?? {};
   const valor = Number(cab.nValTotMes);
+  const dia = Number(cab.nDiaFat);
+  const venc = Number(c?.vencTextos?.nDiaFixo);
   return {
     codigo_contrato: num(cab.nCodCtr),
     numero: texto(cab.cNumCtr) || null,
@@ -1348,10 +1381,34 @@ export function contratoDoOmie(c: any) {
     vigencia_inicial: isoDeBr(cab.dVigInicial),
     vigencia_final: isoDeBr(cab.dVigFinal),
     valor_mensal: Number.isFinite(valor) ? centavos(valor) : null,
+    dia_faturamento: Number.isInteger(dia) && dia >= 1 && dia <= 31 ? dia : null,
+    tipo_faturamento: texto(cab.cTipoFat) || null,
+    dia_vencimento: Number.isInteger(venc) && venc >= 1 && venc <= 31 ? venc : null,
+    codigo_projeto: num(adic.nCodProj),
+    categoria: texto(adic.cCodCateg) || null,
+    itens: itensDoContrato(c),
   };
 }
 
-/** Vigente = ativo (cCodSit 10) e vigência final vazia ou a partir de hoje (E0 §3.1: o vencido não fatura). */
+/** 1º dia do mês anterior ao de `hoje` (AAAA-MM-DD). */
+export function inicioMesAnterior(hoje: string): string {
+  const [a, m] = hoje.split("-").map(Number);
+  const ano = m === 1 ? a - 1 : a;
+  const mes = m === 1 ? 12 : m - 1;
+  return `${ano}-${String(mes).padStart(2, "0")}-01`;
+}
+
+/**
+ * Entra no espelho (recorrente, 29/10/2026): vigência final vazia ou a partir do 1º dia do mês anterior, em qualquer
+ * situação. É o que deixa ver o contrato que faturou no mês anterior e venceu ("faturou e sumiu"). O aviso de contrato
+ * em outra empresa continua só com os vigentes: o banco filtra (receita.fat_contratos_vigentes).
+ */
+export function contratoRecente(c: { vigencia_final: string | null }, desde: string) {
+  return !c.vigencia_final || c.vigencia_final >= desde;
+}
+
+/** Vigente = ativo (cCodSit 10) e vigência final vazia ou a partir de hoje (E0 §3.1: o vencido não fatura). Hoje só
+ * conta o resumo da leitura: o espelho guarda os recentes (contratoRecente). */
 export function contratoVigente(
   c: { situacao: string; vigencia_final: string | null },
   hoje: string,
@@ -1368,8 +1425,9 @@ export function emLotes<T>(lista: T[], n: number): T[][] {
 const docValido = (d: string) => /^([0-9]{11}|[0-9A-Z]{12}[0-9]{2})$/.test(d);
 
 /**
- * sincronizar_contratos (CA-04): lê todos os contratos da emissora, fica com os vigentes, casa nCodCli → documento
- * pelo cadastro de clientes e substitui o conjunto no banco. Só leitura no Omie: vale em simular e em gravar.
+ * sincronizar_contratos (CA-04 e recorrente): lê todos os contratos da emissora com os itens, fica com os recentes
+ * (contratoRecente), casa nCodCli → documento e nome pelo cadastro de clientes, nCodProj → nome do projeto, e substitui
+ * o conjunto no banco. Só leitura no Omie: vale em simular e em gravar.
  * Uma chamada por vez (o ritmo da emissora), respeitando o bloqueio (o banco não reserva emissora bloqueada) e o prazo
  * da rodada (só começa com FOLGA_CONTRATOS_MS; cada chamada para antes do fim).
  */
@@ -1396,7 +1454,7 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
       registros_por_pagina: POR_PAGINA_CONTRATOS,
       apenas_importado_api: "N",
       cExibeObs: "N",
-      cExibirProdutos: "N",
+      cExibirProdutos: "S",
       cExibirInfoCadastro: "N",
     });
     if (!r) break;
@@ -1413,12 +1471,16 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
   }
   const hoje = hojeSP(ctx.agora());
   const vigentes = lidos.filter((c) => c.codigo_contrato && contratoVigente(c, hoje));
+  const recentes = lidos.filter(
+    (c) => c.codigo_contrato && contratoRecente(c, inicioMesAnterior(hoje)),
+  );
 
-  // 2. Documento de cada cliente: em lotes pelo código (ListarClientesResumido), e o que faltar, um a um.
+  // 2. Documento e nome de cada cliente: em lotes pelo código (ListarClientesResumido), e o que faltar, um a um.
   const codigos = [
-    ...new Set(vigentes.map((c) => c.codigo_cliente_omie).filter((x): x is number => !!x)),
+    ...new Set(recentes.map((c) => c.codigo_cliente_omie).filter((x): x is number => !!x)),
   ];
   const doc = new Map<number, string>();
+  const nome = new Map<number, string>();
   for (const lote of emLotes(codigos, LOTE_CLIENTES)) {
     const r = await ctx.omie.consultar("geral/clientes", "ListarClientesResumido", {
       pagina: 1,
@@ -1431,6 +1493,8 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
       : []) {
       const d = documento(x?.cnpj_cpf);
       if (num(x?.codigo_cliente) && docValido(d)) doc.set(Number(x.codigo_cliente), d);
+      const n = cortar(x?.razao_social || x?.nome_fantasia, 200);
+      if (num(x?.codigo_cliente) && n) nome.set(Number(x.codigo_cliente), n);
     }
   }
   const faltam = codigos.filter((c) => !doc.has(c));
@@ -1440,12 +1504,40 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
     });
     const d = documento(x?.cnpj_cpf);
     if (docValido(d)) doc.set(c, d);
+    const n = cortar(x?.razao_social || x?.nome_fantasia, 200);
+    if (n) nome.set(c, n);
   }
 
-  const contratos = vigentes
+  // 3. Nome dos projetos (o "grupo" do cliente na tela do recorrente). Sem projeto nos contratos, não lê.
+  const projetos = new Map<number, string>();
+  if (recentes.some((c) => c.codigo_projeto)) {
+    let pag = 1;
+    let totPag = 1;
+    while (pag <= totPag && pag <= MAX_PAGINAS_PROJETOS) {
+      const r = await ctx.omie.consultar("geral/projetos", "ListarProjetos", {
+        pagina: pag,
+        registros_por_pagina: POR_PAGINA_PROJETOS,
+        apenas_importado_api: "N",
+      });
+      if (!r) break;
+      totPag = Number(r.total_de_paginas ?? 1) || 1;
+      for (const x of Array.isArray(r.cadastro) ? r.cadastro : []) {
+        const n = cortar(x?.nome, 200);
+        if (num(x?.codigo) && n) projetos.set(Number(x.codigo), n);
+      }
+      pag++;
+    }
+  }
+
+  const contratos = recentes
     .filter((c) => c.codigo_cliente_omie && doc.has(c.codigo_cliente_omie))
-    .map((c) => ({ ...c, documento: doc.get(c.codigo_cliente_omie!)! }));
-  const semDocumento = vigentes.length - contratos.length;
+    .map((c) => ({
+      ...c,
+      documento: doc.get(c.codigo_cliente_omie!)!,
+      cliente_nome: nome.get(c.codigo_cliente_omie!) ?? null,
+      projeto: c.codigo_projeto ? (projetos.get(c.codigo_projeto) ?? null) : null,
+    }));
+  const semDocumento = recentes.length - contratos.length;
   // Leitura não escreve no Omie: o banco é atualizado nos dois modos.
   const aplicado = ctx.contratosAplicar ? await ctx.contratosAplicar(emissora, contratos) : null;
   return fim(ctx, {
@@ -1454,14 +1546,164 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
     lidos: lidos.length,
     ativos: lidos.filter((c) => c.situacao === "10").length,
     vigentes: vigentes.length,
+    recentes: recentes.length,
     clientes: codigos.length,
+    projetos: projetos.size,
     sem_documento: semDocumento,
     aplicado,
     avisos: semDocumento
       ? [
-          `${semDocumento} contrato(s) vigente(s) sem CPF/CNPJ válido no cadastro do cliente ficaram de fora do aviso.`,
+          `${semDocumento} contrato(s) sem CPF/CNPJ válido no cadastro do cliente ficaram de fora do portal.`,
         ]
       : [],
+  });
+}
+
+/** Data do Omie com ou sem hora ("13/11/2026" ou "13/11/2026 10:12:00") → AAAA-MM-DD. */
+const diaDoOmie = (v: unknown) =>
+  isoDeBr(
+    String(v ?? "")
+      .trim()
+      .slice(0, 10),
+  );
+
+/** Uma NFS-e do ListarNFSEs → nota de contrato; nula quando não veio de contrato (OrdemServico.nCodigoContrato). */
+export function notaDoOmie(n: any) {
+  const cab = n?.Cabecalho ?? {};
+  const os = n?.OrdemServico ?? {};
+  const contrato = num(os.nCodigoContrato);
+  const emitida = diaDoOmie(n?.Emissao?.cDataEmissao);
+  const valor = Number(cab.nValorNFSe);
+  if (!contrato || !num(cab.nCodNF) || !emitida || !Number.isFinite(valor)) return null;
+  return {
+    chave: `nfse:${Number(cab.nCodNF)}`,
+    codigo_contrato: contrato,
+    codigo_cliente_omie: num(cab.nCodigoCliente),
+    codigo_os: num(os.nCodigoOS),
+    numero: texto(cab.nNumeroNFSe) || null,
+    emitida_em: emitida,
+    valor: centavos(valor),
+    cancelada: !!texto(n?.Cancelamento?.cDataCancelamento) || /^C/i.test(texto(cab.cStatusNFSe)),
+  };
+}
+
+/**
+ * Uma OS faturada por recibo (ListarOS, cTipoFat REC) → recibo de contrato; nula sem contrato. Liga pelo nCodCtr ou
+ * pelo número do contrato (cNumContrato); o banco só aceita o número quando o cliente é o mesmo (E0: há recibo com o
+ * número do contrato de outro cliente).
+ */
+export function reciboDoOmie(c: any) {
+  const cab = c?.Cabecalho ?? {};
+  const inf = c?.InfoCadastro ?? {};
+  const adic = c?.InformacoesAdicionais ?? {};
+  const contrato = num(cab.nCodCtr);
+  const numeroContrato = texto(adic.cNumContrato) || null;
+  const emitida = diaDoOmie(inf.dDtFat);
+  const valor = Number(cab.nValorTotal);
+  if (inf.cFaturada !== "S" || (!contrato && !numeroContrato) || !num(cab.nCodOS) || !emitida)
+    return null;
+  if (!Number.isFinite(valor)) return null;
+  return {
+    chave: `recibo:${Number(cab.nCodOS)}`,
+    codigo_contrato: contrato,
+    numero_contrato: numeroContrato,
+    codigo_cliente_omie: num(cab.nCodCli),
+    codigo_os: num(cab.nCodOS),
+    numero: texto(cab.cNumRecibo) || texto(cab.cNumOS) || null,
+    emitida_em: emitida,
+    valor: centavos(valor),
+    cancelada: inf.cCancelada === "S",
+  };
+}
+
+/** Período da leitura de notas: o do payload, ou do 1º dia do mês anterior até hoje. */
+export function periodoNotas(payload: any, hoje: string) {
+  const ok = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ""));
+  const de = ok(payload?.de) ? String(payload.de) : inicioMesAnterior(hoje);
+  const ate = ok(payload?.ate) ? String(payload.ate) : hoje;
+  return de <= ate ? { de, ate } : { de: inicioMesAnterior(hoje), ate: hoje };
+}
+
+/**
+ * sincronizar_notas (recorrente): lê as NFS-e e os recibos de contrato da emissora no período e substitui o conjunto
+ * do período no banco. Base do "faturado no mês anterior" e da conferência depois do corte. Só leitura no Omie.
+ */
+async function sincronizarNotas(envio: any, ctx: Contexto): Promise<Resultado> {
+  const emissora = String(envio?.origem_id ?? emissoraId(envio));
+  if (ctx.restaMs && ctx.restaMs() < FOLGA_NOTAS_MS) {
+    return {
+      status: "pendente",
+      resposta: { metodo: "ListarNFSEs", liberado: "sem folga na rodada para ler as notas" },
+      erro_legivel: null,
+      codigos: { tentar_em: ctx.agora().toISOString() },
+    };
+  }
+  const { de, ate } = periodoNotas(envio?.payload, hojeSP(ctx.agora()));
+  const notas: any[] = [];
+
+  // 1. NFS-e do período; ficam as que vieram de contrato.
+  let pagina = 1;
+  let total = 1;
+  let lidas = 0;
+  while (pagina <= total && pagina <= MAX_PAGINAS_NOTAS) {
+    const r = await ctx.omie.consultar("servicos/nfse", "ListarNFSEs", {
+      nPagina: pagina,
+      nRegPorPagina: POR_PAGINA_NOTAS,
+      dEmiInicial: dataBr(de),
+      dEmiFinal: dataBr(ate),
+      cExibirDescricao: "N",
+    });
+    if (!r) break;
+    total = Number(r.nTotPaginas ?? 1) || 1;
+    for (const n of Array.isArray(r.nfseEncontradas) ? r.nfseEncontradas : []) {
+      lidas++;
+      const x = notaDoOmie(n);
+      if (x) notas.push(x);
+    }
+    pagina++;
+  }
+  const paginasNfse = pagina - 1;
+  const passouNfse = total > MAX_PAGINAS_NOTAS;
+
+  // 2. Recibos (OS faturadas por recibo, que não geram NFS-e).
+  pagina = 1;
+  total = 1;
+  let osLidas = 0;
+  while (pagina <= total && pagina <= MAX_PAGINAS_NOTAS) {
+    const r = await ctx.omie.consultar("servicos/os", "ListarOS", {
+      pagina,
+      registros_por_pagina: POR_PAGINA_NOTAS,
+      filtrar_por_data_faturamento_de: dataBr(de),
+      filtrar_por_data_faturamento_ate: dataBr(ate),
+      cTipoFat: "REC",
+      cExibirDespesas: "N",
+      cExibirProdutos: "N",
+    });
+    if (!r) break;
+    total = Number(r.total_de_paginas ?? 1) || 1;
+    for (const c of Array.isArray(r.osCadastro) ? r.osCadastro : []) {
+      osLidas++;
+      const x = reciboDoOmie(c);
+      if (x) notas.push(x);
+    }
+    pagina++;
+  }
+  if (passouNfse || total > MAX_PAGINAS_NOTAS) {
+    return erro(
+      { metodo: "ListarNFSEs", de, ate, paginas_nfse: paginasNfse },
+      `A ${nomeEmissora(envio)} passou de ${MAX_PAGINAS_NOTAS * POR_PAGINA_NOTAS} notas no período: nada mudou no portal; avise o time do Brain.`,
+    );
+  }
+  const aplicado = ctx.notasAplicar ? await ctx.notasAplicar(emissora, de, ate, notas) : null;
+  return fim(ctx, {
+    metodo: "ListarNFSEs",
+    de,
+    ate,
+    paginas_nfse: paginasNfse,
+    nfse_lidas: lidas,
+    os_recibo_lidas: osLidas,
+    de_contrato: notas.length,
+    aplicado,
   });
 }
 
@@ -1473,6 +1715,7 @@ const OPERACAO: Record<string, (envio: any, ctx: Contexto) => Promise<Resultado>
   consultar_status: consultarStatus,
   sincronizar_servicos: sincronizarServicos,
   sincronizar_contratos: sincronizarContratos,
+  sincronizar_notas: sincronizarNotas,
 };
 
 /** Modo que vale para o envio: só "gravar" literal grava. Gravar com a emissora já de volta em simulação = conflito. */
@@ -1544,6 +1787,7 @@ export type Dependencias = {
   servicosAplicar: (emissora: string, catalogo: any[]) => Promise<any>;
   receitaCnpj?: (cnpj: string) => Promise<any | null>;
   contratosAplicar?: (emissora: string, contratos: any[]) => Promise<any>;
+  notasAplicar?: (emissora: string, de: string, ate: string, notas: any[]) => Promise<any>;
   transporte: Transporte;
   dormir: (ms: number) => Promise<void>;
   agora?: () => Date;
@@ -1718,6 +1962,7 @@ export async function rodarFila(d: Dependencias) {
               servicosAplicar: d.servicosAplicar,
               receitaCnpj: d.receitaCnpj,
               contratosAplicar: d.contratosAplicar,
+              notasAplicar: d.notasAplicar,
               restaMs: d.prazo != null ? () => (d.prazo as number) - relogio() : undefined,
             });
           }
