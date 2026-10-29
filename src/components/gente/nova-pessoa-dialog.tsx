@@ -6,6 +6,41 @@ import { KeyRound, Pencil, UserPlus } from "lucide-react";
 import { mesmoNome } from "./nomes";
 import { exigeVigencia, rotuloInicio, rotuloValor } from "./vigencia";
 import { CamposVigencia, PeriodosVigencia } from "./vigencia-campos";
+import { BotaoComMotivo } from "./estados-gente";
+
+/**
+ * O que falta para salvar, em palavras de quem usa (pedido do RH de Maceió,
+ * 29/10/2026: o botão ficava apagado sem dizer por quê). Vazio: pode salvar.
+ */
+function faltaVigencia(f: { tipoVinculo: string; dataAdmissao: string; vigenciaFim: string }) {
+  if (!exigeVigencia(f.tipoVinculo)) return null;
+  const tipo = f.tipoVinculo === "estagio" ? "estágio" : "terceiro";
+  const faltam = [
+    !f.dataAdmissao && rotuloInicio(f.tipoVinculo).toLowerCase(),
+    !f.vigenciaFim && "fim da vigência",
+  ].filter(Boolean);
+  return faltam.length ? `Para ${tipo}, preencha: ${faltam.join(" e ")}.` : null;
+}
+
+/** Botão de salvar que diz o que falta, no tooltip e numa linha ao lado. */
+function SalvarComMotivo({
+  motivo,
+  pendente,
+  children,
+}: {
+  motivo: string | null;
+  pendente: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <BotaoComMotivo type="submit" disabled={pendente || !!motivo} motivo={motivo}>
+        {children}
+      </BotaoComMotivo>
+      {motivo && !pendente ? <span className="text-[12px] text-warning">{motivo}</span> : null}
+    </div>
+  );
+}
 import {
   criarPessoa,
   darAcessoPessoa,
@@ -178,6 +213,8 @@ export function NovaPessoaDialog({
       ? gestoresDaUnidade.find((g) => mesmoNome(g.nome, f.nomeCompleto))
       : undefined;
 
+  const motivoNova = !unidadeId ? "Escolha a unidade." : faltaVigencia(f);
+
   const criar = useMutation({
     mutationFn: async () =>
       fn({
@@ -232,6 +269,7 @@ export function NovaPessoaDialog({
           className="grid gap-3"
           onSubmit={(e) => {
             e.preventDefault();
+            if (motivoNova) return;
             if (homonimo && !confirmouHomonimo) {
               setConfirmouHomonimo(true);
               return;
@@ -454,20 +492,13 @@ export function NovaPessoaDialog({
             <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={
-                criar.isPending ||
-                !unidadeId ||
-                (exigeVigencia(f.tipoVinculo) && (!f.dataAdmissao || !f.vigenciaFim))
-              }
-            >
+            <SalvarComMotivo motivo={motivoNova} pendente={criar.isPending}>
               {criar.isPending
                 ? "Salvando…"
                 : homonimo && confirmouHomonimo
                   ? "Cadastrar mesmo assim"
                   : "Cadastrar"}
-            </Button>
+            </SalvarComMotivo>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -989,6 +1020,8 @@ export function EditarPessoaDialog({
   const gestorAtualFora =
     pessoa.gestorId != null && !candidatos.some((g) => g.id === pessoa.gestorId);
 
+  const motivoEditar = faltaVigencia(f);
+
   const salvar = useMutation({
     mutationFn: async () =>
       fn({
@@ -1050,6 +1083,7 @@ export function EditarPessoaDialog({
           className="grid gap-3"
           onSubmit={(e) => {
             e.preventDefault();
+            if (motivoEditar) return;
             salvar.mutate();
           }}
         >
@@ -1207,15 +1241,9 @@ export function EditarPessoaDialog({
             <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={
-                salvar.isPending ||
-                (exigeVigencia(f.tipoVinculo) && (!f.dataAdmissao || !f.vigenciaFim))
-              }
-            >
+            <SalvarComMotivo motivo={motivoEditar} pendente={salvar.isPending}>
               {salvar.isPending ? "Salvando…" : "Salvar"}
-            </Button>
+            </SalvarComMotivo>
           </DialogFooter>
         </form>
         <SituacaoPessoa pessoa={pessoa} podeSaude={podeSaude} aoConcluir={() => setAberto(false)} />

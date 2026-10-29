@@ -7014,3 +7014,6 @@ Decidido pelo RH da Expansão com o RH de Maceió em 29/10/2026 (migration `2026
 - Ciclo por unidade, formulário e semestre (`modelo` = `avd_colab:2/2026`), criado do molde por `ops.gente_avd_ciclo()`. Quem lidera alguém no cadastro recebe o formulário de Liderança por padrão; o RH troca antes de enviar.
 - Graus da AVD: 180° (auto e gestor), em lote; 360° (mais pares e liderados), uma pessoa por vez e só na unidade que a Matriz liberou (`ops.gente_avd_liberacao_360`; só quem conduz avaliação sem recorte de unidade libera). O banco recusa par e liderado sem a liberação.
 - Comentário obrigatório em todas as respostas da AVE e da AVD (`gente_ciclos.comentario_obrigatorio`); o banco recusa concluir sem, e a tela diz quantos faltam.
+## [2026-10-29] Planning People: botão de salvar diz o que falta
+
+Pedido do RH de Maceió (29/10/2026): o Cadastrar de um terceiro ficava apagado sem dizer por quê (faltavam a data de início e o fim da vigência). Cadastrar e Salvar usam o `BotaoComMotivo` (motivo no tooltip) e mostram o motivo também numa linha ao lado do botão, para quem não passa o mouse.
