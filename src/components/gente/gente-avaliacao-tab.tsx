@@ -15,6 +15,7 @@ import {
 } from "@/lib/gente-avaliacao.functions";
 import { Card } from "@/components/ui/card";
 import { RadarExperiencia } from "@/components/gente/gente-radar-experiencia";
+import { AvdCard } from "@/components/gente/gente-avd-card";
 import { AvisoCorte, BotaoComMotivo, ErroDaFonte, dataSP } from "@/components/gente/estados-gente";
 import {
   Carregando,
@@ -214,6 +215,11 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
   const porTopico = [...grupos.entries()];
 
   const faltando = item.competencias.filter((c) => !notas[c.id]).length;
+  // Comentário obrigatório (AVE e AVD, 29/10/2026): o banco também recusa concluir sem.
+  const semComentario = item.comentarioObrigatorio
+    ? item.competencias.filter((c) => notas[c.id] !== "na" && !(comentarios[c.id] ?? "").trim())
+        .length
+    : 0;
 
   return (
     <Card className="space-y-4 p-4">
@@ -293,7 +299,11 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
               )}
               <Textarea
                 rows={2}
-                placeholder="Comentário (opcional)"
+                placeholder={
+                  item.comentarioObrigatorio
+                    ? "Comentário (obrigatório): explique a resposta, vira feedback"
+                    : "Comentário (opcional)"
+                }
                 value={comentarios[comp.id] ?? ""}
                 onChange={(e) => setComentarios({ ...comentarios, [comp.id]: e.target.value })}
               />
@@ -332,10 +342,12 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
         <BotaoComMotivo
           size="sm"
           onClick={() => enviar.mutate(true)}
-          disabled={enviar.isPending || faltando > 0}
+          disabled={enviar.isPending || faltando > 0 || semComentario > 0}
           motivo={[
             faltando > 0 &&
               `Faltam ${faltando} de ${item.competencias.length} competências com nota ou "Não se aplica".`,
+            semComentario > 0 &&
+              `Faltam ${semComentario} comentário(s): todas as respostas pedem comentário.`,
             enviar.isPending && "Salvando…",
           ]}
         >
@@ -344,6 +356,11 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
         {faltando > 0 && (
           <span className="text-xs text-muted-foreground">
             faltam {faltando} de {item.competencias.length}
+          </span>
+        )}
+        {faltando === 0 && semComentario > 0 && (
+          <span className="text-xs text-warning">
+            falta comentar {semComentario} resposta(s) para concluir
           </span>
         )}
       </div>
@@ -467,6 +484,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
   return (
     <div className="space-y-4">
       {mostraAdmin && <RadarExperiencia />}
+      {mostraAdmin && <AvdCard />}
       {mostraAdmin && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">

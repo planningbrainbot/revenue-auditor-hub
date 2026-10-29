@@ -97,9 +97,6 @@ export const listAveRadar = createServerFn({ method: "GET" })
 export interface EnviarAveInput {
   pessoaId: number;
   modelo: ModeloAve;
-  alcance: Alcance;
-  /** Só no 360°: quem mais avalia, além do líder e da própria pessoa. */
-  pares?: number[];
 }
 
 export interface EnviarAveResult {
@@ -119,13 +116,13 @@ export const enviarAve = createServerFn({ method: "POST" })
   .validator((input: EnviarAveInput) => {
     if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
     if (!MODELOS.includes(input?.modelo)) throw new Error("Modelo de avaliação inválido.");
-    if (![90, 180, 360].includes(input?.alcance)) throw new Error("Escolha 90°, 180° ou 360°.");
-    const pares = input.alcance === 360 ? Array.from(new Set(input.pares ?? [])) : [];
-    if (pares.some((p) => !Number.isInteger(p))) throw new Error("Par inválido.");
-    if (input.alcance === 360 && !pares.length) {
-      throw new Error("No 360° escolha ao menos um colega para avaliar.");
-    }
-    return { pessoaId: input.pessoaId, modelo: input.modelo, alcance: input.alcance, pares };
+    // Sem graus desde 29/10/2026: sempre autoavaliação e gestor (o banco recusa par na AVE).
+    return {
+      pessoaId: input.pessoaId,
+      modelo: input.modelo,
+      alcance: 180 as const,
+      pares: [] as number[],
+    };
   })
   .handler(async ({ data, context }): Promise<EnviarAveResult> => {
     const supabase = context.supabase as Cliente;

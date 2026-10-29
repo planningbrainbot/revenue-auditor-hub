@@ -64,6 +64,8 @@ export interface FilaRow {
   escalaMin: number;
   escalaMax: number;
   instrucoes: string | null;
+  /** AVE e AVD (29/10/2026): toda resposta precisa de comentário para concluir. */
+  comentarioObrigatorio: boolean;
   competencias: CompetenciaRow[];
   campos: CampoRow[];
   respostas: {
@@ -140,7 +142,9 @@ export const listAvaliacao = createServerFn({ method: "GET" })
       await Promise.all([
         supabase
           .from("gente_ciclos")
-          .select("id,nome,status,origem,periodo_inicio,escala_min,escala_max,instrucoes")
+          .select(
+            "id,nome,status,origem,periodo_inicio,escala_min,escala_max,instrucoes,comentario_obrigatorio",
+          )
           // O molde da AVE não coleta: só serve para copiar (migration 20261001150000).
           .eq("e_modelo", false)
           .order("periodo_inicio", { ascending: false, nullsFirst: false }),
@@ -230,6 +234,11 @@ export const listAvaliacao = createServerFn({ method: "GET" })
       concluidas: avaliacoes.filter((a) => a.ciclo_id === c.id && a.status === "concluida").length,
     }));
 
+    const comentarioObrigatorioDo = new Map(
+      ((ciclosRes?.data ?? []) as { id: number; comentario_obrigatorio: boolean | null }[]).map(
+        (c) => [c.id, Boolean(c.comentario_obrigatorio)],
+      ),
+    );
     const instrucoesDo = new Map(
       ((ciclosRes?.data ?? []) as { id: number; instrucoes: string | null }[]).map((c) => [
         c.id,
@@ -305,6 +314,7 @@ export const listAvaliacao = createServerFn({ method: "GET" })
         escalaMin: ciclo?.escalaMin ?? 1,
         escalaMax: ciclo?.escalaMax ?? 5,
         instrucoes: instrucoesDo.get(a.ciclo_id) ?? null,
+        comentarioObrigatorio: comentarioObrigatorioDo.get(a.ciclo_id) ?? false,
         competencias: competenciasDoCiclo(a.ciclo_id, a.tipo),
         campos: campos
           .filter((c) => c.ciclo_id === a.ciclo_id)

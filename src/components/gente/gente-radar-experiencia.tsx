@@ -8,7 +8,6 @@ import {
   enviarAve,
   listAveRadar,
   verAve,
-  type Alcance,
   type AveAvaliacaoRow,
   type ModeloAve,
 } from "@/lib/gente-ave.functions";
@@ -44,8 +43,9 @@ import { exportarRadarExcel, exportarRadarPdf, type LinhaExportavel } from "./ra
 
 // Radar de avaliação de experiência (AVE), pedido do RH de Maceió em
 // 01/10/2026. Mostra quem está nos primeiros 90 dias pela data de admissão e,
-// desde a segunda rodada do mesmo dia, deixa o RH ENVIAR a avaliação dali:
-// 90° (só o líder), 180° (líder e autoavaliação) ou 360° (mais colegas). A
+// desde a segunda rodada do mesmo dia, deixa o RH ENVIAR a avaliação dali.
+// Desde 29/10/2026 (RH da Expansão e de Maceió) a AVE não tem graus: sai sempre a
+// autoavaliação e a avaliação do gestor. A
 // avaliação cai em Minha vez de quem responde, e o radar mostra o andamento
 // para o RH cobrar. Quem já passou do prazo continua aqui enquanto houver AVE
 // em aberto.
@@ -64,16 +64,6 @@ const TIPO_ROTULO: Record<string, string> = {
   par: "Par",
   liderado: "Liderado",
 };
-
-const ALCANCES: { v: Alcance; t: string; d: string }[] = [
-  { v: 90, t: "90°", d: "Só o líder avalia." },
-  { v: 180, t: "180°", d: "O líder avalia e a pessoa faz a autoavaliação." },
-  {
-    v: 360,
-    t: "360°",
-    d: "Líder, autoavaliação e colegas que você escolher. Os colegas respondem as perguntas do líder, sem a decisão de efetivação.",
-  },
-];
 
 interface LinhaRadar {
   pessoa: GentePessoaRow;
@@ -103,30 +93,17 @@ function EnviarAveDialog({
   const fn = useServerFn(enviarAve);
   const qc = useQueryClient();
   const [aberto, setAberto] = useState(false);
-  const [alcance, setAlcance] = useState<Alcance>(90);
-  const [pares, setPares] = useState<number[]>([]);
   const p = linha.pessoa;
   const lider = pessoas.find((x) => x.id === p.gestorId) ?? null;
-  const candidatos = pessoas.filter(
-    (x) =>
-      x.status === "ativo" &&
-      x.id !== p.id &&
-      x.id !== p.gestorId &&
-      (p.unidadeId == null || x.unidadeId === p.unidadeId),
-  );
   const modelo = MODELO_DO_MARCO[linha.marco];
 
   const semLogin = [
     ...(lider && !lider.temLogin ? [lider.nomeCompleto] : []),
-    ...(alcance >= 180 && !p.temLogin ? [p.nomeCompleto] : []),
-    ...(alcance === 360
-      ? candidatos.filter((c) => pares.includes(c.id) && !c.temLogin).map((c) => c.nomeCompleto)
-      : []),
+    ...(!p.temLogin ? [p.nomeCompleto] : []),
   ];
 
   const enviar = useMutation({
-    mutationFn: async () =>
-      fn({ data: { pessoaId: p.id, modelo, alcance, pares: alcance === 360 ? pares : [] } }),
+    mutationFn: async () => fn({ data: { pessoaId: p.id, modelo } }),
     onSuccess: (r) => {
       if (!r.criadas) toast.info("Nada novo: essas avaliações já tinham sido enviadas.");
       else {
@@ -150,10 +127,6 @@ function EnviarAveDialog({
       open={aberto}
       onOpenChange={(o) => {
         setAberto(o);
-        if (o) {
-          setAlcance(90);
-          setPares([]);
-        }
       }}
     >
       <DialogTrigger asChild>
@@ -182,61 +155,10 @@ function EnviarAveDialog({
               Líder que avalia: <span className="font-medium">{lider.nomeCompleto}</span>
             </p>
 
-            <div className="grid gap-2" role="radiogroup" aria-label="Alcance da avaliação">
-              <Label>Alcance</Label>
-              {ALCANCES.map((a) => (
-                <button
-                  key={a.v}
-                  type="button"
-                  role="radio"
-                  aria-checked={alcance === a.v}
-                  onClick={() => setAlcance(a.v)}
-                  className={
-                    "rounded-md border px-3 py-2 text-left text-sm transition-colors " +
-                    (alcance === a.v
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-accent")
-                  }
-                >
-                  <span className="font-medium">{a.t}</span>
-                  <span className="block text-[13px] text-muted-foreground">{a.d}</span>
-                </button>
-              ))}
-            </div>
-
-            {alcance === 360 ? (
-              <div className="grid gap-1.5">
-                <Label>Colegas que avaliam</Label>
-                <div className="max-h-48 overflow-auto rounded-md border p-2">
-                  {candidatos.length ? (
-                    candidatos.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 py-1 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={pares.includes(c.id)}
-                          onChange={(e) =>
-                            setPares((s) =>
-                              e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id),
-                            )
-                          }
-                        />
-                        <span>{c.nomeCompleto}</span>
-                        {c.cargo ? (
-                          <span className="text-[13px] text-muted-foreground">{c.cargo}</span>
-                        ) : null}
-                        {!c.temLogin ? (
-                          <span className="text-[12px] text-muted-foreground">(sem login)</span>
-                        ) : null}
-                      </label>
-                    ))
-                  ) : (
-                    <p className="text-[13px] text-muted-foreground">
-                      Ninguém mais ativo na unidade.
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : null}
+            <p className="text-[13px] text-muted-foreground">
+              Vão juntas a autoavaliação de {p.nomeCompleto} e a avaliação do gestor. Todas as
+              respostas pedem comentário.
+            </p>
 
             {semLogin.length ? (
               <p className="rounded-md border border-warning bg-warning-soft px-3 py-2 text-[13px] text-warning">
@@ -251,10 +173,7 @@ function EnviarAveDialog({
           <Button type="button" variant="outline" onClick={() => setAberto(false)}>
             Cancelar
           </Button>
-          <Button
-            onClick={() => enviar.mutate()}
-            disabled={!lider || enviar.isPending || (alcance === 360 && !pares.length)}
-          >
+          <Button onClick={() => enviar.mutate()} disabled={!lider || enviar.isPending}>
             {enviar.isPending ? "Enviando…" : "Enviar"}
           </Button>
         </DialogFooter>

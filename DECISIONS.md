@@ -7005,3 +7005,12 @@ min passa de 1 GB). Tela `/comites` no menu Administração. PRD
 
 **Decisão (do dono, 29/10/2026):** o ROAS do mês usa a mídia do mês **anterior**: a mídia de um mês gera as vendas do mês seguinte. Vale para o ROAS de contrato no mês e o da safra; jan/26 usa a mídia de dez/25 (R$ 126.200). A view `ops.v_roas_midia_inside_sales` passa a começar em dez/25 (migration `20261029160000`). A aba Vendas e ROAS ainda usa a mídia do mesmo mês: a decidir pelo dono se a regra vale para ela.
 
+
+## [2026-10-29] Planning People: avaliação de desempenho (AVD) e AVE sem graus
+
+Decidido pelo RH da Expansão com o RH de Maceió em 29/10/2026 (migration `20261029100000_gente_avd_modelos`).
+- AVE (experiência 45 e 90 dias) não tem graus: sai sempre autoavaliação e avaliação do gestor. A tela não oferece mais 90°/180°/360°, e o banco recusa par na AVE.
+- AVD com os dois formulários do documento "Avaliação de desempenho 2/2024", transcritos sem edição: Colaboradores e especialistas (Foco no cliente, Missão dada é missão cumprida, Visão de dono, Atuação pelo exemplo) e Liderança (Visão de dono, Atuação pelo exemplo, Comprometimento e tempestividade, Foco no cliente, Gestão de pessoas, Missão dada é missão cumprida). Escala Abaixo, Atende e Supera o esperado (1 a 3). Performance conta como desempenho e Cultura como potencial no nine box. O RH vai montar uma versão mais nova do documento depois.
+- Ciclo por unidade, formulário e semestre (`modelo` = `avd_colab:2/2026`), criado do molde por `ops.gente_avd_ciclo()`. Quem lidera alguém no cadastro recebe o formulário de Liderança por padrão; o RH troca antes de enviar.
+- Graus da AVD: 180° (auto e gestor), em lote; 360° (mais pares e liderados), uma pessoa por vez e só na unidade que a Matriz liberou (`ops.gente_avd_liberacao_360`; só quem conduz avaliação sem recorte de unidade libera). O banco recusa par e liderado sem a liberação.
+- Comentário obrigatório em todas as respostas da AVE e da AVD (`gente_ciclos.comentario_obrigatorio`); o banco recusa concluir sem, e a tela diz quantos faltam.
