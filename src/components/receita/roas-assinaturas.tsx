@@ -44,8 +44,9 @@ import { carregarRoasAssinaturas, type VendaAssinatura } from "@/lib/roas-assina
 // Aba "ROAS e assinaturas" do BI Financeiro. Contrato: docs/design/contratos/bi-financeiro.md §7.
 // A pergunta é se a mídia do Inside Sales vira contrato assinado, e quando. Diferente da aba
 // Vendas e ROAS, que mede o MRR vendido (deal ganho), aqui só conta o que tem data de assinatura.
-//   ROAS de contrato no mês  = MRR das vendas do mês assinado até o fim do mês da venda ÷ mídia do mês.
-//   ROAS de contrato da safra = MRR das vendas do mês assinado até hoje, em qualquer mês ÷ mídia do mês.
+//   ROAS de contrato no mês  = MRR das vendas do mês assinado até o fim do mês da venda ÷ mídia do mês anterior.
+//   ROAS de contrato da safra = MRR das vendas do mês assinado até hoje, em qualquer mês ÷ mídia do mês anterior.
+// A mídia de um mês gera as vendas do mês seguinte (regra do dono, 29/10/2026).
 
 const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const rot = (m: string) => `${MES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
@@ -56,6 +57,12 @@ const roas = (v: number | null) =>
 const data = (d: string | null) =>
   d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "—";
 const nMes = (m: string) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7));
+/** `YYYY-MM` do mês anterior: é a mídia dele que entra no ROAS do mês. */
+const mesAnterior = (m: string) => {
+  const a = Number(m.slice(0, 4));
+  const mm = Number(m.slice(5, 7));
+  return mm === 1 ? `${a - 1}-12` : `${a}-${String(mm - 1).padStart(2, "0")}`;
+};
 const ROAS_REFERENCIA = 0.8;
 const tomRoas = (v: number | null) =>
   v === null ? undefined : v >= ROAS_REFERENCIA ? "sucesso" : "perigo";
@@ -127,9 +134,7 @@ export function RoasAssinaturas({
 
   const meses = useMemo(() => {
     if (!q.data) return [];
-    const todos = [
-      ...new Set([...q.data.vendas.map((v) => v.ganho.slice(0, 7)), ...Object.keys(q.data.midia)]),
-    ].sort();
+    const todos = [...new Set(q.data.vendas.map((v) => v.ganho.slice(0, 7)))].sort();
     return todos.filter((m) => m >= de && (ateEhUltimo || m <= ate));
   }, [q.data, de, ate, ateEhUltimo]);
 
@@ -153,7 +158,7 @@ export function RoasAssinaturas({
       const vend = g.reduce((s, v) => s + v.mrr, 0);
       const saf = FAIXAS.reduce((s, k) => s + b[k].mrr, 0);
       const na = FAIXAS.reduce((s, k) => s + b[k].n, 0);
-      const midia = q.data.midia[m] ?? 0;
+      const midia = q.data.midia[mesAnterior(m)] ?? 0;
       return { m, g, b, vend, saf, na, fato: b.M0.mrr, midia };
     });
   }, [q.data, meses]);
@@ -263,9 +268,10 @@ export function RoasAssinaturas({
           <>
             Vendas do pipeline Inside Sales (Pipedrive), rede toda, e a data de assinatura do
             contrato (Pipefy Central de Contratos). <b>ROAS de contrato no mês</b>: MRR das vendas
-            do mês assinado até o fim do mês da venda ÷ mídia do mês.{" "}
+            do mês assinado até o fim do mês da venda ÷ mídia do mês anterior.{" "}
             <b>ROAS de contrato da safra</b>: MRR das vendas do mês assinado até hoje, em qualquer
-            mês ÷ mídia do mês. Referência: {roas(ROAS_REFERENCIA)}.
+            mês ÷ mídia do mês anterior. A mídia de um mês gera as vendas do mês seguinte.
+            Referência: {roas(ROAS_REFERENCIA)}.
           </>
         }
       >
@@ -275,9 +281,9 @@ export function RoasAssinaturas({
         />
         <KpiGrade colunas={3}>
           <KpiCard
-            rotulo="Mídia do Inside Sales"
+            rotulo="Mídia do mês anterior"
             valor={brlOuTraco(tot.midia)}
-            nota={`${linhas.length} meses`}
+            nota={`Inside Sales, ${rot(mesAnterior(linhas[0].m))} a ${rot(mesAnterior(linhas[linhas.length - 1].m))}`}
           />
           <KpiCard
             rotulo="ROAS de contrato no mês"
@@ -349,7 +355,7 @@ export function RoasAssinaturas({
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b">
                 <th className="py-2 text-left font-medium">Mês da venda</th>
-                <th className="py-2 text-right font-medium">Mídia</th>
+                <th className="py-2 text-right font-medium">Mídia do mês anterior</th>
                 <th className="py-2 text-right font-medium">Vendas</th>
                 <th className="py-2 text-right font-medium">MRR vendido</th>
                 {FAIXAS.map((k) => (

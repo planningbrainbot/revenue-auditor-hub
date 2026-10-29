@@ -98,9 +98,9 @@ Pedido de 29/10/2026: levar para o BI Financeiro o artifact "ROAS e Assinaturas 
 ### Números
 | Número (rótulo exato) | Definição | Unidade | Fonte e régua | Frescor | Drill-down | O destino bate? |
 |---|---|---|---|---|---|---|
-| Mídia do Inside Sales | investimento da finalidade `inside_sales` no mês | R$ | `ops.v_roas_midia_inside_sales` (`growth.investimento_finalidade_dia`) | ao vivo | aba Vendas e ROAS | sim (mesma régua) |
-| ROAS de contrato no mês | MRR das vendas do mês com assinatura até o fim do mês da venda ÷ mídia do mês (assinatura registrada antes do ganho conta como no mês) | razão | `ops.v_roas_assinaturas` | ao vivo | clientes do mês, situação "Assinado no mês da venda" | sim |
-| ROAS de contrato da safra | MRR das vendas do mês com assinatura em qualquer data ÷ mídia do mês | razão | idem | ao vivo | clientes do mês | sim |
+| Mídia do mês anterior | investimento da finalidade `inside_sales` no mês anterior ao da venda (regra de 29/10/2026: a mídia de um mês gera as vendas do mês seguinte) | R$ | `ops.v_roas_midia_inside_sales` (`growth.investimento_finalidade_dia`) | ao vivo | aba Vendas e ROAS | sim (mesma régua) |
+| ROAS de contrato no mês | MRR das vendas do mês com assinatura até o fim do mês da venda ÷ mídia do mês anterior (assinatura registrada antes do ganho conta como no mês) | razão | `ops.v_roas_assinaturas` | ao vivo | clientes do mês, situação "Assinado no mês da venda" | sim |
+| ROAS de contrato da safra | MRR das vendas do mês com assinatura em qualquer data ÷ mídia do mês anterior | razão | idem | ao vivo | clientes do mês | sim |
 | M0, M1, M2, M3+ | MRR (ou %, ou contratos) das vendas do mês assinado no mês da venda, 1, 2, 3 ou mais meses depois | R$ / % / contratos | idem | ao vivo | clientes do mês | sim |
 | Sem assinatura | MRR vendido − assinado até hoje | R$ | idem | ao vivo | situação "Sem assinatura" | sim |
 

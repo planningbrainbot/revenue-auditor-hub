@@ -6999,3 +6999,9 @@ min passa de 1 GB). Tela `/comites` no menu Administração. PRD
 
 **Régua:** assinatura = Pipefy → stage 170 → Funil de CAC; nunca a Data da Venda. No mês = assinado até o fim do mês da venda (assinatura antes do ganho conta como no mês, o mesmo critério do M0). Referência visual 0,8. Contrato: `docs/design/contratos/bi-financeiro.md` §7.
 
+## [2026-10-29] ROAS e assinaturas: a mídia que entra é a do mês anterior
+
+**Contexto:** a aba publicada mais cedo no mesmo dia dividia o MRR assinado das vendas do mês pela mídia do próprio mês.
+
+**Decisão (do dono, 29/10/2026):** o ROAS do mês usa a mídia do mês **anterior**: a mídia de um mês gera as vendas do mês seguinte. Vale para o ROAS de contrato no mês e o da safra; jan/26 usa a mídia de dez/25 (R$ 126.200). A view `ops.v_roas_midia_inside_sales` passa a começar em dez/25 (migration `20261029160000`). A aba Vendas e ROAS ainda usa a mídia do mesmo mês: a decidir pelo dono se a regra vale para ela.
+
