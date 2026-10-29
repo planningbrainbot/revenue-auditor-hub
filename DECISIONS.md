@@ -7017,3 +7017,10 @@ Decidido pelo RH da Expansão com o RH de Maceió em 29/10/2026 (migration `2026
 ## [2026-10-29] Planning People: botão de salvar diz o que falta
 
 Pedido do RH de Maceió (29/10/2026): o Cadastrar de um terceiro ficava apagado sem dizer por quê (faltavam a data de início e o fim da vigência). Cadastrar e Salvar usam o `BotaoComMotivo` (motivo no tooltip) e mostram o motivo também numa linha ao lado do botão, para quem não passa o mouse.
+
+## [2026-10-29] ROAS e assinaturas ganha a memória de cálculo em PDF
+
+**Contexto:** o dono precisa anexar uma memória de cálculo para justificar o pagamento de comissão sobre ROAS.
+
+**Decisão:** botão na própria aba, gerando o PDF no navegador com o período do filtro e os mesmos números da tela (sem nova consulta, para o PDF nunca divergir do que se vê). Conteúdo: regras, resumo por mês e todas as vendas, cliente a cliente, com a fonte da data de assinatura e se conta no mês e na safra. O logo e as cores dos PDFs saíram de `royalties-demonstrativo.ts` para `src/lib/pdf-marca.ts`, para o PDF do ROAS não carregar a biblioteca de planilha.
+

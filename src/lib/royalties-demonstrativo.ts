@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { addPlanningLogo, BRAND_DARK, BRAND_GREEN } from "@/lib/pdf-marca";
 // xlsx-js-style (não o pacote "xlsx" comum): fork da SheetJS Community Edition
 // com suporte a estilo de célula (cor, negrito, borda), que a "xlsx" não tem.
 import * as XLSX from "xlsx-js-style";
@@ -30,26 +31,6 @@ const BRL = (n: number | null | undefined) =>
 function formatMesLabel(mes: string) {
   const [y, m] = mes.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-}
-
-const BRAND_GREEN: [number, number, number] = [16, 185, 129];
-const BRAND_DARK: [number, number, number] = [31, 41, 55];
-const LOGO_ASPECT_RATIO = 1163.3 / 239.6;
-
-async function addPlanningLogo(doc: jsPDF, pageWidth: number) {
-  try {
-    const res = await fetch("/brand/planning-logo-dark.png");
-    if (!res.ok) return;
-    const buf = await res.arrayBuffer();
-    let binary = "";
-    for (const byte of new Uint8Array(buf)) binary += String.fromCharCode(byte);
-    const dataUrl = `data:image/png;base64,${btoa(binary)}`;
-    const w = 100;
-    const h = w / LOGO_ASPECT_RATIO;
-    doc.addImage(dataUrl, "PNG", pageWidth - 40 - w, 26, w, h);
-  } catch {
-    // logo é decorativo — segue gerando o PDF sem ele
-  }
 }
 
 export interface DemonstrativoItem {

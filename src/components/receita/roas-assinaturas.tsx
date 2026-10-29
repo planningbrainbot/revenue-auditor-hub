@@ -1,4 +1,6 @@
-import { useMemo, useRef, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Download } from "lucide-react";
+import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -131,6 +133,7 @@ export function RoasAssinaturas({
   const [mesSel, setMesSel] = useFiltroNaUrl("mes", "");
   const [sit, setSit] = useFiltroNaUrl("situacao", "todos");
   const clientesRef = useRef<HTMLDivElement>(null);
+  const [gerando, setGerando] = useState(false);
 
   const meses = useMemo(() => {
     if (!q.data) return [];
@@ -260,6 +263,34 @@ export function RoasAssinaturas({
     );
   };
 
+  const periodoRot =
+    linhas.length === 1
+      ? rot(linhas[0].m)
+      : `${rot(linhas[0].m)} a ${rot(linhas[linhas.length - 1].m)}`;
+  // memória de cálculo para justificar comissão sobre ROAS: o mesmo período e os mesmos números da tela
+  const baixarMemoria = async () => {
+    setGerando(true);
+    try {
+      const { gerarMemoriaRoasPdf } = await import("@/lib/roas-memoria-pdf");
+      await gerarMemoriaRoasPdf({
+        lidoEm: q.data.lidoEm,
+        meses: linhas.map((x) => ({
+          m: x.m,
+          mesMidia: mesAnterior(x.m),
+          midia: x.midia,
+          vendas: x.g,
+          vend: x.vend,
+          fato: x.fato,
+          saf: x.saf,
+        })),
+      });
+    } catch (e) {
+      toast.error(`Não consegui gerar o PDF: ${(e as Error).message}`);
+    } finally {
+      setGerando(false);
+    }
+  };
+
   return (
     <>
       <Bloco
@@ -275,10 +306,22 @@ export function RoasAssinaturas({
           </>
         }
       >
-        <Procedencia
-          fonte="Pipedrive (deals ganhos), Pipefy Central de Contratos (data de assinatura) e mídia do Inside Sales, ao vivo"
-          atualizadoEm={q.data.lidoEm}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Procedencia
+            fonte="Pipedrive (deals ganhos), Pipefy Central de Contratos (data de assinatura) e mídia do Inside Sales, ao vivo"
+            atualizadoEm={q.data.lidoEm}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={gerando}
+            onClick={baixarMemoria}
+            title="PDF com as regras, o resumo por mês e todas as vendas do período do filtro, para anexar à justificativa da comissão"
+          >
+            <Download className="size-4" aria-hidden />
+            {gerando ? "Gerando PDF..." : `Memória de cálculo (PDF), ${periodoRot}`}
+          </Button>
+        </div>
         <KpiGrade colunas={3}>
           <KpiCard
             rotulo="Mídia do mês anterior"

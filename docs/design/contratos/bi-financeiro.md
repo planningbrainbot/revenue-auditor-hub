@@ -120,7 +120,10 @@ Carregando (`Carregando variante="pagina"`); sem vendas no período (`EstadoVazi
 `de`/`ate` (os do BI; quando `ate` é o último mês do retrato, os meses mais novos da view também entram), `ver` (mrr, pct, n; padrão mrr), `mes` (AAAA-MM; padrão o último do período), `situacao` (todos, fato, depois, sem).
 
 ### Permissões e dados
-Área `bi_financeiro`, conferida na server fn `carregarRoasAssinaturas`. As views `ops.v_roas_assinaturas` e `ops.v_roas_midia_inside_sales` (migration `20261029120000_roas_assinaturas.sql`) são só do `service_role`. Sem ações: a tela só lê.
+Área `bi_financeiro`, conferida na server fn `carregarRoasAssinaturas`. As views `ops.v_roas_assinaturas` e `ops.v_roas_midia_inside_sales` (migration `20261029120000_roas_assinaturas.sql`) são só do `service_role`. A tela só lê.
+
+### Ação: memória de cálculo em PDF (29/10/2026)
+Botão "Memória de cálculo (PDF)" ao lado da procedência, para anexar à justificativa de pagamento de comissão sobre ROAS. Gera no navegador (jsPDF, `src/lib/roas-memoria-pdf.ts`), com o período do filtro `de`/`ate` e os mesmos números da tela, sem nova consulta: regras do cálculo, cartões do período, resumo por mês da venda (mídia de qual mês, vendas, MRR vendido, assinado no mês, ROAS no mês, assinado até a leitura, ROAS da safra, sem assinatura) e uma página por mês com todas as vendas (cliente, unidade, closer, SDR, deal, ganho, assinatura, fonte da data, MRR, conta no mês, conta na safra) e o subtotal. Rodapé com período, horário da leitura e página. Quem tem a área vê o botão; erro vira toast.
 
 ### O que NÃO entra
 - O "cenário planilha" do artifact (clientes que a planilha de acompanhamento diz assinados e o Pipefy não tem data): é premissa à mão; o caminho é preencher a data no card do Pipefy, e o cliente passa a contar sozinho.
