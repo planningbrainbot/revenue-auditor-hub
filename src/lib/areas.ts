@@ -32,6 +32,7 @@ import {
   Store,
   Target,
   TrendingUp,
+  FileSignature,
   UserCheck,
   UserCog,
   Users,
@@ -482,6 +483,8 @@ export const AREAS: Area[] = [
           { title: "Funil de CAC", url: "/bi-financeiro?aba=funil-cac", icon: Target },
           // Aba Vendas e ROAS (19/10/2026): vendas da rede toda, ROAS fato × safra e agenda do CAC.
           { title: "Vendas e ROAS", url: "/bi-financeiro?aba=vendas", icon: TrendingUp },
+          // ROAS e assinaturas (29/10/2026): MRR assinado no mês e na safra sobre a mídia do Inside Sales.
+          { title: "ROAS e assinaturas", url: "/bi-financeiro?aba=assinaturas", icon: FileSignature },
           { title: "Eficiência", url: "/bi-financeiro?aba=eficiencia", icon: Percent },
         ],
       },

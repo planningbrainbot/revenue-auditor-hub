@@ -40,6 +40,7 @@ import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
 import { MolduraReceita, brlOuTraco } from "@/components/receita/moldura";
 import { VendasRoas } from "@/components/receita/vendas-roas";
+import { RoasAssinaturas } from "@/components/receita/roas-assinaturas";
 import { FunilCacContent } from "@/components/cac/funil-cac-content";
 import {
   carregarDreCaixa,
@@ -93,6 +94,7 @@ const ASSUNTOS: Record<string, { titulo: string; pergunta: string }> = {
   "midia-cac": { titulo: "Mídia × CAC", pergunta: "A mídia própria volta como CAC?" },
   "funil-cac": { titulo: "Funil de CAC", pergunta: "Onde a venda deixa de virar cobrança e caixa?" },
   vendas: { titulo: "Vendas e ROAS", pergunta: "Quanto a rede vendeu, a mídia se paga e quando o CAC entra no caixa?" },
+  assinaturas: { titulo: "ROAS e assinaturas", pergunta: "A mídia do Inside Sales vira contrato assinado, e quando?" },
   eficiencia: { titulo: "Eficiência", pergunta: "Quanto custa vender um cliente, e quanto ele devolve?" },
   conferencias: { titulo: "Conferências", pergunta: "O que falta para fechar o mês?" },
 };
@@ -248,6 +250,9 @@ function Bi({ D, aba }: { D: DreCaixa; aba: string }) {
       {aba === "midia" && <Midia D={D} idx={idx} />}
       {aba === "midia-cac" && <MidiaCac D={D} idx={idx} />}
       {aba === "vendas" && <VendasRoas D={D} idx={idx} />}
+      {aba === "assinaturas" && (
+        <RoasAssinaturas de={de} ate={ate} ateEhUltimo={ate === meses[meses.length - 1]} />
+      )}
       {aba === "eficiencia" && <Eficiencia D={D} idx={idx} />}
       {aba === "conferencias" && <Conferencias D={D} idx={idx} />}
     </>

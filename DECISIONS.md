@@ -6990,3 +6990,12 @@ insere para comitê com pesquisa aberta (`ops.comite_pesquisa_aberta`); ler exig
 bucket privado `comites` (até 50 MB); gravação só como link (uma reunião de 50
 min passa de 1 GB). Tela `/comites` no menu Administração. PRD
 `wiki/prds/2026-10-ops-comites-da-rede.md`.
+
+## [2026-10-29] BI Financeiro ganha a aba "ROAS e assinaturas", ao vivo e com nomes próprios
+
+**Contexto:** o dono pediu para o artifact "ROAS e Assinaturas 2026" (ROAS pelo MRR assinado, por safra, validado de 26 a 29/10) virar página do BI Financeiro. A aba Vendas e ROAS já usa "ROAS fato" para o MRR **vendido** no mês ÷ mídia; o artifact usava o mesmo nome para o MRR **assinado**.
+
+**Decisão (do dono, 29/10/2026):** (1) aba nova `/bi-financeiro?aba=assinaturas`, no grupo Aquisição, sem mexer no ROAS da aba Vendas e ROAS; os rótulos passam a ser "ROAS de contrato no mês" e "ROAS de contrato da safra". (2) Leitura ao vivo de duas views só do service_role (`ops.v_roas_assinaturas`, `ops.v_roas_midia_inside_sales`), não do retrato `ops.dre_caixa`. (3) O "cenário planilha" (clientes que a planilha de acompanhamento diz assinados sem data no Pipefy) não entra: a correção é preencher a data no card.
+
+**Régua:** assinatura = Pipefy → stage 170 → Funil de CAC; nunca a Data da Venda. No mês = assinado até o fim do mês da venda (assinatura antes do ganho conta como no mês, o mesmo critério do M0). Referência visual 0,8. Contrato: `docs/design/contratos/bi-financeiro.md` §7.
+

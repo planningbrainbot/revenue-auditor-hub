@@ -83,6 +83,51 @@ Nada de tabela linha a linha nem abas nesta tela (ARQUETIPOS, Visão geral).
 - Número de cabeça: meses de caixa sem o investidor. Premissas usadas (aporte por mês, caixa de hoje) aparecem escritas ao lado, com a data em que foram lidas.
 - Embaixo, a projeção de caixa do CAC contrato a contrato (CAC Agenda): quanto de CAC deve entrar em cada mês e quanto está atrasado. Sem nomes de cliente na primeira dobra; a lista fica na gaveta.
 
+## 7. ROAS e assinaturas (`?aba=assinaturas`)
+
+Pedido de 29/10/2026: levar para o BI Financeiro o artifact "ROAS e Assinaturas 2026" (validado com o dono em 26 a 29/10, planilha `tools/output/2026-10-26-comissoes-historico-roas-2026.xlsx`). Decisões do dono no mesmo dia: aba nova (não substitui o ROAS da aba Vendas e ROAS), leitura ao vivo do banco, sem o "cenário planilha".
+
+### Propósito
+- **Pergunta (`<h1>`):** "A mídia do Inside Sales vira contrato assinado, e quando?"
+- **Público:** quem tem a área BI Financeiro (CEO, Financeiro da Partners, gestão comercial).
+- **Decisão que provoca:** cobrar a assinatura dos contratos parados (o card no Pipefy mostra a fase) e ler o ROAS pelo que virou contrato, não só pelo deal ganho.
+- **Métrica de sucesso:** o ROAS de contrato que o comercial e o Financeiro citam é o desta aba, sem planilha à parte.
+- **Arquétipo:** Lista/Relatório.
+- **Universo:** vendas do pipeline Inside Sales (Pipedrive), rede toda, desde jan/26 · mês do ganho · MRR efetivo do deal.
+
+### Números
+| Número (rótulo exato) | Definição | Unidade | Fonte e régua | Frescor | Drill-down | O destino bate? |
+|---|---|---|---|---|---|---|
+| Mídia do Inside Sales | investimento da finalidade `inside_sales` no mês | R$ | `ops.v_roas_midia_inside_sales` (`growth.investimento_finalidade_dia`) | ao vivo | aba Vendas e ROAS | sim (mesma régua) |
+| ROAS de contrato no mês | MRR das vendas do mês com assinatura até o fim do mês da venda ÷ mídia do mês (assinatura registrada antes do ganho conta como no mês) | razão | `ops.v_roas_assinaturas` | ao vivo | clientes do mês, situação "Assinado no mês da venda" | sim |
+| ROAS de contrato da safra | MRR das vendas do mês com assinatura em qualquer data ÷ mídia do mês | razão | idem | ao vivo | clientes do mês | sim |
+| M0, M1, M2, M3+ | MRR (ou %, ou contratos) das vendas do mês assinado no mês da venda, 1, 2, 3 ou mais meses depois | R$ / % / contratos | idem | ao vivo | clientes do mês | sim |
+| Sem assinatura | MRR vendido − assinado até hoje | R$ | idem | ao vivo | situação "Sem assinatura" | sim |
+
+Data de assinatura, nesta ordem: Pipefy Central de Contratos (`contratos_documentos.data_assinatura`) → stage 170 do Pipedrive (`contratos.entrada_contrato_assinado_em`) → Funil de CAC. Nunca a "Data da Venda" (21/09/2026). "(cópia)" ganha no mesmo dia que o original sai (é o mesmo cliente). Referência no gráfico: ROAS 0,8 (a do artifact validado).
+
+**Nomes diferentes de propósito:** a aba Vendas e ROAS chama de "ROAS fato" o MRR **vendido** no mês ÷ mídia. Aqui o numerador é o MRR **assinado**, por isso os rótulos são "ROAS de contrato no mês" e "ROAS de contrato da safra" (N11).
+
+### Anatomia
+1. "A mídia vira contrato assinado?": procedência ao vivo, 3 `KpiCard` (mídia, ROAS de contrato no mês, ROAS de contrato da safra; verde a partir de 0,8), barras por mês com a linha de 0,8.
+2. "Quando cada safra assinou": tabela única por mês da venda (mídia, vendas, MRR vendido, M0 a M3+, assinado até hoje, % assinado, sem assinatura, os dois ROAS) com linha de total e o seletor MRR / % do MRR vendido / Contratos. O mês leva aos clientes.
+3. "Clientes de <mês>": seletor de mês e de situação (Todos, Assinado no mês da venda, Assinado depois, Sem assinatura, com contagem); cliente (abre o deal no Pipedrive), unidade, closer, MRR, ganho, assinatura, dias, situação, fase do contrato (abre o card no Pipefy).
+
+### Estados
+Carregando (`Carregando variante="pagina"`); sem vendas no período (`EstadoVazio` "escolha outro período"); nenhum cliente na situação (`EstadoVazio`); erro de leitura (`EstadoErro` com tentar de novo); sem área (o mesmo `SemAcessoArea` da rota).
+
+### Filtros na URL
+`de`/`ate` (os do BI; quando `ate` é o último mês do retrato, os meses mais novos da view também entram), `ver` (mrr, pct, n; padrão mrr), `mes` (AAAA-MM; padrão o último do período), `situacao` (todos, fato, depois, sem).
+
+### Permissões e dados
+Área `bi_financeiro`, conferida na server fn `carregarRoasAssinaturas`. As views `ops.v_roas_assinaturas` e `ops.v_roas_midia_inside_sales` (migration `20261029120000_roas_assinaturas.sql`) são só do `service_role`. Sem ações: a tela só lê.
+
+### O que NÃO entra
+- O "cenário planilha" do artifact (clientes que a planilha de acompanhamento diz assinados e o Pipefy não tem data): é premissa à mão; o caminho é preencher a data no card do Pipefy, e o cliente passa a contar sozinho.
+- As colunas de divergência com a planilha de acompanhamento (abas JULHO e AGOSTO): foto de um dia, não fonte viva.
+- Contratos com `origem_pipeline = inside_sales` cujo deal está em outro pipeline (ex.: deal 70606): ficam fora, como na planilha validada.
+- Venda de sócio (pipe Sócios): não é mídia do Inside Sales.
+
 ## 6. O que muda nas telas que já existem
 - `/financeiro-semanal`: só troca de área. Nenhum número muda.
 - `/dre-caixa`: perde a barra de abas (a lateral assume); Mídia vira parte de Mídia × CAC; DRE × Caixa ganha o bloco "deveria × recebeu × ficou para trás" por receita (royalties, CSC, CAC, reembolso de mídia) da aba Competência × Caixa. O título da página passa a seguir o item da lateral (N1).
@@ -101,7 +146,7 @@ Nada de tabela linha a linha nem abas nesta tela (ARQUETIPOS, Visão geral).
 ## Filtros na URL (N7)
 | Parâmetro | Valores | Padrão | Afeta |
 |---|---|---|---|
-| `aba` | executiva, forecast, geral, dre, aquisicao-retencao, variacao, folego, ponte, caixa, inadimplencia, midia, midia-cac, eficiencia, conferencias | executiva | `/bi-financeiro`, pela lateral |
+| `aba` | executiva, forecast, geral, dre, aquisicao-retencao, variacao, folego, ponte, caixa, inadimplencia, midia, midia-cac, eficiencia, conferencias, assinaturas | executiva | `/bi-financeiro`, pela lateral |
 | `mes` | AAAA-MM | último mês do forecast (o corrente) | Visão executiva |
 | `de`, `ate` | AAAA-MM | jan/26 até o último mês fechado | as demais visões |
 
