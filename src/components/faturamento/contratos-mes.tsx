@@ -62,6 +62,7 @@ import {
   dinheiro,
   documento,
   horaSP,
+  inteiro,
 } from "@/lib/faturamento/formato";
 import {
   diferenca,
@@ -414,7 +415,6 @@ export function ContratosDoMes({ busca }: { busca: BuscaContratos }) {
                 <TableHead className="num text-right">Diferença</TableHead>
                 <TableHead>O que mudou</TableHead>
                 <TableHead>Situação</TableHead>
-                <TableHead>Responder até</TableHead>
                 <TableHead>
                   <span className="sr-only">Ação</span>
                 </TableHead>
@@ -424,7 +424,7 @@ export function ContratosDoMes({ busca }: { busca: BuscaContratos }) {
               {grupos.flatMap((g) => [
                 <TableRow key={`g-${g.projeto}`} className="bg-muted/40 hover:bg-muted/40">
                   <TableCell
-                    colSpan={escolhida ? 11 : 12}
+                    colSpan={escolhida ? 10 : 11}
                     className="text-[13px] text-muted-foreground"
                   >
                     <span className="font-semibold uppercase tracking-wider">{g.projeto}</span>
@@ -573,9 +573,11 @@ function LinhaTabela({
             com {l.repassado_para.nome}
           </span>
         )}
-      </TableCell>
-      <TableCell className="num whitespace-nowrap text-[13px]">
-        {l.situacao === "precisa_resposta" ? textoPrazo(l.responder_ate) : ""}
+        {l.situacao === "precisa_resposta" && (
+          <span className="num mt-1 block whitespace-nowrap text-[13px] text-muted-foreground">
+            até {textoPrazo(l.responder_ate)}
+          </span>
+        )}
       </TableCell>
       <TableCell onClick={(e) => e.stopPropagation()}>
         {l.situacao === "precisa_resposta" && l.pode_responder && (
@@ -759,7 +761,7 @@ function Filtros({
           />
         )}
         <span className="num ml-auto text-[13px] text-muted-foreground">
-          {contagem(total, "contrato")} de {totalEmpresa}
+          {contagem(total, "contrato")} de {inteiro(totalEmpresa)}
         </span>
       </div>
     </div>

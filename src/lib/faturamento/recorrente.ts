@@ -338,12 +338,8 @@ export function temFiltroContratos(b: BuscaContratos): boolean {
   return !!(b.projeto || b.motivo || b.situacao || b.higiene || b.dia || b.busca);
 }
 
-const RESPONDIDOS: ReadonlySet<SituacaoContrato> = new Set([
-  "confirmado",
-  "ajustado",
-  "nao_fatura",
-  "encerrado",
-]);
+/** Respondido = o dono (ou quem recebeu o repasse) respondeu. Encerrado no Omie sem resposta não conta. */
+const respondido = (l: Pick<LinhaContrato, "resposta">) => l.resposta !== null;
 
 const normal = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -370,11 +366,7 @@ export function filtrarContratos(
     if (b.projeto && (l.projeto ?? "Sem projeto") !== b.projeto) return false;
     if (b.motivo && !l.motivos.includes(b.motivo)) return false;
     if (b.dia && l.dia_faturamento !== b.dia) return false;
-    if (
-      b.situacao === "respondidos"
-        ? !RESPONDIDOS.has(l.situacao)
-        : b.situacao && l.situacao !== b.situacao
-    )
+    if (b.situacao === "respondidos" ? !respondido(l) : b.situacao && l.situacao !== b.situacao)
       return false;
     if (b.higiene === "prazo" && !fechaLogo(l, agora)) return false;
     if (b.higiene === "vence" && !l.motivos.includes("vence")) return false;
@@ -391,7 +383,7 @@ const soma = (ls: LinhaContrato[], f: (l: LinhaContrato) => number | null) =>
 export function numerosDoMes(linhas: LinhaContrato[], agora: Date) {
   const precisa = linhas.filter((l) => l.situacao === "precisa_resposta");
   const sozinhos = linhas.filter((l) => l.situacao === "fatura_sozinho");
-  const respondidos = linhas.filter((l) => RESPONDIDOS.has(l.situacao));
+  const respondidos = linhas.filter(respondido);
   return {
     precisa_resposta: { quantidade: precisa.length, valor: soma(precisa, (l) => l.valor_contrato) },
     fatura_sozinho: { quantidade: sozinhos.length, valor: soma(sozinhos, (l) => l.valor_contrato) },

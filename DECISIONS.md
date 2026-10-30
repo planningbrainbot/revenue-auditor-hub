@@ -7054,4 +7054,13 @@ Pedido do RH de Maceió (29/10/2026): o Cadastrar de um terceiro ficava apagado 
 - "Ajustar o valor deste mês" tem a opção "vale também para os próximos meses". Com ela, a Lista do corte mostra à tesouraria a instrução de mudar o valor do contrato no Omie.
 - "Cliente saiu" vale para qualquer linha: não fatura e manda encerrar no Omie.
 
-**Status:** banco e conector no ar; telas no PR, sem deploy até o ok do Pedro.
+**Ajustes depois da primeira olhada na tela (29–30/10):**
+- Contrato de R$ 0 sem nota no mês anterior deixou de ser linha do mês (`20261029210000`). Eram 9 das 63 que pediam resposta em nov/2026; ficaram 54.
+- "Respondidos" conta só a linha que tem resposta. O encerrado no Omie sem resposta não conta.
+- A ficha do dia na Lista do corte conta pela mesma regra da lista (`20261029220000`): 811 viraram 790 em 13/11.
+- O selo "Contrato novo" vale só para a vigência que começa no mês anterior ou neste; o contrato antigo que não faturou no mês anterior aparece como "Sem nota em out" (`20261029200000`).
+- O conector tira as entidades HTML dos nomes do Omie ("&amp;").
+- O prazo entrou na coluna Situação, porque a coluna do botão ficava cortada.
+- Na Lista do corte, a linha que o dono ainda pode responder aparece como "Aguardando o dono" e fica fora de "Não faturar".
+
+**Status:** no ar em 29–30/10 (PR #138, deploy do Ops pela CLI com o ok do Pedro). Banco e conector também.

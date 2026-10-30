@@ -43,7 +43,14 @@ import {
 import { useCorte, useReler } from "@/hooks/use-faturamento";
 import { desembrulhar, tipoDoErro } from "@/lib/faturamento/erros";
 import { marcarCorteFeito } from "@/lib/faturamento/faturamento.functions";
-import { contagem, dataCompleta, diaMes, dinheiro, documento } from "@/lib/faturamento/formato";
+import {
+  contagem,
+  dataCompleta,
+  diaMes,
+  dinheiro,
+  documento,
+  inteiro,
+} from "@/lib/faturamento/formato";
 import {
   csvDoCorte,
   filtrarCorte,
@@ -353,7 +360,7 @@ export function ListaDoCorte({ busca }: { busca: BuscaCorte }) {
             />
           )}
           <span className="num ml-auto text-[13px] text-muted-foreground">
-            {contagem(filtradas.length, "contrato")} de {daEmpresa.length}
+            {contagem(filtradas.length, "contrato")} de {inteiro(daEmpresa.length)}
           </span>
         </div>
       </div>

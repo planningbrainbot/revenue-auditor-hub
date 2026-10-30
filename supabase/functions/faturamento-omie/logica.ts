@@ -149,6 +149,16 @@ const texto = (v: unknown) =>
     .replace(/\s+/g, " ")
     .trim();
 export const cortar = (v: unknown, n: number) => texto(v).slice(0, n);
+/** O Omie devolve nomes com entidades HTML ("GOMES &amp; MILHOMENS"): só as comuns, para o nome que vai à tela. */
+export const semEntidades = (v: unknown) =>
+  texto(v)
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+/** `cortar` depois de tirar as entidades HTML. */
+export const nomeDoOmie = (v: unknown, n: number) => semEntidades(v).slice(0, n);
 const num = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -1357,7 +1367,7 @@ export function itensDoContrato(c: any) {
     const total = Number(cab.valorTotal);
     const unit = Number(cab.valorUnit);
     return {
-      servico: cortar(i?.itemDescrServ?.descrCompleta, 200) || null,
+      servico: nomeDoOmie(i?.itemDescrServ?.descrCompleta, 200) || null,
       codigo_servico: num(cab.codServico) ? String(cab.codServico) : null,
       quantidade: Number.isFinite(Number(cab.quant)) ? Number(cab.quant) : null,
       valor_unitario: Number.isFinite(unit) ? centavos(unit) : null,
@@ -1493,7 +1503,7 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
       : []) {
       const d = documento(x?.cnpj_cpf);
       if (num(x?.codigo_cliente) && docValido(d)) doc.set(Number(x.codigo_cliente), d);
-      const n = cortar(x?.razao_social || x?.nome_fantasia, 200);
+      const n = nomeDoOmie(x?.razao_social || x?.nome_fantasia, 200);
       if (num(x?.codigo_cliente) && n) nome.set(Number(x.codigo_cliente), n);
     }
   }
@@ -1504,7 +1514,7 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
     });
     const d = documento(x?.cnpj_cpf);
     if (docValido(d)) doc.set(c, d);
-    const n = cortar(x?.razao_social || x?.nome_fantasia, 200);
+    const n = nomeDoOmie(x?.razao_social || x?.nome_fantasia, 200);
     if (n) nome.set(c, n);
   }
 
@@ -1522,7 +1532,7 @@ async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultad
       if (!r) break;
       totPag = Number(r.total_de_paginas ?? 1) || 1;
       for (const x of Array.isArray(r.cadastro) ? r.cadastro : []) {
-        const n = cortar(x?.nome, 200);
+        const n = nomeDoOmie(x?.nome, 200);
         if (num(x?.codigo) && n) projetos.set(Number(x.codigo), n);
       }
       pag++;

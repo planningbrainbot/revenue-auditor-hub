@@ -118,7 +118,21 @@ test("números do mês: precisam de resposta, faturam sozinhos, respondidos e hi
       valor_contrato: 1000,
       valor_faturar: 1000,
     }),
-    linha({ id: "3", situacao: "ajustado", valor_faturar: 18000 }),
+    linha({
+      id: "3",
+      situacao: "ajustado",
+      valor_faturar: 18000,
+      resposta: {
+        tipo: "ajustar",
+        valor: 18000,
+        permanente: false,
+        vigencia: null,
+        motivo: "x",
+        em: "2026-11-05T12:00:00Z",
+        por: null,
+      },
+    }),
+    linha({ id: "6", situacao: "encerrado", motivos: ["encerrado_omie"], valor_faturar: null }),
     linha({
       id: "4",
       situacao: "precisa_resposta",
@@ -135,8 +149,8 @@ test("números do mês: precisam de resposta, faturam sozinhos, respondidos e hi
   assert.deepEqual(n.higiene, { prazo: 1, vence: 0, sumiu: 1 });
   assert.equal(filtrarContratos(ls, { situacao: "respondidos" }, AGORA).length, 1);
   assert.equal(filtrarContratos(ls, { higiene: "sumiu" }, AGORA)[0].id, "4");
-  assert.equal(filtrarContratos(ls, { busca: "11.222.333" }, AGORA).length, 5, "CNPJ com máscara");
-  assert.equal(filtrarContratos(ls, { busca: "cliente a" }, AGORA).length, 5, "sem acento e caixa");
+  assert.equal(filtrarContratos(ls, { busca: "11.222.333" }, AGORA).length, 6, "CNPJ com máscara");
+  assert.equal(filtrarContratos(ls, { busca: "cliente a" }, AGORA).length, 6, "sem acento e caixa");
 });
 
 test("grupos por projeto: pendente em cima, sem projeto no fim, automação à parte", () => {

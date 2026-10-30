@@ -9,6 +9,7 @@ import {
   criarOmie,
   inicioMesAnterior,
   LEITURAS,
+  nomeDoOmie,
   notaDoOmie,
   OPERACOES,
   periodoNotas,
@@ -62,6 +63,11 @@ test("contrato do Omie: dia de faturamento, tipo, vencimento, projeto, categoria
   ]);
   assert.equal(contratoDoOmie(contratoOmie({ cabecalho: { nDiaFat: 0 } })).dia_faturamento, null);
   assert.equal(contratoDoOmie(contratoOmie({ infAdic: { nCodProj: 0 } })).codigo_projeto, null);
+});
+
+test("nome do Omie sem entidade HTML", () => {
+  assert.equal(nomeDoOmie("GOMES &amp; MILHOMENS ADVOGADOS", 200), "GOMES & MILHOMENS ADVOGADOS");
+  assert.equal(nomeDoOmie("D&#39;AVILA &quot;ME&quot;", 200), 'D\'AVILA "ME"');
 });
 
 test("recentes: vigência final vazia ou a partir do 1º dia do mês anterior (virada de ano incluída)", () => {
