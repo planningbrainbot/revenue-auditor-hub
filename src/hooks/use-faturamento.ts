@@ -5,6 +5,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { desembrulhar, valeTentarDeNovo } from "@/lib/faturamento/erros";
 import {
   buscarClientesFaturamento,
+  carregarContratoDetalhe,
+  carregarContratosMes,
+  carregarCorte,
+  carregarPessoasContrato,
   carregarConfigFaturamento,
   carregarContextoFaturamento,
   carregarFilaTesouraria,
@@ -198,4 +202,60 @@ export function usePreviaParcelas(
 export function useReler() {
   const qc = useQueryClient();
   return useCallback(() => qc.invalidateQueries({ queryKey: CHAVE_FATURAMENTO }), [qc]);
+}
+
+// ------------------------------------------------------------------ recorrente (E2, 29/10/2026)
+
+/** `ops.fat_contratos_mes`. `competencia` nula = o mês aberto mais próximo. */
+export function useContratosMes(competencia: string | null, habilitado = true) {
+  const { user } = useAuth();
+  const fn = useServerFn(carregarContratosMes);
+  return useQuery({
+    queryKey: [...CHAVE_FATURAMENTO, "contratos-mes", user?.id, competencia],
+    enabled: habilitado && !!user?.id,
+    queryFn: async () => desembrulhar(await fn({ data: { competencia } })),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: valeTentarDeNovo,
+  });
+}
+
+/** `ops.fat_contrato_detalhe`: o `Sheet` do contrato. */
+export function useContratoDetalhe(id: string | null | undefined, habilitado = true) {
+  const { user } = useAuth();
+  const fn = useServerFn(carregarContratoDetalhe);
+  return useQuery({
+    queryKey: [...CHAVE_FATURAMENTO, "contrato", user?.id, id],
+    enabled: habilitado && !!user?.id && !!id,
+    queryFn: async () => desembrulhar(await fn({ data: { id: id as string } })),
+    staleTime: 15_000,
+    retry: valeTentarDeNovo,
+  });
+}
+
+/** `ops.fat_contrato_pessoas`: quem pode receber o repasse. */
+export function usePessoasContrato(emissora: string | null | undefined, habilitado = true) {
+  const { user } = useAuth();
+  const fn = useServerFn(carregarPessoasContrato);
+  return useQuery({
+    queryKey: [...CHAVE_FATURAMENTO, "pessoas-contrato", user?.id, emissora],
+    enabled: habilitado && !!user?.id && !!emissora,
+    queryFn: async () => desembrulhar(await fn({ data: { emissora: emissora as string } })),
+    staleTime: 5 * 60_000,
+    retry: valeTentarDeNovo,
+  });
+}
+
+/** `ops.fat_corte`. `dia` nulo = o próximo corte. */
+export function useCorte(dia: string | null, habilitado = true) {
+  const { user } = useAuth();
+  const fn = useServerFn(carregarCorte);
+  return useQuery({
+    queryKey: [...CHAVE_FATURAMENTO, "corte", user?.id, dia],
+    enabled: habilitado && !!user?.id,
+    queryFn: async () => desembrulhar(await fn({ data: { dia } })),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: valeTentarDeNovo,
+  });
 }

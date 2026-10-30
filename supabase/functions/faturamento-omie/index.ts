@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- JSON do PostgREST chega sem tipo. */
 // faturamento-omie: o conector do Omie e do Pipefy do Portal de Faturamento (T2 e T3 da E1, 20/10/2026).
-// 1. Fila integracoes.omie_envios: garantir cliente, incluir/alterar OS, faturar, ler status e sincronizar o catálogo
-//    (lógica em logica.ts, testes em tests/faturamento-omie.test.mjs).
+// 1. Fila integracoes.omie_envios: garantir cliente, incluir/alterar OS, faturar, ler status e sincronizar o catálogo,
+//    os contratos e as notas de contrato do recorrente (lógica em logica.ts, testes em tests/faturamento-omie.test.mjs).
 // 2. Depois, na mesma rodada, a fila integracoes.pipefy_envios: criar o card no pipe 307098392 e movê-lo a cada
 //    situação (lógica em pipefy.ts, testes em tests/faturamento-pipefy.test.mjs). Com pipefy_sync = false (todas hoje),
 //    as mutations ficam montadas e validadas, e nenhuma sai.
@@ -287,6 +287,8 @@ Deno.serve(async (req: Request) => {
       receitaCnpj: (cnpj) => rpc("receita_cnpj", { p_cnpj: cnpj }),
       contratosAplicar: (emissora, contratos) =>
         rpc("contratos_aplicar", { p_emissora: emissora, p_contratos: contratos }),
+      notasAplicar: (emissora, de, ate, notas) =>
+        rpc("notas_aplicar", { p_emissora: emissora, p_de: de, p_ate: ate, p_notas: notas }),
       servicosAplicar: (emissora, catalogo) =>
         rpc("servicos_aplicar", { p_emissora: emissora, p_catalogo: catalogo }),
       transporte,

@@ -34,6 +34,7 @@ import type {
   Tomador,
   TomadorConferido,
 } from "./tipos";
+import type { ContratosMes, DetalheContrato, LinhaContrato, ListaCorte } from "./recorrente";
 
 /**
  * O validador zod de cada server function, com a recusa traduzida: sem isto o navegador recebe o JSON cru do
@@ -692,5 +693,148 @@ export const configurarEmissoraFaturamento = createServerFn({ method: "POST" })
         p_fatura_por: data.faturaPor ?? null,
       },
       "A configuração da empresa",
+    ),
+  );
+
+// ------------------------------------------------------------------ recorrente (E2, 29/10/2026)
+// Contratos do mês e Lista do corte (contratos faturamento-contratos.md e faturamento-corte.md). Mesmas regras:
+// quem decide o acesso é a RPC; aqui só a forma da entrada.
+
+const competencia = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-01$/, "Competência no formato AAAA-MM-01.");
+
+/** `ops.fat_contratos_mes`. Sem competência: o mês aberto mais próximo. */
+export const carregarContratosMes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ competencia: competencia.nullable().optional() }).strict()))
+  .handler(({ context, data }) =>
+    chamar<ContratosMes>(
+      context.supabase,
+      "fat_contratos_mes",
+      { p_competencia: data.competencia ?? null, p_emissora: null },
+      "A leitura dos contratos do mês",
+    ),
+  );
+
+/** `ops.fat_contrato_detalhe`: itens, notas dos três meses anteriores e histórico. */
+export const carregarContratoDetalhe = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(soId))
+  .handler(({ context, data }) =>
+    chamar<DetalheContrato>(
+      context.supabase,
+      "fat_contrato_detalhe",
+      { p_id: data.id },
+      "A leitura do contrato",
+    ),
+  );
+
+/** `ops.fat_contrato_responder`: a resposta do dono, até o prazo da linha. */
+export const responderContrato = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    entrada(
+      z
+        .object({
+          id: uuid,
+          resposta: z.enum([
+            "confirmar",
+            "ajustar",
+            "nao_faturar",
+            "renovar",
+            "encerrar",
+            "faturar_mes",
+            "cliente_saiu",
+            "desfazer",
+          ]),
+          valor: z.number().positive().max(100_000_000).nullable().optional(),
+          motivo: motivo.nullable().optional(),
+          vigencia: dia.nullable().optional(),
+          permanente: z.boolean().optional(),
+        })
+        .strict(),
+    ),
+  )
+  .handler(({ context, data }) =>
+    chamar<LinhaContrato>(
+      context.supabase,
+      "fat_contrato_responder",
+      {
+        p_id: data.id,
+        p_resposta: data.resposta,
+        p_dados: {
+          valor: data.valor ?? null,
+          motivo: data.motivo ?? null,
+          vigencia: data.vigencia ?? null,
+          permanente: data.permanente ?? false,
+        },
+      },
+      "A resposta do contrato",
+    ),
+  );
+
+/** `ops.fat_contratos_confirmar`: Confirmar selecionados. */
+export const confirmarContratos = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ ids: z.array(uuid).min(1).max(500) }).strict()))
+  .handler(({ context, data }) =>
+    chamar<{ confirmados: number; recusados: { id: string; mensagem: string }[] }>(
+      context.supabase,
+      "fat_contratos_confirmar",
+      { p_ids: data.ids },
+      "A confirmação dos contratos",
+    ),
+  );
+
+/** `ops.fat_contrato_pessoas`: quem pode receber o repasse (já tem acesso ao Faturamento). */
+export const carregarPessoasContrato = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ emissora: uuid }).strict()))
+  .handler(({ context, data }) =>
+    chamar<{ id: string; nome: string; email: string }[]>(
+      context.supabase,
+      "fat_contrato_pessoas",
+      { p_emissora: data.emissora },
+      "A lista de pessoas",
+    ),
+  );
+
+/** `ops.fat_contrato_repassar`. `para` nulo devolve o contrato aos donos da empresa. */
+export const repassarContrato = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ id: uuid, para: uuid.nullable() }).strict()))
+  .handler(({ context, data }) =>
+    chamar<{ id: string; repassado_para: { id: string; nome: string | null } | null }>(
+      context.supabase,
+      "fat_contrato_repassar",
+      { p_id: data.id, p_para: data.para },
+      "O repasse do contrato",
+    ),
+  );
+
+/** `ops.fat_corte`. Sem dia: o próximo corte. */
+export const carregarCorte = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ dia: dia.nullable().optional() }).strict()))
+  .handler(({ context, data }) =>
+    chamar<ListaCorte>(
+      context.supabase,
+      "fat_corte",
+      { p_dia: data.dia ?? null, p_emissora: null },
+      "A leitura da lista do corte",
+    ),
+  );
+
+/** `ops.fat_corte_feito`: a tesouraria marca que aplicou no contrato do Omie o que o dono respondeu. */
+export const marcarCorteFeito = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(entrada(z.object({ id: uuid, feito: z.boolean() }).strict()))
+  .handler(({ context, data }) =>
+    chamar<LinhaContrato>(
+      context.supabase,
+      "fat_corte_feito",
+      { p_id: data.id, p_feito: data.feito },
+      "A marcação no Omie",
     ),
   );
